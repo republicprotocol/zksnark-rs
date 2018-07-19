@@ -1,0 +1,8 @@
+x y
+a b c d
+t1 t2 t3
+
+t1 ( x ) ( a )
+t2 ( x ) ( t1 b )
+t3 ( x ) ( t2 c )
+y ( 1 ) ( t3 d )

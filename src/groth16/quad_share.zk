@@ -1,0 +1,7 @@
+x y
+a b c
+t1 t2
+
+t1 ( x ) ( a )
+t2 ( x ) ( t1 b )
+y ( 1 ) ( t2 c )

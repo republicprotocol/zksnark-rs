@@ -1,0 +1,8 @@
+[package]
+name = "zksnark"
+version = "0.1.0"
+authors = ["ross"]
+
+[dependencies]
+itertools = "0.6.0"
+rand = "0.5.2"
