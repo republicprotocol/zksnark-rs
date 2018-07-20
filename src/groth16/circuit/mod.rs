@@ -1,6 +1,7 @@
 use super::super::field::*;
 
 pub mod dummy_rep;
+mod ast;
 
 pub trait RootRepresentation<T>
 where

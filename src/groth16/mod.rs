@@ -6,7 +6,6 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 mod circuit;
 mod dummy_poly;
-// mod interpolated_poly;
 
 pub trait Random {
     fn random_elem() -> Self;
@@ -619,7 +618,7 @@ fn qap_from_roots() {
 #[test]
 fn qap_from_file() {
     // Quadratic polynomial share
-    let code = &*::std::fs::read_to_string("src/groth16/quad_share.zk").unwrap();
+    let code = &*::std::fs::read_to_string("test_programs/quad_share.zk").unwrap();
     let qap = DummyRep::from(code).into();
 
     for _ in 0..1000 {
@@ -639,7 +638,7 @@ fn qap_from_file() {
     }
 
     // Cubic polynomial share
-    let code = &*::std::fs::read_to_string("src/groth16/cubic_share.zk").unwrap();
+    let code = &*::std::fs::read_to_string("test_programs/cubic_share.zk").unwrap();
     let qap = DummyRep::from(code).into();
 
     for _ in 0..1000 {
