@@ -2,6 +2,7 @@ extern crate itertools;
 
 use self::itertools::unfold;
 use std::ops::*;
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Z251 {
@@ -94,6 +95,14 @@ impl From<usize> for Z251 {
     fn from(n: usize) -> Self {
         assert!(n < 251);
         Z251 { inner: n as u8 }
+    }
+}
+
+impl FromStr for Z251 {
+    type Err = ::std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Z251::from(usize::from_str(s)?))
     }
 }
 
