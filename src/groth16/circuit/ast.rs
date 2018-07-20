@@ -1,8 +1,9 @@
-use std::str::FromStr;
 use super::super::super::field::Z251;
+use std::str::FromStr;
 
-struct TokenList {
-    tokens: Vec<Token<Z251>>,
+#[derive(Debug, PartialEq)]
+struct TokenList<T> {
+    tokens: Vec<Token<T>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,20 +30,28 @@ enum ParenCase {
     Close,
 }
 
-impl From<String> for TokenList {
+impl From<String> for TokenList<Z251> {
     fn from(code: String) -> Self {
         use self::TokenParseErr::*;
-        
+
         let mut current_line = 1;
         let mut tokens: Vec<Token<Z251>> = Vec::new();
-        
+
         for line in code.lines() {
             for substr in line.split_whitespace() {
                 match parse_token::<Z251>(substr) {
-                    Err(MissingKey) => panic!("Error on line {}: no key found after '('", current_line),
-                    Err(UnexpectedParen) => panic!("Error on line {}: unexpected parenthesis", current_line),
-                    Err(UnexpectedKey) => panic!("Error on line {}: unexpected keyword", current_line),
-                    Err(ParseLiteral) => panic!("Error on line {}: could not parse literal", current_line),
+                    Err(MissingKey) => {
+                        panic!("Error on line {}: no key found after '('", current_line)
+                    }
+                    Err(UnexpectedParen) => {
+                        panic!("Error on line {}: unexpected parenthesis", current_line)
+                    }
+                    Err(UnexpectedKey) => {
+                        panic!("Error on line {}: unexpected keyword", current_line)
+                    }
+                    Err(ParseLiteral) => {
+                        panic!("Error on line {}: could not parse literal", current_line)
+                    }
                     Ok(ref mut t) => tokens.append(t),
                 }
             }
@@ -103,35 +112,51 @@ where
                 return Err(UnexpectedKey);
             }
 
-            let paren_at_end = substr.ends_with(")");
-            if paren_at_end {
-                if tokens.len() != 0 {
-                    return Err(UnexpectedParen);
-                }
-
-                let (s, _) = substr.split_at(substr.len() - 1);
-                substr = s;
+            let (start, end) = split_at_char(substr, ')');
+            if tokens.len() != 0 && end.len() != 0 {
+                return Err(UnexpectedParen);
             }
 
             // It is safe to unwrap because substr.len() >= 1
-            let first = substr.chars().nth(0).unwrap();
+            let first = start.chars().nth(0).unwrap();
 
             if first.is_numeric() {
-                match substr.parse::<T>() {
+                match start.parse::<T>() {
                     Ok(n) => tokens.push(Literal(n)),
                     _ => return Err(ParseLiteral),
                 }
             } else {
-                tokens.push(Var(substr.to_owned()));
+                tokens.push(Var(start.to_owned()));
             }
 
-            if paren_at_end {
-                tokens.push(Parenthesis(Close));
+            for c in end.chars() {
+                if c != ')' {
+                    return Err(UnexpectedParen);
+                } else {
+                    tokens.push(Parenthesis(Close));
+                }
             }
         }
     }
 
     Ok(tokens)
+}
+
+fn split_at_char(s: &str, c: char) -> (&str, &str) {
+    let first = &s.chars().take_while(|&x| x != c).collect::<String>();
+    s.split_at(first.len())
+}
+
+#[test]
+fn split_at_char_test() {
+    let s = "variable";
+    assert_eq!(split_at_char(s, ')'), ("variable", ""));
+    let s = "variable)";
+    assert_eq!(split_at_char(s, ')'), ("variable", ")"));
+    let s = "variable))";
+    assert_eq!(split_at_char(s, ')'), ("variable", "))"));
+    let s = "variable)))";
+    assert_eq!(split_at_char(s, ')'), ("variable", ")))"));
 }
 
 #[test]
@@ -140,28 +165,61 @@ fn parse_token_test() {
     use self::ParenCase::*;
     use self::Token::*;
     use self::TokenParseErr::*;
-    
+
     // Valid substring examples
     let substr = "(in";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(In)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(In)])
+    );
     let substr = "(witness";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(Witness)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(Witness)])
+    );
     let substr = "(program";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(Program)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(Program)])
+    );
     let substr = "(=";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(Equal)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(Equal)])
+    );
     let substr = "(*";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(Mul)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(Mul)])
+    );
     let substr = "(+";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Parenthesis(Open), Keyword(Add)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Parenthesis(Open), Keyword(Add)])
+    );
     let substr = "x";
     assert_eq!(parse_token::<Z251>(substr), Ok(vec![Var("x".to_string())]));
     let substr = "y)";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Var("y".to_string()), Parenthesis(Close)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Var("y".to_string()), Parenthesis(Close)])
+    );
+    let substr = "y))";
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![
+            Var("y".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Close),
+        ])
+    );
     let substr = "9";
     assert_eq!(parse_token::<Z251>(substr), Ok(vec![Literal(9.into())]));
     let substr = "9)";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Literal(9.into()), Parenthesis(Close)]));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Ok(vec![Literal(9.into()), Parenthesis(Close)])
+    );
 
     // Invalid substring examples
     let substr = "(";
@@ -186,4 +244,80 @@ fn parse_token_test() {
     assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
     let substr = "9variable";
     assert_eq!(parse_token::<Z251>(substr), Err(ParseLiteral));
+}
+
+#[test]
+fn tokenlist_from_string() {
+    use self::Key::*;
+    use self::ParenCase::*;
+    use self::Token::*;
+
+    let code = "(in x y)
+                (witness a b c)
+
+                (program
+                    (= t1
+                        (* x a))
+                    (= t2
+                        (* x (+ t1 b)))
+                    (= y
+                        (* 1 (+ t2 c))))";
+
+    let expected = TokenList::<Z251> {
+        tokens: vec![
+            Parenthesis(Open),
+            Keyword(In),
+            Var("x".to_string()),
+            Var("y".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Open),
+            Keyword(Witness),
+            Var("a".to_string()),
+            Var("b".to_string()),
+            Var("c".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Open),
+            Keyword(Program),
+            Parenthesis(Open),
+            Keyword(Equal),
+            Var("t1".to_string()),
+            Parenthesis(Open),
+            Keyword(Mul),
+            Var("x".to_string()),
+            Var("a".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Close),
+            Parenthesis(Open),
+            Keyword(Equal),
+            Var("t2".to_string()),
+            Parenthesis(Open),
+            Keyword(Mul),
+            Var("x".to_string()),
+            Parenthesis(Open),
+            Keyword(Add),
+            Var("t1".to_string()),
+            Var("b".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Close),
+            Parenthesis(Close),
+            Parenthesis(Open),
+            Keyword(Equal),
+            Var("y".to_string()),
+            Parenthesis(Open),
+            Keyword(Mul),
+            Literal(1.into()),
+            Parenthesis(Open),
+            Keyword(Add),
+            Var("t2".to_string()),
+            Var("c".to_string()),
+            Parenthesis(Close),
+            Parenthesis(Close),
+            Parenthesis(Close),
+            Parenthesis(Close),
+        ],
+    };
+
+    let actual: TokenList<Z251> = code.to_string().into();
+
+    assert_eq!(expected, actual);
 }
