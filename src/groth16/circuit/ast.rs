@@ -1,5 +1,5 @@
-use super::TryParse;
 use super::super::super::field::Z251;
+use super::TryParse;
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
@@ -64,16 +64,19 @@ enum ParenCase {
 //     }
 // }
 
-fn try_to_list(code: String) -> Result<TokenList<Z251>, ParseErr> {
-    use self::TokenParseErr::*;
+fn try_to_list<T>(code: String) -> Result<TokenList<T>, ParseErr>
+where
+    T: FromStr,
+{
     use self::ParseErr::*;
+    use self::TokenParseErr::*;
 
     let mut current_line = 1;
-    let mut tokens: Vec<Token<Z251>> = Vec::new();
+    let mut tokens: Vec<Token<T>> = Vec::new();
 
     for line in code.lines() {
         for substr in line.split_whitespace() {
-            match parse_token::<Z251>(substr) {
+            match parse_token::<T>(substr) {
                 Err(MissingKey(e)) => {
                     return Err(LineErr(current_line, e));
                 }
@@ -261,29 +264,65 @@ fn parse_token_test() {
 
     // Invalid substring examples
     let substr = "(";
-    assert_eq!(parse_token::<Z251>(substr), Err(MissingKey("found whitespace after '('".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(MissingKey("found whitespace after '('".to_string()))
+    );
     let substr = "(vari(able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected '('".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedParen("unexpected '('".to_string()))
+    );
     let substr = "vari(able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected '('".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedParen("unexpected '('".to_string()))
+    );
     let substr = "(variable)";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected ')'".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedParen("unexpected ')'".to_string()))
+    );
     let substr = "vari=able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "vari*able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "vari+able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "(vari=able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "(vari*able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "(vari+able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedKey("unexpected operator".to_string()))
+    );
     let substr = "9variable";
-    assert_eq!(parse_token::<Z251>(substr), Err(ParseLiteral("could not parse literal".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(ParseLiteral("could not parse literal".to_string()))
+    );
     let substr = "variabl)e))";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("expected ')'".to_string())));
+    assert_eq!(
+        parse_token::<Z251>(substr),
+        Err(UnexpectedParen("expected ')'".to_string()))
+    );
 }
 
 #[test]
@@ -357,7 +396,7 @@ fn tokenlist_from_string() {
         ],
     };
 
-    let actual = try_to_list(code.to_string());
+    let actual = try_to_list::<Z251>(code.to_string());
 
     assert_eq!(Ok(expected), actual);
 }
