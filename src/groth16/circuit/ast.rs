@@ -1,3 +1,4 @@
+use super::TryParse;
 use super::super::super::field::Z251;
 use std::str::FromStr;
 
@@ -30,45 +31,82 @@ enum ParenCase {
     Close,
 }
 
-impl From<String> for TokenList<Z251> {
-    fn from(code: String) -> Self {
-        use self::TokenParseErr::*;
+// impl From<String> for TokenList<Z251> {
+//     fn from(code: String) -> Self {
+//         use self::TokenParseErr::*;
 
-        let mut current_line = 1;
-        let mut tokens: Vec<Token<Z251>> = Vec::new();
+//         let mut current_line = 1;
+//         let mut tokens: Vec<Token<Z251>> = Vec::new();
 
-        for line in code.lines() {
-            for substr in line.split_whitespace() {
-                match parse_token::<Z251>(substr) {
-                    Err(MissingKey) => {
-                        panic!("Error on line {}: no key found after '('", current_line)
-                    }
-                    Err(UnexpectedParen) => {
-                        panic!("Error on line {}: unexpected parenthesis", current_line)
-                    }
-                    Err(UnexpectedKey) => {
-                        panic!("Error on line {}: unexpected keyword", current_line)
-                    }
-                    Err(ParseLiteral) => {
-                        panic!("Error on line {}: could not parse literal", current_line)
-                    }
-                    Ok(ref mut t) => tokens.append(t),
+//         for line in code.lines() {
+//             for substr in line.split_whitespace() {
+//                 match parse_token::<Z251>(substr) {
+//                     Err(MissingKey) => {
+//                         panic!("Error on line {}: no key found after '('", current_line)
+//                     }
+//                     Err(UnexpectedParen) => {
+//                         panic!("Error on line {}: unexpected parenthesis", current_line)
+//                     }
+//                     Err(UnexpectedKey) => {
+//                         panic!("Error on line {}: unexpected keyword", current_line)
+//                     }
+//                     Err(ParseLiteral) => {
+//                         panic!("Error on line {}: could not parse literal", current_line)
+//                     }
+//                     Ok(ref mut t) => tokens.append(t),
+//                 }
+//             }
+
+//             current_line += 1;
+//         }
+
+//         TokenList { tokens }
+//     }
+// }
+
+fn try_to_list(code: String) -> Result<TokenList<Z251>, ParseErr> {
+    use self::TokenParseErr::*;
+    use self::ParseErr::*;
+
+    let mut current_line = 1;
+    let mut tokens: Vec<Token<Z251>> = Vec::new();
+
+    for line in code.lines() {
+        for substr in line.split_whitespace() {
+            match parse_token::<Z251>(substr) {
+                Err(MissingKey(e)) => {
+                    return Err(LineErr(current_line, e));
                 }
+                Err(UnexpectedParen(e)) => {
+                    return Err(LineErr(current_line, e));
+                }
+                Err(UnexpectedKey(e)) => {
+                    return Err(LineErr(current_line, e));
+                }
+                Err(ParseLiteral(e)) => {
+                    return Err(LineErr(current_line, e));
+                }
+                Ok(ref mut t) => tokens.append(t),
             }
-
-            current_line += 1;
         }
 
-        TokenList { tokens }
+        current_line += 1;
     }
+
+    Ok(TokenList { tokens })
+}
+
+#[derive(Debug, PartialEq)]
+enum ParseErr {
+    LineErr(usize, String),
 }
 
 #[derive(Debug, PartialEq)]
 enum TokenParseErr {
-    MissingKey,
-    UnexpectedParen,
-    UnexpectedKey,
-    ParseLiteral,
+    MissingKey(String),
+    UnexpectedParen(String),
+    UnexpectedKey(String),
+    ParseLiteral(String),
 }
 
 fn parse_token<T>(mut substr: &str) -> Result<Vec<Token<T>>, TokenParseErr>
@@ -95,7 +133,7 @@ where
     }
 
     if substr.len() == 0 {
-        return Err(MissingKey);
+        return Err(MissingKey("found whitespace after '('".to_string()));
     }
 
     match substr {
@@ -107,14 +145,14 @@ where
         "+" => tokens.push(Keyword(Add)),
         _ => {
             if substr.contains("(") {
-                return Err(UnexpectedParen);
+                return Err(UnexpectedParen("unexpected '('".to_string()));
             } else if substr.contains("*") || substr.contains("+") || substr.contains("=") {
-                return Err(UnexpectedKey);
+                return Err(UnexpectedKey("unexpected operator".to_string()));
             }
 
             let (start, end) = split_at_char(substr, ')');
             if tokens.len() != 0 && end.len() != 0 {
-                return Err(UnexpectedParen);
+                return Err(UnexpectedParen("unexpected ')'".to_string()));
             }
 
             // It is safe to unwrap because substr.len() >= 1
@@ -123,7 +161,7 @@ where
             if first.is_numeric() {
                 match start.parse::<T>() {
                     Ok(n) => tokens.push(Literal(n)),
-                    _ => return Err(ParseLiteral),
+                    _ => return Err(ParseLiteral("could not parse literal".to_string())),
                 }
             } else {
                 tokens.push(Var(start.to_owned()));
@@ -131,7 +169,7 @@ where
 
             for c in end.chars() {
                 if c != ')' {
-                    return Err(UnexpectedParen);
+                    return Err(UnexpectedParen("expected ')'".to_string()));
                 } else {
                     tokens.push(Parenthesis(Close));
                 }
@@ -223,27 +261,29 @@ fn parse_token_test() {
 
     // Invalid substring examples
     let substr = "(";
-    assert_eq!(parse_token::<Z251>(substr), Err(MissingKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(MissingKey("found whitespace after '('".to_string())));
     let substr = "(vari(able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected '('".to_string())));
     let substr = "vari(able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected '('".to_string())));
     let substr = "(variable)";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("unexpected ')'".to_string())));
     let substr = "vari=able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "vari*able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "vari+able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "(vari=able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "(vari*able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "(vari+able";
-    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey));
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedKey("unexpected operator".to_string())));
     let substr = "9variable";
-    assert_eq!(parse_token::<Z251>(substr), Err(ParseLiteral));
+    assert_eq!(parse_token::<Z251>(substr), Err(ParseLiteral("could not parse literal".to_string())));
+    let substr = "variabl)e))";
+    assert_eq!(parse_token::<Z251>(substr), Err(UnexpectedParen("expected ')'".to_string())));
 }
 
 #[test]
@@ -317,7 +357,7 @@ fn tokenlist_from_string() {
         ],
     };
 
-    let actual: TokenList<Z251> = code.to_string().into();
+    let actual = try_to_list(code.to_string());
 
-    assert_eq!(expected, actual);
+    assert_eq!(Ok(expected), actual);
 }
