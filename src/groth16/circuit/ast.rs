@@ -77,16 +77,7 @@ where
     for line in code.lines() {
         for substr in line.split_whitespace() {
             match parse_token::<T>(substr) {
-                Err(MissingKey(e)) => {
-                    return Err(LineErr(current_line, e));
-                }
-                Err(UnexpectedParen(e)) => {
-                    return Err(LineErr(current_line, e));
-                }
-                Err(UnexpectedKey(e)) => {
-                    return Err(LineErr(current_line, e));
-                }
-                Err(ParseLiteral(e)) => {
+                Err(TokenErr(e)) => {
                     return Err(LineErr(current_line, e));
                 }
                 Ok(ref mut t) => tokens.append(t),
@@ -106,10 +97,7 @@ enum ParseErr {
 
 #[derive(Debug, PartialEq)]
 enum TokenParseErr {
-    MissingKey(String),
-    UnexpectedParen(String),
-    UnexpectedKey(String),
-    ParseLiteral(String),
+    TokenErr(String),
 }
 
 fn parse_token<T>(mut substr: &str) -> Result<Vec<Token<T>>, TokenParseErr>
@@ -136,7 +124,7 @@ where
     }
 
     if substr.len() == 0 {
-        return Err(MissingKey("found whitespace after '('".to_string()));
+        return Err(TokenErr("found whitespace after '('".to_string()));
     }
 
     match substr {
@@ -148,14 +136,14 @@ where
         "+" => tokens.push(Keyword(Add)),
         _ => {
             if substr.contains("(") {
-                return Err(UnexpectedParen("unexpected '('".to_string()));
+                return Err(TokenErr("unexpected '('".to_string()));
             } else if substr.contains("*") || substr.contains("+") || substr.contains("=") {
-                return Err(UnexpectedKey("unexpected operator".to_string()));
+                return Err(TokenErr("unexpected operator".to_string()));
             }
 
             let (start, end) = split_at_char(substr, ')');
             if tokens.len() != 0 && end.len() != 0 {
-                return Err(UnexpectedParen("unexpected ')'".to_string()));
+                return Err(TokenErr("unexpected ')'".to_string()));
             }
 
             // It is safe to unwrap because substr.len() >= 1
@@ -164,7 +152,7 @@ where
             if first.is_numeric() {
                 match start.parse::<T>() {
                     Ok(n) => tokens.push(Literal(n)),
-                    _ => return Err(ParseLiteral("could not parse literal".to_string())),
+                    _ => return Err(TokenErr("could not parse literal".to_string())),
                 }
             } else {
                 tokens.push(Var(start.to_owned()));
@@ -172,7 +160,7 @@ where
 
             for c in end.chars() {
                 if c != ')' {
-                    return Err(UnexpectedParen("expected ')'".to_string()));
+                    return Err(TokenErr("expected ')'".to_string()));
                 } else {
                     tokens.push(Parenthesis(Close));
                 }
@@ -266,62 +254,62 @@ fn parse_token_test() {
     let substr = "(";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(MissingKey("found whitespace after '('".to_string()))
+        Err(TokenErr("found whitespace after '('".to_string()))
     );
     let substr = "(vari(able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedParen("unexpected '('".to_string()))
+        Err(TokenErr("unexpected '('".to_string()))
     );
     let substr = "vari(able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedParen("unexpected '('".to_string()))
+        Err(TokenErr("unexpected '('".to_string()))
     );
     let substr = "(variable)";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedParen("unexpected ')'".to_string()))
+        Err(TokenErr("unexpected ')'".to_string()))
     );
     let substr = "vari=able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "vari*able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "vari+able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "(vari=able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "(vari*able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "(vari+able";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedKey("unexpected operator".to_string()))
+        Err(TokenErr("unexpected operator".to_string()))
     );
     let substr = "9variable";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(ParseLiteral("could not parse literal".to_string()))
+        Err(TokenErr("could not parse literal".to_string()))
     );
     let substr = "variabl)e))";
     assert_eq!(
         parse_token::<Z251>(substr),
-        Err(UnexpectedParen("expected ')'".to_string()))
+        Err(TokenErr("expected ')'".to_string()))
     );
 }
 
