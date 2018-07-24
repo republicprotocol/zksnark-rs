@@ -13,9 +13,9 @@ pub enum SetupErr {}
 pub struct Proof {}
 pub enum ProveErr {}
 
-pub struct CircuitInput {}
-
 pub struct Assignment {}
+
+pub struct Input {}
 
 pub fn relation<P>(_path: P) -> Result<Relation, RelationErr>
 where
@@ -24,16 +24,22 @@ where
     unimplemented!()
 }
 
-pub fn setup(_relation: Relation) -> Result<ReferenceString, SetupErr> {
-    unimplemented!()
-}
+impl Relation {
+    pub fn setup(&self) -> Result<ReferenceString, SetupErr> {
+        unimplemented!()
+    }
 
-pub fn prove(_relation: Relation, _crs: &ReferenceString, _input: &CircuitInput) -> Result<Proof, ProveErr> {
-    unimplemented!()
-}
+    pub fn prove(
+        &self,
+        _crs: &ReferenceString,
+        _assignment: &Assignment,
+    ) -> Result<Proof, ProveErr> {
+        unimplemented!()
+    }
 
-pub fn verify(_relation: Relation, _crs: &ReferenceString, _input: &Assignment) -> bool {
-    unimplemented!()
+    pub fn verify(&self, _crs: &ReferenceString, _input: &Input) -> bool {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
