@@ -286,294 +286,299 @@ fn split_at_char(s: &str, c: char) -> (&str, &str) {
     s.split_at(first.len())
 }
 
-#[test]
-fn split_at_char_test() {
-    let s = "variable";
-    assert_eq!(split_at_char(s, ')'), ("variable", ""));
-    let s = "variable)";
-    assert_eq!(split_at_char(s, ')'), ("variable", ")"));
-    let s = "variable))";
-    assert_eq!(split_at_char(s, ')'), ("variable", "))"));
-    let s = "variable)))";
-    assert_eq!(split_at_char(s, ')'), ("variable", ")))"));
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn parse_token_test() {
-    use self::Key::*;
-    use self::ParenCase::*;
-    use self::Token::*;
-    use self::TokenParseErr::*;
+    #[test]
+    fn split_at_char_test() {
+        let s = "variable";
+        assert_eq!(split_at_char(s, ')'), ("variable", ""));
+        let s = "variable)";
+        assert_eq!(split_at_char(s, ')'), ("variable", ")"));
+        let s = "variable))";
+        assert_eq!(split_at_char(s, ')'), ("variable", "))"));
+        let s = "variable)))";
+        assert_eq!(split_at_char(s, ')'), ("variable", ")))"));
+    }
 
-    // Valid substring examples
-    let substr = "(in";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(In)])
-    );
-    let substr = "(witness";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(Witness)])
-    );
-    let substr = "(program";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(Program)])
-    );
-    let substr = "(=";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(Equal)])
-    );
-    let substr = "(*";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(Mul)])
-    );
-    let substr = "(+";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Parenthesis(Open), Keyword(Add)])
-    );
-    let substr = "x";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Var("x".to_string())]));
-    let substr = "y)";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Var("y".to_string()), Parenthesis(Close)])
-    );
-    let substr = "y))";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![
-            Var("y".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Close),
-        ])
-    );
-    let substr = "9";
-    assert_eq!(parse_token::<Z251>(substr), Ok(vec![Literal(9.into())]));
-    let substr = "9)";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Ok(vec![Literal(9.into()), Parenthesis(Close)])
-    );
+    #[test]
+    fn parse_token_test() {
+        use self::Key::*;
+        use self::ParenCase::*;
+        use self::Token::*;
+        use self::TokenParseErr::*;
 
-    // Invalid substring examples
-    let substr = "(";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("found whitespace after '('".to_string()))
-    );
-    let substr = "(vari(able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected '('".to_string()))
-    );
-    let substr = "vari(able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected '('".to_string()))
-    );
-    let substr = "(variable)";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected ')'".to_string()))
-    );
-    let substr = "vari=able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "vari*able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "vari+able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "(vari=able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "(vari*able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "(vari+able";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("unexpected operator".to_string()))
-    );
-    let substr = "9variable";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("could not parse literal".to_string()))
-    );
-    let substr = "variabl)e))";
-    assert_eq!(
-        parse_token::<Z251>(substr),
-        Err(TokenErr("expected ')'".to_string()))
-    );
-}
+        // Valid substring examples
+        let substr = "(in";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(In)])
+        );
+        let substr = "(witness";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Witness)])
+        );
+        let substr = "(program";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Program)])
+        );
+        let substr = "(=";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Equal)])
+        );
+        let substr = "(*";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Mul)])
+        );
+        let substr = "(+";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Add)])
+        );
+        let substr = "x";
+        assert_eq!(parse_token::<Z251>(substr), Ok(vec![Var("x".to_string())]));
+        let substr = "y)";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Var("y".to_string()), Parenthesis(Close)])
+        );
+        let substr = "y))";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![
+                Var("y".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Close),
+            ])
+        );
+        let substr = "9";
+        assert_eq!(parse_token::<Z251>(substr), Ok(vec![Literal(9.into())]));
+        let substr = "9)";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Literal(9.into()), Parenthesis(Close)])
+        );
 
-#[test]
-fn tokenlist_from_string() {
-    use self::Key::*;
-    use self::ParenCase::*;
-    use self::Token::*;
+        // Invalid substring examples
+        let substr = "(";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("found whitespace after '('".to_string()))
+        );
+        let substr = "(vari(able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected '('".to_string()))
+        );
+        let substr = "vari(able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected '('".to_string()))
+        );
+        let substr = "(variable)";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected ')'".to_string()))
+        );
+        let substr = "vari=able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "vari*able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "vari+able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "(vari=able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "(vari*able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "(vari+able";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("unexpected operator".to_string()))
+        );
+        let substr = "9variable";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("could not parse literal".to_string()))
+        );
+        let substr = "variabl)e))";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Err(TokenErr("expected ')'".to_string()))
+        );
+    }
 
-    let code = "(in x y)
-                (witness a b c)
+    #[test]
+    fn tokenlist_from_string() {
+        use self::Key::*;
+        use self::ParenCase::*;
+        use self::Token::*;
 
-                (program
-                    (= t1
-                        (* x a))
-                    (= t2
-                        (* x (+ t1 b)))
-                    (= y
-                        (* 1 (+ t2 c))))";
+        let code = "(in x y)
+                    (witness a b c)
 
-    let expected = TokenList::<Z251> {
-        tokens: vec![
-            Parenthesis(Open),
-            Keyword(In),
-            Var("x".to_string()),
-            Var("y".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Open),
-            Keyword(Witness),
+                    (program
+                        (= t1
+                            (* x a))
+                        (= t2
+                            (* x (+ t1 b)))
+                        (= y
+                            (* 1 (+ t2 c))))";
+
+        let expected = TokenList::<Z251> {
+            tokens: vec![
+                Parenthesis(Open),
+                Keyword(In),
+                Var("x".to_string()),
+                Var("y".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Witness),
+                Var("a".to_string()),
+                Var("b".to_string()),
+                Var("c".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Program),
+                Parenthesis(Open),
+                Keyword(Equal),
+                Var("t1".to_string()),
+                Parenthesis(Open),
+                Keyword(Mul),
+                Var("x".to_string()),
+                Var("a".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Equal),
+                Var("t2".to_string()),
+                Parenthesis(Open),
+                Keyword(Mul),
+                Var("x".to_string()),
+                Parenthesis(Open),
+                Keyword(Add),
+                Var("t1".to_string()),
+                Var("b".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Close),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Equal),
+                Var("y".to_string()),
+                Parenthesis(Open),
+                Keyword(Mul),
+                Literal(1.into()),
+                Parenthesis(Open),
+                Keyword(Add),
+                Var("t2".to_string()),
+                Var("c".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Close),
+                Parenthesis(Close),
+                Parenthesis(Close),
+            ],
+        };
+
+        let actual = try_to_list::<Z251>(code.to_string());
+
+        assert_eq!(Ok(expected), actual);
+    }
+
+    #[test]
+    fn next_group_test() {
+        use self::Token::*;
+
+        let s = "(in x y)";
+        let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
+        let inner_t_list = try_to_list::<Z251>("in x y".to_string()).unwrap();
+        assert_eq!(inner_t_list, next_group(&mut t_list.clone().into_iter()));
+
+        let s = "y (* 1 (+ t2 c)))";
+        let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
+        let inner_t_list = try_to_list::<Z251>("* 1 (+ t2 c)".to_string()).unwrap();
+        let mut iter = t_list.clone().into_iter();
+        assert_eq!(next_group(iter.by_ref()), vec![Var("y".to_string())].into());
+        assert_eq!(next_group(iter.by_ref()), inner_t_list);
+    }
+
+    #[test]
+    fn parse_expression_test() {
+        use self::Expression::*;
+
+        let code = "(in x y)
+                    (witness a b c)
+
+                    (program
+                        (= t1
+                            (* x a))
+                        (= t2
+                            (* x (+ t1 b)))
+                        (= y
+                            (* 1 (+ t2 c))))";
+        let token_list = try_to_list::<Z251>(code.to_string()).unwrap();
+        let iter = &mut token_list.into_iter();
+
+        let actual = parse_expression(next_group(iter)).unwrap();
+        let expected: Expression<Z251> = In(vec![Var("x".to_string()), Var("y".to_string())]);
+        assert_eq!(actual, expected);
+
+        let actual = parse_expression(next_group(iter)).unwrap();
+        let expected: Expression<Z251> = Witness(vec![
             Var("a".to_string()),
             Var("b".to_string()),
             Var("c".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Open),
-            Keyword(Program),
-            Parenthesis(Open),
-            Keyword(Equal),
-            Var("t1".to_string()),
-            Parenthesis(Open),
-            Keyword(Mul),
-            Var("x".to_string()),
-            Var("a".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Close),
-            Parenthesis(Open),
-            Keyword(Equal),
-            Var("t2".to_string()),
-            Parenthesis(Open),
-            Keyword(Mul),
-            Var("x".to_string()),
-            Parenthesis(Open),
-            Keyword(Add),
-            Var("t1".to_string()),
-            Var("b".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Close),
-            Parenthesis(Close),
-            Parenthesis(Open),
-            Keyword(Equal),
-            Var("y".to_string()),
-            Parenthesis(Open),
-            Keyword(Mul),
-            Literal(1.into()),
-            Parenthesis(Open),
-            Keyword(Add),
-            Var("t2".to_string()),
-            Var("c".to_string()),
-            Parenthesis(Close),
-            Parenthesis(Close),
-            Parenthesis(Close),
-            Parenthesis(Close),
-        ],
-    };
+        ]);
+        assert_eq!(actual, expected);
 
-    let actual = try_to_list::<Z251>(code.to_string());
-
-    assert_eq!(Ok(expected), actual);
-}
-
-#[test]
-fn next_group_test() {
-    use self::Token::*;
-
-    let s = "(in x y)";
-    let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
-    let inner_t_list = try_to_list::<Z251>("in x y".to_string()).unwrap();
-    assert_eq!(inner_t_list, next_group(&mut t_list.clone().into_iter()));
-
-    let s = "y (* 1 (+ t2 c)))";
-    let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
-    let inner_t_list = try_to_list::<Z251>("* 1 (+ t2 c)".to_string()).unwrap();
-    let mut iter = t_list.clone().into_iter();
-    assert_eq!(next_group(iter.by_ref()), vec![Var("y".to_string())].into());
-    assert_eq!(next_group(iter.by_ref()), inner_t_list);
-}
-
-#[test]
-fn parse_expression_test() {
-    use self::Expression::*;
-
-    let code = "(in x y)
-                (witness a b c)
-
-                (program
-                    (= t1
-                        (* x a))
-                    (= t2
-                        (* x (+ t1 b)))
-                    (= y
-                        (* 1 (+ t2 c))))";
-    let token_list = try_to_list::<Z251>(code.to_string()).unwrap();
-    let iter = &mut token_list.into_iter();
-
-    let actual = parse_expression(next_group(iter)).unwrap();
-    let expected: Expression<Z251> = In(vec![Var("x".to_string()), Var("y".to_string())]);
-    assert_eq!(actual, expected);
-
-    let actual = parse_expression(next_group(iter)).unwrap();
-    let expected: Expression<Z251> = Witness(vec![
-        Var("a".to_string()),
-        Var("b".to_string()),
-        Var("c".to_string()),
-    ]);
-    assert_eq!(actual, expected);
-
-    let actual = parse_expression(next_group(iter)).unwrap();
-    let expected: Expression<Z251> = Program(vec![
-        Assign(
-            Box::new(Var("t1".to_string())),
-            Box::new(Mul(
-                Box::new(Var("x".to_string())),
-                Box::new(Var("a".to_string())),
-            )),
-        ),
-        Assign(
-            Box::new(Var("t2".to_string())),
-            Box::new(Mul(
-                Box::new(Var("x".to_string())),
-                Box::new(Add(
-                    Box::new(Var("t1".to_string())),
-                    Box::new(Var("b".to_string())),
+        let actual = parse_expression(next_group(iter)).unwrap();
+        let expected: Expression<Z251> = Program(vec![
+            Assign(
+                Box::new(Var("t1".to_string())),
+                Box::new(Mul(
+                    Box::new(Var("x".to_string())),
+                    Box::new(Var("a".to_string())),
                 )),
-            )),
-        ),
-        Assign(
-            Box::new(Var("y".to_string())),
-            Box::new(Mul(
-                Box::new(Literal(1.into())),
-                Box::new(Add(
-                    Box::new(Var("t2".to_string())),
-                    Box::new(Var("c".to_string())),
+            ),
+            Assign(
+                Box::new(Var("t2".to_string())),
+                Box::new(Mul(
+                    Box::new(Var("x".to_string())),
+                    Box::new(Add(
+                        Box::new(Var("t1".to_string())),
+                        Box::new(Var("b".to_string())),
+                    )),
                 )),
-            )),
-        ),
-    ]);
-    assert_eq!(actual, expected);
+            ),
+            Assign(
+                Box::new(Var("y".to_string())),
+                Box::new(Mul(
+                    Box::new(Literal(1.into())),
+                    Box::new(Add(
+                        Box::new(Var("t2".to_string())),
+                        Box::new(Var("c".to_string())),
+                    )),
+                )),
+            ),
+        ]);
+        assert_eq!(actual, expected);
+    }
 }

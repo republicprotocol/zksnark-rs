@@ -175,261 +175,266 @@ where
     })
 }
 
-#[test]
-fn dummy_add() {
-    // Trivial addition
-    let a = DummyPoly::from(vec![]);
-    let b = DummyPoly::from(vec![]);
-    assert!((a + b).is_zero());
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    // Addition with one trivial term
-    let a = DummyPoly::from(vec![]);
-    let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
-    assert_eq!(
-        a + b,
-        vec![Z251::from(1), Z251::from(2), Z251::from(3)].into()
-    );
-
-    // Addition with one zero term
-    let a = DummyPoly::from(vec![Z251::from(0)]);
-    let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
-    assert_eq!(
-        a + b,
-        vec![Z251::from(1), Z251::from(2), Z251::from(3)].into()
-    );
-
-    // Addition with leading zeros
-    let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
-    let b = vec![Z251::from(1), Z251::from(2), Z251::from(3), Z251::from(0)].into();
-    assert_eq!(
-        a + b,
-        vec![Z251::from(5), Z251::from(7), Z251::from(9), Z251::from(0)].into()
-    );
-
-    // Addition with overflow
-    let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
-    let b = vec![Z251::from(123), Z251::from(234), Z251::from(3)].into();
-    assert_eq!(
-        a + b,
-        vec![Z251::from(106), Z251::from(83), Z251::from(9)].into()
-    );
-}
-
-#[test]
-fn dummy_neg() {
-    // Check to see if the negative is the additive inverse
-    // Generate random quadratic polynomials
-
-    for _ in 0..1000 {
-        let a = DummyPoly::from(vec![
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        ]);
-        let b = -a.clone();
+    #[test]
+    fn dummy_add() {
+        // Trivial addition
+        let a = DummyPoly::from(vec![]);
+        let b = DummyPoly::from(vec![]);
         assert!((a + b).is_zero());
+
+        // Addition with one trivial term
+        let a = DummyPoly::from(vec![]);
+        let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
+        assert_eq!(
+            a + b,
+            vec![Z251::from(1), Z251::from(2), Z251::from(3)].into()
+        );
+
+        // Addition with one zero term
+        let a = DummyPoly::from(vec![Z251::from(0)]);
+        let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
+        assert_eq!(
+            a + b,
+            vec![Z251::from(1), Z251::from(2), Z251::from(3)].into()
+        );
+
+        // Addition with leading zeros
+        let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
+        let b = vec![Z251::from(1), Z251::from(2), Z251::from(3), Z251::from(0)].into();
+        assert_eq!(
+            a + b,
+            vec![Z251::from(5), Z251::from(7), Z251::from(9), Z251::from(0)].into()
+        );
+
+        // Addition with overflow
+        let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
+        let b = vec![Z251::from(123), Z251::from(234), Z251::from(3)].into();
+        assert_eq!(
+            a + b,
+            vec![Z251::from(106), Z251::from(83), Z251::from(9)].into()
+        );
     }
-}
 
-#[test]
-fn dummy_sub() {
-    // Check that if c = a - b then a = b + c
-    for _ in 0..1000 {
-        let a = DummyPoly::from(vec![
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        ]);
-        let b = DummyPoly::from(vec![
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        ]);
-        let c = a.clone() - b.clone();
-        assert_eq!(a, b + c);
-    }
-}
+    #[test]
+    fn dummy_neg() {
+        // Check to see if the negative is the additive inverse
+        // Generate random quadratic polynomials
 
-#[test]
-fn dummy_sum() {
-    let mut polys = Vec::with_capacity(20);
-    let mut sum: DummyPoly;
-
-    for _ in 0..1000 {
-        polys.clear();
-        sum = vec![Z251::add_identity(); 3].into();
-
-        for _ in 0..20 {
+        for _ in 0..1000 {
             let a = DummyPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
             ]);
-            polys.push(a.clone());
-            sum = sum + a;
+            let b = -a.clone();
+            assert!((a + b).is_zero());
         }
-
-        assert_eq!(sum, polys.clone().into_iter().sum());
     }
-}
 
-#[test]
-fn dummy_mul() {
-    // Trivial multiplication
-    let a = DummyPoly::from(vec![]);
-    let b = DummyPoly::from(vec![]);
-    assert!((a * b).is_zero());
+    #[test]
+    fn dummy_sub() {
+        // Check that if c = a - b then a = b + c
+        for _ in 0..1000 {
+            let a = DummyPoly::from(vec![
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            ]);
+            let b = DummyPoly::from(vec![
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            ]);
+            let c = a.clone() - b.clone();
+            assert_eq!(a, b + c);
+        }
+    }
 
-    // Multiplication with one trivial term
-    let a = DummyPoly::from(vec![]);
-    let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
-    assert!((a * b).is_zero());
+    #[test]
+    fn dummy_sum() {
+        let mut polys = Vec::with_capacity(20);
+        let mut sum: DummyPoly;
 
-    // Multiplication with one zero term
-    let a = DummyPoly::from(vec![Z251::from(0)]);
-    let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
-    assert!((a * b).is_zero());
+        for _ in 0..1000 {
+            polys.clear();
+            sum = vec![Z251::add_identity(); 3].into();
 
-    // Multiplication with leading zeros
-    let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
-    let b = DummyPoly::from(vec![
-        Z251::from(1),
-        Z251::from(2),
-        Z251::from(3),
-        Z251::from(0),
-    ]);
-    assert_eq!(
-        a * b,
-        vec![
-            Z251::from(4),
-            Z251::from(13),
-            Z251::from(28),
-            Z251::from(27),
-            Z251::from(18),
-        ].into()
-    );
+            for _ in 0..20 {
+                let a = DummyPoly::from(vec![
+                    Z251::random_elem(),
+                    Z251::random_elem(),
+                    Z251::random_elem(),
+                ]);
+                polys.push(a.clone());
+                sum = sum + a;
+            }
 
-    // Multiplication with overflow
-    let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
-    let b = DummyPoly::from(vec![Z251::from(123), Z251::from(234), Z251::from(3)]);
-    assert_eq!(
-        a * b,
-        vec![
-            Z251::from(168),
-            Z251::from(39),
-            Z251::from(242),
-            Z251::from(198),
-            Z251::from(18),
-        ].into()
-    );
-}
+            assert_eq!(sum, polys.clone().into_iter().sum());
+        }
+    }
 
-#[test]
-fn dummy_scalar_mul() {
-    // Scalar multiplication with trivial polynomial
-    let a = DummyPoly::from(vec![]);
-    let s = Z251::from(69);
-    assert!((a * s).is_zero());
+    #[test]
+    fn dummy_mul() {
+        // Trivial multiplication
+        let a = DummyPoly::from(vec![]);
+        let b = DummyPoly::from(vec![]);
+        assert!((a * b).is_zero());
 
-    // Scalar multiplication with zero polynomial
-    let a = DummyPoly::from(vec![0.into()]);
-    let s = Z251::from(69);
-    assert!((a * s).is_zero());
+        // Multiplication with one trivial term
+        let a = DummyPoly::from(vec![]);
+        let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        assert!((a * b).is_zero());
 
-    // Scalar multiplication with non-zero polynomial
-    let a = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
-    let s = Z251::from(69);
-    assert_eq!(
-        a * s,
-        DummyPoly::from(vec![Z251::from(69), Z251::from(138), Z251::from(207)])
-    );
+        // Multiplication with one zero term
+        let a = DummyPoly::from(vec![Z251::from(0)]);
+        let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        assert!((a * b).is_zero());
 
-    // Scalar multiplication with overflow
-    let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
-    let s = Z251::from(69);
-    assert_eq!(
-        a * s,
-        DummyPoly::from(vec![Z251::from(125), Z251::from(138), Z251::from(207)])
-    );
-
-    // Scalar multiplication zero scalar
-    let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
-    let s = Z251::from(0);
-    assert!((a * s).is_zero());
-}
-
-#[test]
-fn dummy_div() {
-    // Check that if a * b = c then a = c / b
-
-    for _ in 0..1000 {
-        let mut a = DummyPoly::from(vec![
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        ]);
+        // Multiplication with leading zeros
+        let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
         let b = DummyPoly::from(vec![
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
+            Z251::from(1),
+            Z251::from(2),
+            Z251::from(3),
+            Z251::from(0),
         ]);
-        if b.is_zero() {
-            continue;
-        }
-        a.remove_leading_zeros();
-        let c = a.clone() * b.clone();
+        assert_eq!(
+            a * b,
+            vec![
+                Z251::from(4),
+                Z251::from(13),
+                Z251::from(28),
+                Z251::from(27),
+                Z251::from(18),
+            ].into()
+        );
 
-        assert_eq!(a, c / b);
+        // Multiplication with overflow
+        let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
+        let b = DummyPoly::from(vec![Z251::from(123), Z251::from(234), Z251::from(3)]);
+        assert_eq!(
+            a * b,
+            vec![
+                Z251::from(168),
+                Z251::from(39),
+                Z251::from(242),
+                Z251::from(198),
+                Z251::from(18),
+            ].into()
+        );
     }
-}
 
-#[test]
-fn dummy_lagrange() {
-    for max in 2..25 {
-        for i in 1..max {
-            let roots = (1..max).map(|x| x.into());
-            let poly = lagrange_basis(roots, i.into());
+    #[test]
+    fn dummy_scalar_mul() {
+        // Scalar multiplication with trivial polynomial
+        let a = DummyPoly::from(vec![]);
+        let s = Z251::from(69);
+        assert!((a * s).is_zero());
 
-            for j in 1..max {
-                if i == j {
-                    assert_eq!(poly.evaluate(j.into()), Z251::mul_identity());
-                } else {
-                    assert_eq!(poly.evaluate(j.into()), Z251::add_identity());
+        // Scalar multiplication with zero polynomial
+        let a = DummyPoly::from(vec![0.into()]);
+        let s = Z251::from(69);
+        assert!((a * s).is_zero());
+
+        // Scalar multiplication with non-zero polynomial
+        let a = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        let s = Z251::from(69);
+        assert_eq!(
+            a * s,
+            DummyPoly::from(vec![Z251::from(69), Z251::from(138), Z251::from(207)])
+        );
+
+        // Scalar multiplication with overflow
+        let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
+        let s = Z251::from(69);
+        assert_eq!(
+            a * s,
+            DummyPoly::from(vec![Z251::from(125), Z251::from(138), Z251::from(207)])
+        );
+
+        // Scalar multiplication zero scalar
+        let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
+        let s = Z251::from(0);
+        assert!((a * s).is_zero());
+    }
+
+    #[test]
+    fn dummy_div() {
+        // Check that if a * b = c then a = c / b
+
+        for _ in 0..1000 {
+            let mut a = DummyPoly::from(vec![
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            ]);
+            let b = DummyPoly::from(vec![
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            ]);
+            if b.is_zero() {
+                continue;
+            }
+            a.remove_leading_zeros();
+            let c = a.clone() * b.clone();
+
+            assert_eq!(a, c / b);
+        }
+    }
+
+    #[test]
+    fn dummy_lagrange() {
+        for max in 2..25 {
+            for i in 1..max {
+                let roots = (1..max).map(|x| x.into());
+                let poly = lagrange_basis(roots, i.into());
+
+                for j in 1..max {
+                    if i == j {
+                        assert_eq!(poly.evaluate(j.into()), Z251::mul_identity());
+                    } else {
+                        assert_eq!(poly.evaluate(j.into()), Z251::add_identity());
+                    }
                 }
             }
         }
     }
-}
 
-#[test]
-fn dummy_from_roots() {
-    for mask in 1..255_u8 {
-        let roots = (1..9).map(|x| x.into());
-        let points = (0..8_u8)
-            .filter(|i| (1_u8 << i) & mask != 0)
-            .map(|i| ((i as usize + 1).into(), (i as usize + 2).into()));
-        let poly = DummyPoly::from((roots, points));
+    #[test]
+    fn dummy_from_roots() {
+        for mask in 1..255_u8 {
+            let roots = (1..9).map(|x| x.into());
+            let points = (0..8_u8)
+                .filter(|i| (1_u8 << i) & mask != 0)
+                .map(|i| ((i as usize + 1).into(), (i as usize + 2).into()));
+            let poly = DummyPoly::from((roots, points));
 
-        for i in 0..8_u8 {
-            if (1_u8 << i) & mask != 0 {
-                assert_eq!(
-                    poly.evaluate((i as usize + 1).into()),
-                    (i as usize + 2).into()
-                );
-            } else {
-                assert_eq!(poly.evaluate((i as usize + 1).into()), Z251::add_identity());
+            for i in 0..8_u8 {
+                if (1_u8 << i) & mask != 0 {
+                    assert_eq!(
+                        poly.evaluate((i as usize + 1).into()),
+                        (i as usize + 2).into()
+                    );
+                } else {
+                    assert_eq!(poly.evaluate((i as usize + 1).into()), Z251::add_identity());
+                }
             }
         }
     }
-}
 
-#[test]
-fn dummy_root_poly() {
-    for i in 2..25 {
-        let poly = root_poly((1..i).map(|x| x.into()));
+    #[test]
+    fn dummy_root_poly() {
+        for i in 2..25 {
+            let poly = root_poly((1..i).map(|x| x.into()));
 
-        for j in 1..i {
-            assert_eq!(poly.evaluate(j.into()), Z251::add_identity());
+            for j in 1..i {
+                assert_eq!(poly.evaluate(j.into()), Z251::add_identity());
+            }
         }
     }
 }

@@ -21,6 +21,14 @@ pub trait Field:
     fn mul_identity() -> Self;
 }
 
+pub trait ZeroElement {
+    fn zero() -> Self;
+}
+
+pub trait OneElement {
+    fn one() -> Self;
+}
+
 impl ZeroElement for isize {
     fn zero() -> Self {
         0
@@ -31,14 +39,6 @@ impl OneElement for isize {
     fn one() -> Self {
         1
     }
-}
-
-pub trait ZeroElement {
-    fn zero() -> Self;
-}
-
-pub trait OneElement {
-    fn one() -> Self;
 }
 
 pub trait Polynomial<T>: From<Vec<T>>
@@ -240,105 +240,111 @@ where
         .collect::<Vec<_>>()
 }
 
-#[test]
-fn powers_test() {
-    let root = Z251 { inner: 9 };
-    assert_eq!(
-        powers(root).take(5).collect::<Vec<_>>(),
-        vec![
-            Z251 { inner: 1 },
-            Z251 { inner: 9 },
-            Z251 { inner: 81 },
-            Z251 { inner: 227 },
-            Z251 { inner: 35 },
-        ]
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn powers_test() {
+        let root = Z251 { inner: 9 };
+        assert_eq!(
+            powers(root).take(5).collect::<Vec<_>>(),
+            vec![
+                Z251 { inner: 1 },
+                Z251 { inner: 9 },
+                Z251 { inner: 81 },
+                Z251 { inner: 227 },
+                Z251 { inner: 35 },
+            ]
+        );
+    }
+
+    #[test]
+    fn dft_test() {
+        // 25 divies 251 - 1 and 5 has order 25 in Z251
+        let mut seq = [Z251::add_identity(); 25];
+        seq[0] = 1.into();
+        seq[1] = 2.into();
+        seq[2] = 3.into();
+        let root = 5.into();
+
+        let result = vec![
+            6, 86, 169, 189, 203, 131, 237, 118, 115, 91, 248, 177, 8, 48, 34, 136, 177, 203, 125, 57,
+            237, 81, 9, 30, 122,
+        ].into_iter()
+            .map(Z251::from)
+            .collect::<Vec<_>>();
+
+        assert_eq!(dft(&seq[..], root), result);
+    }
+
+    #[test]
+    fn idft_test() {
+        // 25 divies 251 - 1 and 5 has order 25 in Z251
+        let mut seq = [Z251::add_identity(); 25];
+        seq[0] = 1.into();
+        seq[1] = 2.into();
+        seq[2] = 3.into();
+        let root = 5.into();
+
+        assert_eq!(idft(&dft(&seq[..], root)[..], root), seq.to_vec());
+    }
+
+    #[test]
+    fn degree_test() {
+        let a = [3, 0, 0, 0, 179, 0, 0, 6]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let b = [29, 112, 68]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let c = [3, 0, 0, 0, 179, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+
+        assert_eq!(a.degree(), 7);
+        assert_eq!(b.degree(), 2);
+        assert_eq!(c.degree(), 7);
+    }
+
+    #[test]
+    fn polynomial_division_test() {
+        let a = [3, 0, 0, 0, 179, 0, 0, 6]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let b = [29, 112, 68]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let q = [209, 207, 78, 1, 131, 37]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let r = [217, 207]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+
+        assert_eq!((q, r), polynomial_division(a, b));
+    }
+
+    #[test]
+    #[should_panic]
+    fn polynomial_divisionby0_test() {
+        let a = [3, 0, 0, 0, 179, 0, 0, 6]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+        let b = [0, 0, 0, 0, 0, 0, 0, 0]
+            .iter()
+            .map(|&c| Z251::from(c))
+            .collect::<Vec<_>>();
+
+        polynomial_division(a, b);
+    }
 }
 
-#[test]
-fn dft_test() {
-    // 25 divies 251 - 1 and 5 has order 25 in Z251
-    let mut seq = [Z251::add_identity(); 25];
-    seq[0] = 1.into();
-    seq[1] = 2.into();
-    seq[2] = 3.into();
-    let root = 5.into();
-
-    let result = vec![
-        6, 86, 169, 189, 203, 131, 237, 118, 115, 91, 248, 177, 8, 48, 34, 136, 177, 203, 125, 57,
-        237, 81, 9, 30, 122,
-    ].into_iter()
-        .map(Z251::from)
-        .collect::<Vec<_>>();
-
-    assert_eq!(dft(&seq[..], root), result);
-}
-
-#[test]
-fn idft_test() {
-    // 25 divies 251 - 1 and 5 has order 25 in Z251
-    let mut seq = [Z251::add_identity(); 25];
-    seq[0] = 1.into();
-    seq[1] = 2.into();
-    seq[2] = 3.into();
-    let root = 5.into();
-
-    assert_eq!(idft(&dft(&seq[..], root)[..], root), seq.to_vec());
-}
-
-#[test]
-fn degree_test() {
-    let a = [3, 0, 0, 0, 179, 0, 0, 6]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let b = [29, 112, 68]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let c = [3, 0, 0, 0, 179, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-
-    assert_eq!(a.degree(), 7);
-    assert_eq!(b.degree(), 2);
-    assert_eq!(c.degree(), 7);
-}
-
-#[test]
-fn polynomial_division_test() {
-    let a = [3, 0, 0, 0, 179, 0, 0, 6]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let b = [29, 112, 68]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let q = [209, 207, 78, 1, 131, 37]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let r = [217, 207]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-
-    assert_eq!((q, r), polynomial_division(a, b));
-}
-
-#[test]
-#[should_panic]
-fn polynomial_divisionby0_test() {
-    let a = [3, 0, 0, 0, 179, 0, 0, 6]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-    let b = [0, 0, 0, 0, 0, 0, 0, 0]
-        .iter()
-        .map(|&c| Z251::from(c))
-        .collect::<Vec<_>>();
-
-    polynomial_division(a, b);
-}

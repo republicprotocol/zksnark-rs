@@ -262,411 +262,412 @@ where
     check.is_identity()
 }
 
-// Testing
 #[cfg(test)]
-use self::circuit::dummy_rep::DummyRep;
+mod test {
+    use self::circuit::dummy_rep::DummyRep;
+    use super::super::encryption::Encryptable;
+    use super::*;
 
-use super::encryption::Encryptable;
-
-impl Random for Z251 {
-    fn random_elem() -> Self {
-        let mut r = Z251::random();
-        while r == Z251::add_identity() {
-            r = Z251::random();
+    impl Random for Z251 {
+        fn random_elem() -> Self {
+            let mut r = Z251::random();
+            while r == Z251::add_identity() {
+                r = Z251::random();
+            }
+            r
         }
-        r
     }
-}
 
-impl EllipticEncryptable for Z251 {
-    type G1 = Self;
-    type G2 = Self;
-    type GT = Self;
+    impl EllipticEncryptable for Z251 {
+        type G1 = Self;
+        type G2 = Self;
+        type GT = Self;
 
-    fn encrypt_g1(self) -> Self::G1 {
-        self * 69.into()
+        fn encrypt_g1(self) -> Self::G1 {
+            self * 69.into()
+        }
+        fn encrypt_g2(self) -> Self::G2 {
+            self * 69.into()
+        }
+        fn exp_encrypted_g1(self, g1: Self::G1) -> Self::G1 {
+            self * g1
+        }
+        fn exp_encrypted_g2(self, g2: Self::G2) -> Self::G2 {
+            self * g2
+        }
+        fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
+            g1 * g2
+        }
     }
-    fn encrypt_g2(self) -> Self::G2 {
-        self * 69.into()
+
+    impl Identity for Z251 {
+        fn is_identity(&self) -> bool {
+            *self == Self::add_identity()
+        }
     }
-    fn exp_encrypted_g1(self, g1: Self::G1) -> Self::G1 {
-        self * g1
+
+    impl Sum for Z251 {
+        fn sum<I>(iter: I) -> Self
+        where
+            I: Iterator<Item = Self>,
+        {
+            iter.fold(Z251::from(0), |acc, x| acc + x)
+        }
     }
-    fn exp_encrypted_g2(self, g2: Self::G2) -> Self::G2 {
-        self * g2
+
+    #[cfg(test)]
+    pub fn constant(c: usize) -> DummyPoly {
+        vec![c.into()].into()
     }
-    fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
-        g1 * g2
+
+    #[test]
+    fn single_mult_honest() {
+        let qap: QAP<DummyPoly> = QAP {
+            u: vec![constant(0), constant(0), constant(1), constant(0)],
+            v: vec![constant(0), constant(0), constant(0), constant(1)],
+            w: vec![constant(0), constant(1), constant(0), constant(0)],
+            t: vec![Z251::from(250), Z251::from(1)].into(),
+            input: 2,
+            degree: 1,
+        };
+        let weights: Vec<Z251> = vec![1.into(), 17.into(), 100.into(), 83.into()];
+
+        for _ in 0..1000 {
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let alpha = sigmag1.alpha / 69.into();
+            let beta = sigmag1.beta / 69.into();
+            let gamma = sigmag2.gamma / 69.into();
+            let delta = sigmag1.delta / 69.into();
+
+            // sigmag1 tests
+            assert_eq!(sigmag1.xi.len(), 1);
+            assert_eq!(sigmag1.xi[0], Z251::from(1).encrypt_g1());
+            assert_eq!(sigmag1.sum_gamma.len(), 3);
+            assert_eq!(sigmag1.sum_gamma[0], Z251::from(0).encrypt_g1());
+            assert_eq!(sigmag1.sum_gamma[1], (Z251::from(1) / gamma).encrypt_g1());
+            assert_eq!(sigmag1.sum_gamma[2], (beta / gamma).encrypt_g1());
+            assert_eq!(sigmag1.sum_delta.len(), 1);
+            assert_eq!(sigmag1.sum_delta[0], (alpha / delta).encrypt_g1());
+            assert_eq!(sigmag1.xi_t.len(), 0);
+
+            // sigmag2 tests
+            assert_eq!(sigmag2.xi.len(), 1);
+            assert_eq!(sigmag2.xi[0], Z251::from(1).encrypt_g2());
+
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(
+                &qap,
+                (sigmag1, sigmag2),
+                &vec![Z251::from(17), Z251::from(100)],
+                proof
+            ));
+        }
     }
-}
 
-impl Identity for Z251 {
-    fn is_identity(&self) -> bool {
-        *self == Self::add_identity()
-    }
-}
+    #[test]
+    fn single_mult_random_proof() {
+        let mut count = 0;
+        let total = 10000;
 
-impl Sum for Z251 {
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = Self>,
-    {
-        iter.fold(Z251::from(0), |acc, x| acc + x)
-    }
-}
-
-#[cfg(test)]
-pub fn constant(c: usize) -> DummyPoly {
-    vec![c.into()].into()
-}
-
-#[test]
-fn single_mult_honest() {
-    let qap: QAP<DummyPoly> = QAP {
-        u: vec![constant(0), constant(0), constant(1), constant(0)],
-        v: vec![constant(0), constant(0), constant(0), constant(1)],
-        w: vec![constant(0), constant(1), constant(0), constant(0)],
-        t: vec![Z251::from(250), Z251::from(1)].into(),
-        input: 2,
-        degree: 1,
-    };
-    let weights: Vec<Z251> = vec![1.into(), 17.into(), 100.into(), 83.into()];
-
-    for _ in 0..1000 {
-        let (sigmag1, sigmag2) = setup(&qap);
-
-        let alpha = sigmag1.alpha / 69.into();
-        let beta = sigmag1.beta / 69.into();
-        let gamma = sigmag2.gamma / 69.into();
-        let delta = sigmag1.delta / 69.into();
-
-        // sigmag1 tests
-        assert_eq!(sigmag1.xi.len(), 1);
-        assert_eq!(sigmag1.xi[0], Z251::from(1).encrypt_g1());
-        assert_eq!(sigmag1.sum_gamma.len(), 3);
-        assert_eq!(sigmag1.sum_gamma[0], Z251::from(0).encrypt_g1());
-        assert_eq!(sigmag1.sum_gamma[1], (Z251::from(1) / gamma).encrypt_g1());
-        assert_eq!(sigmag1.sum_gamma[2], (beta / gamma).encrypt_g1());
-        assert_eq!(sigmag1.sum_delta.len(), 1);
-        assert_eq!(sigmag1.sum_delta[0], (alpha / delta).encrypt_g1());
-        assert_eq!(sigmag1.xi_t.len(), 0);
-
-        // sigmag2 tests
-        assert_eq!(sigmag2.xi.len(), 1);
-        assert_eq!(sigmag2.xi[0], Z251::from(1).encrypt_g2());
-
-        let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
-
-        assert!(verify(
-            &qap,
-            (sigmag1, sigmag2),
-            &vec![Z251::from(17), Z251::from(100)],
-            proof
-        ));
-    }
-}
-
-#[test]
-fn single_mult_random_proof() {
-    let mut count = 0;
-    let total = 10000;
-
-    let qap: QAP<DummyPoly> = QAP {
-        u: vec![constant(0), constant(0), constant(1), constant(0)],
-        v: vec![constant(0), constant(0), constant(0), constant(1)],
-        w: vec![constant(0), constant(1), constant(0), constant(0)],
-        t: vec![Z251::from(250), Z251::from(1)].into(),
-        input: 2,
-        degree: 1,
-    };
-
-    for _ in 0..total {
-        let (sigmag1, sigmag2) = setup(&qap);
-
-        let proof = Proof {
-            a: Z251::random_elem(),
-            b: Z251::random_elem(),
-            c: Z251::random_elem(),
+        let qap: QAP<DummyPoly> = QAP {
+            u: vec![constant(0), constant(0), constant(1), constant(0)],
+            v: vec![constant(0), constant(0), constant(0), constant(1)],
+            w: vec![constant(0), constant(1), constant(0), constant(0)],
+            t: vec![Z251::from(250), Z251::from(1)].into(),
+            input: 2,
+            degree: 1,
         };
 
-        if verify(
-            &qap,
-            (sigmag1, sigmag2),
-            &vec![Z251::from(17), Z251::from(100)],
-            proof,
-        ) {
-            count += 1;
+        for _ in 0..total {
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let proof = Proof {
+                a: Z251::random_elem(),
+                b: Z251::random_elem(),
+                c: Z251::random_elem(),
+            };
+
+            if verify(
+                &qap,
+                (sigmag1, sigmag2),
+                &vec![Z251::from(17), Z251::from(100)],
+                proof,
+            ) {
+                count += 1;
+            }
         }
+
+        // A proof has 3 elements, and given any two there always exists
+        // exactly one choice for the final element such that the proof
+        // will be verified. This means that a random proof should succeed
+        // 1 out of every 250 times, or in other words 0.4% of the time in
+        // the case of a field with 251 elements.
+        //
+        // This means that this test can possibly fail, but it is very unlikely.
+        let ratio = (count as f64) / (total as f64);
+        assert!(ratio > 0.002);
+        assert!(ratio < 0.006);
     }
 
-    // A proof has 3 elements, and given any two there always exists
-    // exactly one choice for the final element such that the proof
-    // will be verified. This means that a random proof should succeed
-    // 1 out of every 250 times, or in other words 0.4% of the time in
-    // the case of a field with 251 elements.
-    //
-    // This means that this test can possibly fail, but it is very unlikely.
-    let ratio = (count as f64) / (total as f64);
-    assert!(ratio > 0.002);
-    assert!(ratio < 0.006);
-}
-
-#[test]
-fn quadratic_share_honest() {
-    let qap: QAP<DummyPoly> = QAP {
-        u: [
-            [1, 124, 126],
-            [0, 127, 125],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        v: [
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [3, 123, 126],
-            [248, 4, 250],
-            [1, 124, 126],
-            [248, 4, 250],
-            [1, 124, 126],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        w: [
-            [0, 0, 0],
-            [0, 0, 0],
-            [1, 124, 126],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [3, 123, 126],
-            [248, 4, 250],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        t: [245, 11, 245, 1]
-            .iter()
-            .map(|&c| c.into())
-            .collect::<Vec<_>>()
-            .into(),
-        input: 2,
-        degree: 3,
-    };
-
-    for _ in 0..1000 {
-        let (x, a, b, c) = (
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        );
-        let share = a * x * x + b * x + c;
-        let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
-        let (sigmag1, sigmag2) = setup(&qap);
-
-        let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
-
-        assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
-    }
-}
-
-#[test]
-fn quadratic_share_random_proof() {
-    let mut count = 0;
-    let total = 10000;
-
-    let qap: QAP<DummyPoly> = QAP {
-        u: [
-            [1, 124, 126],
-            [0, 127, 125],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        v: [
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [3, 123, 126],
-            [248, 4, 250],
-            [1, 124, 126],
-            [248, 4, 250],
-            [1, 124, 126],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        w: [
-            [0, 0, 0],
-            [0, 0, 0],
-            [1, 124, 126],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [3, 123, 126],
-            [248, 4, 250],
-        ].iter()
-            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-            .collect::<Vec<_>>(),
-        t: [245, 11, 245, 1]
-            .iter()
-            .map(|&c| c.into())
-            .collect::<Vec<_>>()
-            .into(),
-        input: 2,
-        degree: 3,
-    };
-
-    for _ in 0..total {
-        let (x, a, b, c) = (
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        );
-        let share = a * x * x + b * x + c;
-        let (sigmag1, sigmag2) = setup(&qap);
-
-        let proof = Proof {
-            a: Z251::random_elem(),
-            b: Z251::random_elem(),
-            c: Z251::random_elem(),
+    #[test]
+    fn quadratic_share_honest() {
+        let qap: QAP<DummyPoly> = QAP {
+            u: [
+                [1, 124, 126],
+                [0, 127, 125],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            v: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [3, 123, 126],
+                [248, 4, 250],
+                [1, 124, 126],
+                [248, 4, 250],
+                [1, 124, 126],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            w: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [1, 124, 126],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [3, 123, 126],
+                [248, 4, 250],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            t: [245, 11, 245, 1]
+                .iter()
+                .map(|&c| c.into())
+                .collect::<Vec<_>>()
+                .into(),
+            input: 2,
+            degree: 3,
         };
 
-        if verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof) {
-            count += 1;
+        for _ in 0..1000 {
+            let (x, a, b, c) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
+            let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
         }
     }
 
-    // A proof has 3 elements, and given any two there always exists
-    // exactly one choice for the final element such that the proof
-    // will be verified. This means that a random proof should succeed
-    // 1 out of every 250 times, or in other words 0.4% of the time in
-    // the case of a field with 251 elements.
-    //
-    // This means that this test can possibly fail, but it is very unlikely.
-    let ratio = (count as f64) / (total as f64);
-    assert!(ratio > 0.002);
-    assert!(ratio < 0.006);
-}
+    #[test]
+    fn quadratic_share_random_proof() {
+        let mut count = 0;
+        let total = 10000;
 
-#[test]
-fn qap_from_roots() {
-    let root_rep = DummyRep {
-        u: vec![
-            vec![(3.into(), 1.into())],
-            vec![(1.into(), 1.into()), (2.into(), 1.into())],
-            vec![],
-            vec![],
-            vec![],
-            vec![],
-            vec![],
-            vec![],
-        ],
-        v: vec![
-            vec![],
-            vec![],
-            vec![],
-            vec![(1.into(), 1.into())],
-            vec![(2.into(), 1.into())],
-            vec![(3.into(), 1.into())],
-            vec![(2.into(), 1.into())],
-            vec![(3.into(), 1.into())],
-        ],
-        w: vec![
-            vec![],
-            vec![],
-            vec![(3.into(), 1.into())],
-            vec![],
-            vec![],
-            vec![],
-            vec![(1.into(), 1.into())],
-            vec![(2.into(), 1.into())],
-        ],
-        roots: vec![1.into(), 2.into(), 3.into()],
-        input: 2,
-    };
+        let qap: QAP<DummyPoly> = QAP {
+            u: [
+                [1, 124, 126],
+                [0, 127, 125],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            v: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [3, 123, 126],
+                [248, 4, 250],
+                [1, 124, 126],
+                [248, 4, 250],
+                [1, 124, 126],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            w: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [1, 124, 126],
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0],
+                [3, 123, 126],
+                [248, 4, 250],
+            ].iter()
+                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+                .collect::<Vec<_>>(),
+            t: [245, 11, 245, 1]
+                .iter()
+                .map(|&c| c.into())
+                .collect::<Vec<_>>()
+                .into(),
+            input: 2,
+            degree: 3,
+        };
 
-    let qap = root_rep.into();
+        for _ in 0..total {
+            let (x, a, b, c) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
+            let (sigmag1, sigmag2) = setup(&qap);
 
-    for _ in 0..1000 {
-        let (x, a, b, c) = (
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        );
-        let share = a * x * x + b * x + c;
-        let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
-        let (sigmag1, sigmag2) = setup(&qap);
+            let proof = Proof {
+                a: Z251::random_elem(),
+                b: Z251::random_elem(),
+                c: Z251::random_elem(),
+            };
 
-        let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+            if verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof) {
+                count += 1;
+            }
+        }
 
-        assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
-    }
-}
-
-#[test]
-fn qap_from_file() {
-    // Quadratic polynomial share
-    let code = &*::std::fs::read_to_string("test_programs/quad_share.zk").unwrap();
-    let qap = DummyRep::from(code).into();
-
-    for _ in 0..1000 {
-        let (x, a, b, c) = (
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        );
-        let share = a * x * x + b * x + c;
-        let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
-        let (sigmag1, sigmag2) = setup(&qap);
-
-        let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
-
-        assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        // A proof has 3 elements, and given any two there always exists
+        // exactly one choice for the final element such that the proof
+        // will be verified. This means that a random proof should succeed
+        // 1 out of every 250 times, or in other words 0.4% of the time in
+        // the case of a field with 251 elements.
+        //
+        // This means that this test can possibly fail, but it is very unlikely.
+        let ratio = (count as f64) / (total as f64);
+        assert!(ratio > 0.002);
+        assert!(ratio < 0.006);
     }
 
-    // Cubic polynomial share
-    let code = &*::std::fs::read_to_string("test_programs/cubic_share.zk").unwrap();
-    let qap = DummyRep::from(code).into();
+    #[test]
+    fn qap_from_roots() {
+        let root_rep = DummyRep {
+            u: vec![
+                vec![(3.into(), 1.into())],
+                vec![(1.into(), 1.into()), (2.into(), 1.into())],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+                vec![],
+            ],
+            v: vec![
+                vec![],
+                vec![],
+                vec![],
+                vec![(1.into(), 1.into())],
+                vec![(2.into(), 1.into())],
+                vec![(3.into(), 1.into())],
+                vec![(2.into(), 1.into())],
+                vec![(3.into(), 1.into())],
+            ],
+            w: vec![
+                vec![],
+                vec![],
+                vec![(3.into(), 1.into())],
+                vec![],
+                vec![],
+                vec![],
+                vec![(1.into(), 1.into())],
+                vec![(2.into(), 1.into())],
+            ],
+            roots: vec![1.into(), 2.into(), 3.into()],
+            input: 2,
+        };
 
-    for _ in 0..1000 {
-        let (x, a, b, c, d) = (
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-            Z251::random_elem(),
-        );
-        let share = ((a * x + b) * x + c) * x + d;
-        let weights: Vec<Z251> = vec![
-            1.into(),
-            x,
-            share,
-            a,
-            b,
-            c,
-            d,
-            a * x,
-            (a * x + b) * x,
-            ((a * x + b) * x + c) * x,
-        ];
-        let (sigmag1, sigmag2) = setup(&qap);
+        let qap = root_rep.into();
 
-        let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+        for _ in 0..1000 {
+            let (x, a, b, c) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
+            let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
+            let (sigmag1, sigmag2) = setup(&qap);
 
-        assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
+    }
+
+    #[test]
+    fn qap_from_file() {
+        // Quadratic polynomial share
+        let code = &*::std::fs::read_to_string("test_programs/quad_share.zk").unwrap();
+        let qap = DummyRep::from(code).into();
+
+        for _ in 0..1000 {
+            let (x, a, b, c) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
+            let weights: Vec<Z251> = vec![1.into(), x, share, a, b, c, a * x, x * (a * x + b)];
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
+
+        // Cubic polynomial share
+        let code = &*::std::fs::read_to_string("test_programs/cubic_share.zk").unwrap();
+        let qap = DummyRep::from(code).into();
+
+        for _ in 0..1000 {
+            let (x, a, b, c, d) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = ((a * x + b) * x + c) * x + d;
+            let weights: Vec<Z251> = vec![
+                1.into(),
+                x,
+                share,
+                a,
+                b,
+                c,
+                d,
+                a * x,
+                (a * x + b) * x,
+                ((a * x + b) * x + c) * x,
+            ];
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
     }
 }
