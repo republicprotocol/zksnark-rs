@@ -1,6 +1,5 @@
 mod encryption;
 pub mod field;
-// mod qap;
 pub mod groth16;
 
 #[cfg(test)]

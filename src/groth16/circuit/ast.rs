@@ -1,5 +1,4 @@
-use super::super::super::field::{Field, Z251};
-use super::TryParse;
+use super::super::super::field::Z251;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -20,12 +19,6 @@ impl<T> From<Vec<Token<T>>> for TokenList<T> {
     fn from(tokens: Vec<Token<T>>) -> Self {
         TokenList { tokens }
     }
-}
-
-struct Line<T> {
-    assignment: String,
-    left: Vec<(T, Token<T>)>,
-    right: Vec<(T, Token<T>)>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -63,39 +56,6 @@ enum ParenCase {
     Open,
     Close,
 }
-
-// impl From<String> for TokenList<Z251> {
-//     fn from(code: String) -> Self {
-//         use self::TokenParseErr::*;
-
-//         let mut current_line = 1;
-//         let mut tokens: Vec<Token<Z251>> = Vec::new();
-
-//         for line in code.lines() {
-//             for substr in line.split_whitespace() {
-//                 match parse_token::<Z251>(substr) {
-//                     Err(MissingKey) => {
-//                         panic!("Error on line {}: no key found after '('", current_line)
-//                     }
-//                     Err(UnexpectedParen) => {
-//                         panic!("Error on line {}: unexpected parenthesis", current_line)
-//                     }
-//                     Err(UnexpectedKey) => {
-//                         panic!("Error on line {}: unexpected keyword", current_line)
-//                     }
-//                     Err(ParseLiteral) => {
-//                         panic!("Error on line {}: could not parse literal", current_line)
-//                     }
-//                     Ok(ref mut t) => tokens.append(t),
-//                 }
-//             }
-
-//             current_line += 1;
-//         }
-
-//         TokenList { tokens }
-//     }
-// }
 
 fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ()> {
     use self::Key::*;
