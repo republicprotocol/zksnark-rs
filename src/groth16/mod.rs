@@ -263,7 +263,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use self::circuit::dummy_rep::DummyRep;
     use super::super::encryption::Encryptable;
     use super::*;

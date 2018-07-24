@@ -5,19 +5,6 @@ pub struct DummyPoly {
     coeffs: Vec<Z251>,
 }
 
-impl DummyPoly {
-    #[cfg(test)]
-    fn is_zero(&self) -> bool {
-        for &c in self.coeffs.as_slice() {
-            if c != Z251::add_identity() {
-                return false;
-            }
-        }
-
-        true
-    }
-}
-
 impl From<Vec<Z251>> for DummyPoly {
     fn from(coeffs: Vec<Z251>) -> Self {
         DummyPoly { coeffs }
@@ -176,8 +163,20 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
+
+    impl DummyPoly {
+        fn is_zero(&self) -> bool {
+            for &c in self.coeffs.as_slice() {
+                if c != Z251::add_identity() {
+                    return false;
+                }
+            }
+
+            true
+        }
+    }
 
     #[test]
     fn dummy_add() {
