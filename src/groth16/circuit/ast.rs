@@ -1,13 +1,46 @@
-use super::super::super::field::Z251;
+use super::super::super::field::{Field, Z251};
 use super::TryParse;
 use std::str::FromStr;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct TokenList<T> {
     tokens: Vec<Token<T>>,
 }
 
+impl<T> IntoIterator for TokenList<T> {
+    type Item = Token<T>;
+    type IntoIter = ::std::vec::IntoIter<Token<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.tokens.into_iter()
+    }
+}
+
+impl<T> From<Vec<Token<T>>> for TokenList<T> {
+    fn from(tokens: Vec<Token<T>>) -> Self {
+        TokenList { tokens }
+    }
+}
+
+struct Line<T> {
+    assignment: String,
+    left: Vec<(T, Token<T>)>,
+    right: Vec<(T, Token<T>)>,
+}
+
 #[derive(Debug, PartialEq)]
+enum Expression<T> {
+    In(Vec<Expression<T>>),
+    Witness(Vec<Expression<T>>),
+    Program(Vec<Expression<T>>),
+    Assign(Box<Expression<T>>, Box<Expression<T>>),
+    Mul(Box<Expression<T>>, Box<Expression<T>>),
+    Add(Box<Expression<T>>, Box<Expression<T>>),
+    Var(String),
+    Literal(T),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 enum Key {
     In,
     Witness,
@@ -17,7 +50,7 @@ enum Key {
     Add,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Token<T> {
     Keyword(Key),
     Var(String),
@@ -25,7 +58,7 @@ enum Token<T> {
     Literal(T),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum ParenCase {
     Open,
     Close,
@@ -64,6 +97,123 @@ enum ParenCase {
 //     }
 // }
 
+fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ()> {
+    use self::Key::*;
+    use self::Token::*;
+
+    // Assumes that token_iter is stripped of outer parentheses.
+    // This can be achieved by first calling next_group()
+    let iter = &mut token_list.into_iter();
+
+    match iter.next() {
+        Some(Keyword(k)) => match k {
+            In => {
+                let mut vars = Vec::new();
+
+                for token in iter {
+                    if let Var(v) = token {
+                        vars.push(Expression::Var(v));
+                    } else {
+                        return Err(());
+                    }
+                }
+
+                Ok(Expression::In(vars))
+            }
+            Witness => {
+                let mut vars = Vec::new();
+
+                for token in iter {
+                    if let Var(v) = token {
+                        vars.push(Expression::Var(v));
+                    } else {
+                        return Err(());
+                    }
+                }
+
+                Ok(Expression::Witness(vars))
+            }
+            Program => {
+                let mut gates = Vec::new();
+
+                loop {
+                    let group = next_group(iter);
+                    if group.tokens.len() == 0 {
+                        break;
+                    }
+
+                    let exp = parse_expression(group)?;
+                    gates.push(exp);
+                }
+
+                Ok(Expression::Program(gates))
+            }
+            Equal => {
+                let left = next_group(iter);
+                if left.tokens.len() != 1 {
+                    return Err(());
+                }
+                let left = match left.into_iter().next() {
+                    Some(Var(v)) => Expression::Var(v),
+                    _ => return Err(()),
+                };
+
+                let right = parse_expression(next_group(iter))?;
+
+                Ok(Expression::Assign(Box::new(left), Box::new(right)))
+            }
+            Mul => {
+                let left = parse_expression(next_group(iter))?;
+                let right = parse_expression(next_group(iter))?;
+
+                Ok(Expression::Mul(Box::new(left), Box::new(right)))
+            }
+            Add => {
+                let left = parse_expression(next_group(iter))?;
+                let right = parse_expression(next_group(iter))?;
+
+                Ok(Expression::Add(Box::new(left), Box::new(right)))
+            }
+        },
+        Some(Var(v)) => Ok(Expression::Var(v)),
+        Some(Literal(l)) => Ok(Expression::Literal(l)),
+        _ => Err(()),
+    }
+}
+
+fn next_group<I, T>(token_iter: &mut I) -> TokenList<T>
+where
+    I: Iterator<Item = Token<T>>,
+{
+    use self::ParenCase::*;
+    use self::Token::*;
+
+    let mut depth = 0;
+
+    match token_iter.next() {
+        Some(Parenthesis(Open)) => {
+            depth += 1;
+            token_iter
+                .map(|t| {
+                    match t {
+                        Parenthesis(Open) => depth += 1,
+                        Parenthesis(Close) => depth -= 1,
+                        _ => (),
+                    }
+                    (t, depth)
+                })
+                .take_while(|&(_, d)| d != 0)
+                .map(|(t, _)| t)
+                .collect::<Vec<_>>()
+                .into()
+        }
+        Some(v @ Var(_)) => vec![v].into(),
+        Some(l @ Literal(_)) => vec![l].into(),
+        None => vec![].into(),
+        _ => panic!("Cannot parse malformed group"),
+    }
+}
+
 fn try_to_list<T>(code: String) -> Result<TokenList<T>, ParseErr>
 where
     T: FromStr,
@@ -78,7 +228,7 @@ where
         for substr in line.split_whitespace() {
             match parse_token::<T>(substr) {
                 Err(TokenErr(e)) => {
-                    return Err(LineErr(current_line, e));
+                    return Err(SyntaxErr(current_line, e));
                 }
                 Ok(ref mut t) => tokens.append(t),
             }
@@ -92,7 +242,7 @@ where
 
 #[derive(Debug, PartialEq)]
 enum ParseErr {
-    LineErr(usize, String),
+    SyntaxErr(usize, String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -387,4 +537,82 @@ fn tokenlist_from_string() {
     let actual = try_to_list::<Z251>(code.to_string());
 
     assert_eq!(Ok(expected), actual);
+}
+
+#[test]
+fn next_group_test() {
+    use self::Token::*;
+
+    let s = "(in x y)";
+    let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
+    let inner_t_list = try_to_list::<Z251>("in x y".to_string()).unwrap();
+    assert_eq!(inner_t_list, next_group(&mut t_list.clone().into_iter()));
+
+    let s = "y (* 1 (+ t2 c)))";
+    let t_list = try_to_list::<Z251>(s.to_string()).unwrap();
+    let inner_t_list = try_to_list::<Z251>("* 1 (+ t2 c)".to_string()).unwrap();
+    let mut iter = t_list.clone().into_iter();
+    assert_eq!(next_group(iter.by_ref()), vec![Var("y".to_string())].into());
+    assert_eq!(next_group(iter.by_ref()), inner_t_list);
+}
+
+#[test]
+fn parse_expression_test() {
+    use self::Expression::*;
+
+    let code = "(in x y)
+                (witness a b c)
+
+                (program
+                    (= t1
+                        (* x a))
+                    (= t2
+                        (* x (+ t1 b)))
+                    (= y
+                        (* 1 (+ t2 c))))";
+    let token_list = try_to_list::<Z251>(code.to_string()).unwrap();
+    let iter = &mut token_list.into_iter();
+
+    let actual = parse_expression(next_group(iter)).unwrap();
+    let expected: Expression<Z251> = In(vec![Var("x".to_string()), Var("y".to_string())]);
+    assert_eq!(actual, expected);
+
+    let actual = parse_expression(next_group(iter)).unwrap();
+    let expected: Expression<Z251> = Witness(vec![
+        Var("a".to_string()),
+        Var("b".to_string()),
+        Var("c".to_string()),
+    ]);
+    assert_eq!(actual, expected);
+
+    let actual = parse_expression(next_group(iter)).unwrap();
+    let expected: Expression<Z251> = Program(vec![Assign(
+        Box::new(Var("t1".to_string())),
+        Box::new(Mul(
+            Box::new(Var("x".to_string())),
+            Box::new(Var("a".to_string())),
+        )),
+    ),
+    Assign(
+        Box::new(Var("t2".to_string())),
+        Box::new(Mul(
+            Box::new(Var("x".to_string())),
+            Box::new(Add(
+                Box::new(Var("t1".to_string())),
+                Box::new(Var("b".to_string()))
+            )),
+        )),
+    ),
+    Assign(
+        Box::new(Var("y".to_string())),
+        Box::new(Mul(
+            Box::new(Literal(1.into())),
+            Box::new(Add(
+                Box::new(Var("t2".to_string())),
+                Box::new(Var("c".to_string()))
+            )),
+        )),
+    ),
+    ]);
+    assert_eq!(actual, expected);
 }

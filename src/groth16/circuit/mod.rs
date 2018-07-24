@@ -18,10 +18,10 @@ where
     fn input(&self) -> usize;
 }
 
-pub trait TryParse<T, F>
+pub trait TryParse<T, F, E>
 where
     T: RootRepresentation<F>,
     F: Field,
 {
-    fn try_parse(&str) -> T;
+    fn try_parse(&str) -> Result<T, E>;
 }
