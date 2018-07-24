@@ -1,5 +1,6 @@
 use self::circuit::RootRepresentation;
 use self::dummy_poly::{root_poly, DummyPoly};
+use super::field::z251::Z251;
 use super::field::*;
 use std::iter::{once, repeat, Sum};
 use std::ops::{Add, Div, Mul, Neg, Sub};

@@ -1,6 +1,7 @@
 extern crate rand;
 
-use super::field::{Field, Z251};
+use super::field::z251::Z251;
+use super::field::Field;
 
 pub trait Encryptable {
     type Output;
@@ -26,7 +27,9 @@ impl Encryptable for Z251 {
         ret
     }
     fn random() -> Self {
-        Z251 { inner: rand::random::<u8>() % 251 }
+        Z251 {
+            inner: rand::random::<u8>() % 251,
+        }
     }
 }
 

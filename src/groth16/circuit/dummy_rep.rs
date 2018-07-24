@@ -1,4 +1,4 @@
-use super::super::super::field::Z251;
+use super::super::super::field::z251::Z251;
 use super::RootRepresentation;
 use std::vec::IntoIter;
 

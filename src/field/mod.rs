@@ -1,13 +1,11 @@
 extern crate itertools;
 
 use self::itertools::unfold;
+use self::z251::Z251;
 use std::ops::*;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct Z251 {
-    pub inner: u8,
-}
+pub mod z251;
 
 pub trait Field:
     Sized
@@ -21,89 +19,6 @@ pub trait Field:
 
     fn add_identity() -> Self;
     fn mul_identity() -> Self;
-}
-
-impl Add for Z251 {
-    type Output = Z251;
-
-    fn add(self, rhs: Z251) -> Self::Output {
-        let sum: u16 = self.inner as u16 + rhs.inner as u16;
-
-        Z251 {
-            inner: (sum % 251) as u8,
-        }
-    }
-}
-
-impl Neg for Z251 {
-    type Output = Z251;
-
-    fn neg(self) -> Self::Output {
-        Z251 {
-            inner: 251 - self.inner,
-        }
-    }
-}
-
-impl Sub for Z251 {
-    type Output = Z251;
-
-    fn sub(self, rhs: Z251) -> Self::Output {
-        self + -rhs
-    }
-}
-
-impl Mul for Z251 {
-    type Output = Z251;
-
-    fn mul(self, rhs: Z251) -> Self::Output {
-        let product = (self.inner as u16) * (rhs.inner as u16);
-
-        Z251 {
-            inner: (product % 251) as u8,
-        }
-    }
-}
-
-impl Div for Z251 {
-    type Output = Z251;
-
-    fn div(self, rhs: Z251) -> Self::Output {
-        let (_, mut inv, _) = ext_euc_alg(rhs.inner as isize, 251);
-        while inv < 0 {
-            inv += 251
-        }
-
-        self * Z251 { inner: inv as u8 }
-    }
-}
-
-impl Field for Z251 {
-    fn mul_inv(self) -> Self {
-        Z251::mul_identity().div(self)
-    }
-
-    fn add_identity() -> Self {
-        Z251 { inner: 0 }
-    }
-    fn mul_identity() -> Self {
-        Z251 { inner: 1 }
-    }
-}
-
-impl From<usize> for Z251 {
-    fn from(n: usize) -> Self {
-        assert!(n < 251);
-        Z251 { inner: n as u8 }
-    }
-}
-
-impl FromStr for Z251 {
-    type Err = ::std::num::ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Z251::from(usize::from_str(s)?))
-    }
 }
 
 impl ZeroElement for isize {

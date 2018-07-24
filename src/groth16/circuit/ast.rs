@@ -1,4 +1,4 @@
-use super::super::super::field::Z251;
+use super::super::super::field::z251::Z251;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -546,33 +546,34 @@ fn parse_expression_test() {
     assert_eq!(actual, expected);
 
     let actual = parse_expression(next_group(iter)).unwrap();
-    let expected: Expression<Z251> = Program(vec![Assign(
-        Box::new(Var("t1".to_string())),
-        Box::new(Mul(
-            Box::new(Var("x".to_string())),
-            Box::new(Var("a".to_string())),
-        )),
-    ),
-    Assign(
-        Box::new(Var("t2".to_string())),
-        Box::new(Mul(
-            Box::new(Var("x".to_string())),
-            Box::new(Add(
-                Box::new(Var("t1".to_string())),
-                Box::new(Var("b".to_string()))
+    let expected: Expression<Z251> = Program(vec![
+        Assign(
+            Box::new(Var("t1".to_string())),
+            Box::new(Mul(
+                Box::new(Var("x".to_string())),
+                Box::new(Var("a".to_string())),
             )),
-        )),
-    ),
-    Assign(
-        Box::new(Var("y".to_string())),
-        Box::new(Mul(
-            Box::new(Literal(1.into())),
-            Box::new(Add(
-                Box::new(Var("t2".to_string())),
-                Box::new(Var("c".to_string()))
+        ),
+        Assign(
+            Box::new(Var("t2".to_string())),
+            Box::new(Mul(
+                Box::new(Var("x".to_string())),
+                Box::new(Add(
+                    Box::new(Var("t1".to_string())),
+                    Box::new(Var("b".to_string())),
+                )),
             )),
-        )),
-    ),
+        ),
+        Assign(
+            Box::new(Var("y".to_string())),
+            Box::new(Mul(
+                Box::new(Literal(1.into())),
+                Box::new(Add(
+                    Box::new(Var("t2".to_string())),
+                    Box::new(Var("c".to_string())),
+                )),
+            )),
+        ),
     ]);
     assert_eq!(actual, expected);
 }
