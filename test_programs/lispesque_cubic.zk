@@ -1,0 +1,13 @@
+(in x a b c d)
+(out y)
+(verify x y)
+
+(program
+    (= t1
+        (* x a))
+    (= t2
+        (* x (+ t1 b)))
+    (= t3
+        (* x (+ t2 c)))
+    (= y
+        (* 1 (+ t3 d))))
