@@ -24,7 +24,8 @@ impl<T> From<Vec<Token<T>>> for TokenList<T> {
 #[derive(Debug, PartialEq)]
 enum Expression<T> {
     In(Vec<Expression<T>>),
-    Witness(Vec<Expression<T>>),
+    Out(Vec<Expression<T>>),
+    Verify(Vec<Expression<T>>),
     Program(Vec<Expression<T>>),
     Assign(Box<Expression<T>>, Box<Expression<T>>),
     Mul(Box<Expression<T>>, Box<Expression<T>>),
@@ -36,7 +37,8 @@ enum Expression<T> {
 #[derive(Clone, Debug, PartialEq)]
 enum Key {
     In,
-    Witness,
+    Out,
+    Verify,
     Program,
     Equal,
     Mul,
@@ -80,7 +82,7 @@ fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ()> {
 
                 Ok(Expression::In(vars))
             }
-            Witness => {
+            Out => {
                 let mut vars = Vec::new();
 
                 for token in iter {
@@ -91,7 +93,20 @@ fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ()> {
                     }
                 }
 
-                Ok(Expression::Witness(vars))
+                Ok(Expression::Out(vars))
+            }
+            Verify => {
+                let mut vars = Vec::new();
+
+                for token in iter {
+                    if let Var(v) = token {
+                        vars.push(Expression::Var(v));
+                    } else {
+                        return Err(());
+                    }
+                }
+
+                Ok(Expression::Verify(vars))
             }
             Program => {
                 let mut gates = Vec::new();
@@ -239,7 +254,8 @@ where
 
     match substr {
         "in" => tokens.push(Keyword(In)),
-        "witness" => tokens.push(Keyword(Witness)),
+        "out" => tokens.push(Keyword(Out)),
+        "verify" => tokens.push(Keyword(Verify)),
         "program" => tokens.push(Keyword(Program)),
         "=" => tokens.push(Keyword(Equal)),
         "*" => tokens.push(Keyword(Mul)),
@@ -315,10 +331,15 @@ mod tests {
             parse_token::<Z251>(substr),
             Ok(vec![Parenthesis(Open), Keyword(In)])
         );
-        let substr = "(witness";
+        let substr = "(out";
         assert_eq!(
             parse_token::<Z251>(substr),
-            Ok(vec![Parenthesis(Open), Keyword(Witness)])
+            Ok(vec![Parenthesis(Open), Keyword(Out)])
+        );
+        let substr = "(verify";
+        assert_eq!(
+            parse_token::<Z251>(substr),
+            Ok(vec![Parenthesis(Open), Keyword(Verify)])
         );
         let substr = "(program";
         assert_eq!(
@@ -433,8 +454,9 @@ mod tests {
         use self::ParenCase::*;
         use self::Token::*;
 
-        let code = "(in x y)
-                    (witness a b c)
+        let code = "(in x a b c)
+                    (out y)
+                    (verify x y)
 
                     (program
                         (= t1
@@ -449,13 +471,18 @@ mod tests {
                 Parenthesis(Open),
                 Keyword(In),
                 Var("x".to_string()),
-                Var("y".to_string()),
-                Parenthesis(Close),
-                Parenthesis(Open),
-                Keyword(Witness),
                 Var("a".to_string()),
                 Var("b".to_string()),
                 Var("c".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Out),
+                Var("y".to_string()),
+                Parenthesis(Close),
+                Parenthesis(Open),
+                Keyword(Verify),
+                Var("x".to_string()),
+                Var("y".to_string()),
                 Parenthesis(Close),
                 Parenthesis(Open),
                 Keyword(Program),
@@ -524,8 +551,9 @@ mod tests {
     fn parse_expression_test() {
         use self::Expression::*;
 
-        let code = "(in x y)
-                    (witness a b c)
+        let code = "(in x a b c)
+                    (out y)
+                    (verify x y)
 
                     (program
                         (= t1
@@ -538,15 +566,20 @@ mod tests {
         let iter = &mut token_list.into_iter();
 
         let actual = parse_expression(next_group(iter)).unwrap();
-        let expected: Expression<Z251> = In(vec![Var("x".to_string()), Var("y".to_string())]);
-        assert_eq!(actual, expected);
-
-        let actual = parse_expression(next_group(iter)).unwrap();
-        let expected: Expression<Z251> = Witness(vec![
+        let expected: Expression<Z251> = In(vec![
+            Var("x".to_string()),
             Var("a".to_string()),
             Var("b".to_string()),
             Var("c".to_string()),
         ]);
+        assert_eq!(actual, expected);
+
+        let actual = parse_expression(next_group(iter)).unwrap();
+        let expected: Expression<Z251> = Out(vec![Var("y".to_string())]);
+        assert_eq!(actual, expected);
+
+        let actual = parse_expression(next_group(iter)).unwrap();
+        let expected: Expression<Z251> = Verify(vec![Var("x".to_string()), Var("y".to_string())]);
         assert_eq!(actual, expected);
 
         let actual = parse_expression(next_group(iter)).unwrap();

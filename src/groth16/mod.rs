@@ -1,4 +1,4 @@
-use self::circuit::RootRepresentation;
+use self::circuit::*;
 use self::dummy_poly::{root_poly, DummyPoly};
 use super::field::z251::Z251;
 use super::field::*;
