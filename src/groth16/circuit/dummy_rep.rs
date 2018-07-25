@@ -2,9 +2,10 @@ use super::super::super::field::z251::Z251;
 use super::RootRepresentation;
 use std::vec::IntoIter;
 
+#[derive(Debug, PartialEq)]
 pub struct DummyRep {
-    pub v: Vec<Vec<(Z251, Z251)>>,
     pub u: Vec<Vec<(Z251, Z251)>>,
+    pub v: Vec<Vec<(Z251, Z251)>>,
     pub w: Vec<Vec<(Z251, Z251)>>,
     pub roots: Vec<Z251>,
     pub input: usize,

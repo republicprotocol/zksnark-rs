@@ -1,7 +1,6 @@
 extern crate itertools;
 
 use self::itertools::unfold;
-use self::z251::Z251;
 use std::ops::*;
 use std::str::FromStr;
 
@@ -243,6 +242,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::z251::Z251;
 
     #[test]
     fn powers_test() {
