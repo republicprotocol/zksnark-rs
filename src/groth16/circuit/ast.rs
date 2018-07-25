@@ -1,326 +1,8 @@
-use super::super::super::field::z251::Z251;
-use super::dummy_rep::DummyRep;
-use super::TryParse;
-use std::collections::HashMap;
 use std::str::FromStr;
 
-pub struct ASTParser {}
-
-impl TryParse<DummyRep, Z251, ParseErr> for ASTParser {
-    fn try_parse(code: &str) -> Result<DummyRep, ParseErr> {
-        use self::Expression::*;
-        use self::ParseErr::*;
-
-        let token_list = try_to_list::<Z251>(code.to_string())?;
-        let group_iter = &mut token_list.into_iter();
-        let mut expressions = Vec::new();
-
-        loop {
-            let group = next_group(group_iter);
-            if group.tokens.len() == 0 {
-                break;
-            }
-
-            let expression = parse_expression(group)?;
-            expressions.push(expression);
-        }
-
-        let mut variables: HashMap<String, usize> = HashMap::new();
-        let mut gate_number = 0;
-        let mut u: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
-        let mut v: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
-        let mut w: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
-        let mut input: usize = 0;
-
-        // Only accept the following format (empty lines don't matter):
-        //
-        // (in ...)
-        // (out ...)
-        // (verify ...)
-        //
-        // (program ...)
-
-        if expressions.len() != 4 {
-            return Err(StructureErr(
-                Some(gate_number),
-                "Expected exactly one each of 'in', 'out', 'verify' and 'program'".to_string(),
-            ));
-        }
-
-        let mut exp_iter = expressions.clone().into_iter();
-
-        match exp_iter.next() {
-            Some(In(_)) => (),
-            _ => {
-                return Err(StructureErr(
-                    Some(gate_number),
-                    "Expected first expression to be 'in'".to_string(),
-                ))
-            }
-        }
-        match exp_iter.next() {
-            Some(Out(_)) => (),
-            _ => {
-                return Err(StructureErr(
-                    Some(gate_number),
-                    "Expected second expression to be 'out'".to_string(),
-                ))
-            }
-        }
-        if let Some(Verify(vars)) = exp_iter.next() {
-            for var in vars.into_iter() {
-                match var {
-                    Var(vr) => {
-                        let index = u.len();
-                        variables.insert(vr, index);
-
-                        u.push(Vec::new());
-                        v.push(Vec::new());
-                        w.push(Vec::new());
-                        input += 1;
-                    }
-                    _ => panic!("parse_expression() did not correctly parse 'verify'"),
-                }
-            }
-        } else {
-            return Err(StructureErr(
-                Some(gate_number),
-                "Expected third expression to be 'verify'".to_string(),
-            ));
-        }
-        if let Some(Program(program)) = exp_iter.next() {
-            for assignment in program.into_iter() {
-                gate_number += 1;
-
-                if let Assign(left, right) = assignment {
-                    if let Var(vr) = *left {
-                        // If this is the first appearance of the variable, add it to the list
-                        if !variables.contains_key(&vr) {
-                            let index = u.len();
-                            variables.insert(vr, index);
-
-                            u.push(Vec::new());
-                            v.push(Vec::new());
-                            w.push(vec![(gate_number.into(), 1.into())]);
-                        } else {
-                            // We can unwrap because we just checked that the key exists
-                            if *variables.get(&vr).unwrap() <= input {
-                                let index = variables.get(&vr).unwrap();
-                                if w[*index].len() != 0 {
-                                    return Err(StructureErr(
-                                        Some(gate_number),
-                                        "Varify variable cannot be the output of two different gates"
-                                            .to_string(),
-                                    ));
-                                }
-                                w[*index].push((gate_number.into(), 1.into()));
-                            } else {
-                                return Err(StructureErr(
-                                    Some(gate_number),
-                                    "Already declared variable cannot be the output wire of a gate"
-                                        .to_string(),
-                                ));
-                            }
-                        }
-                    } else {
-                        panic!("parse_expression() did not correctly parse '='");
-                    }
-
-                    let right = *right;
-                    if let Mul(left, right) = right {
-                        // Handle the left inputs
-                        match *left {
-                            Literal(lit) => u[0].push((gate_number.into(), lit)),
-                            Var(vr) => {
-                                if !variables.contains_key(&vr) {
-                                    let index = u.len();
-                                    variables.insert(vr, index);
-
-                                    u.push(vec![(gate_number.into(), 1.into())]);
-                                    v.push(Vec::new());
-                                    w.push(Vec::new());
-                                } else {
-                                    // We can unwrap because we just checked that the key exists
-                                    let index = variables.get(&vr).unwrap();
-                                    u[*index].push((gate_number.into(), 1.into()));
-                                }
-                            }
-                            Add(a) => {
-                                for exp in a.into_iter() {
-                                    match exp {
-                                        Literal(lit) => u[0].push((gate_number.into(), lit)),
-                                        Var(vr) => {
-                                            if !variables.contains_key(&vr) {
-                                                let index = u.len();
-                                                variables.insert(vr, index);
-
-                                                u.push(vec![(gate_number.into(), 1.into())]);
-                                                v.push(Vec::new());
-                                                w.push(Vec::new());
-                                            } else {
-                                                // We can unwrap because we just checked that the key exists
-                                                let index = variables.get(&vr).unwrap();
-                                                u[*index].push((gate_number.into(), 1.into()));
-                                            }
-                                        }
-                                        Mul(left, right) => {
-                                            let left = match *left {
-                                                Literal(lit) => lit,
-                                                _ => return Err(StructureErr(
-                                                    Some(gate_number),
-                                                    "LHS of a '*' epxression in a '+' expression must be a literal".to_string()
-                                                )),
-                                            };
-                                            let right = match *right {
-                                                Var(vr) => vr,
-                                                _ => return Err(StructureErr(
-                                                    Some(gate_number),
-                                                    "RHS of a '*' epxression in a '+' expression must be a variable".to_string()
-                                                )),
-                                            };
-
-                                            if !variables.contains_key(&right) {
-                                                let index = u.len();
-                                                variables.insert(right, index);
-
-                                                u.push(vec![(gate_number.into(), left)]);
-                                                v.push(Vec::new());
-                                                w.push(Vec::new());
-                                            } else {
-                                                // We can unwrap because we just checked that the key exists
-                                                let index = variables.get(&right).unwrap();
-                                                u[*index].push((gate_number.into(), left));
-                                            }
-                                        }
-                                        _ => {
-                                            return Err(StructureErr(
-                                                Some(gate_number),
-                                                "Invalid expression found in '+' expression"
-                                                    .to_string(),
-                                            ))
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {
-                                return Err(StructureErr(
-                                    Some(gate_number),
-                                    "Invalid expression found in '*' expression".to_string(),
-                                ))
-                            }
-                        }
-
-                        // Handle the right inputs
-                        match *right {
-                            Literal(lit) => v[0].push((gate_number.into(), lit)),
-                            Var(vr) => {
-                                if !variables.contains_key(&vr) {
-                                    let index = v.len();
-                                    variables.insert(vr, index);
-
-                                    u.push(Vec::new());
-                                    v.push(vec![(gate_number.into(), 1.into())]);
-                                    w.push(Vec::new());
-                                } else {
-                                    // We can unwrap because we just checked that the key exists
-                                    let index = variables.get(&vr).unwrap();
-                                    v[*index].push((gate_number.into(), 1.into()));
-                                }
-                            }
-                            Add(a) => {
-                                for exp in a.into_iter() {
-                                    match exp {
-                                        Literal(lit) => v[0].push((gate_number.into(), lit)),
-                                        Var(vr) => {
-                                            if !variables.contains_key(&vr) {
-                                                let index = v.len();
-                                                variables.insert(vr, index);
-
-                                                u.push(Vec::new());
-                                                v.push(vec![(gate_number.into(), 1.into())]);
-                                                w.push(Vec::new());
-                                            } else {
-                                                // We can unwrap because we just checked that the key exists
-                                                let index = variables.get(&vr).unwrap();
-                                                v[*index].push((gate_number.into(), 1.into()));
-                                            }
-                                        }
-                                        Mul(left, right) => {
-                                            let left = match *left {
-                                                Literal(lit) => lit,
-                                                _ => return Err(StructureErr(
-                                                    Some(gate_number),
-                                                    "LHS of a '*' epxression in a '+' expression must be a literal".to_string()
-                                                )),
-                                            };
-                                            let right = match *right {
-                                                Var(vr) => vr,
-                                                _ => return Err(StructureErr(
-                                                    Some(gate_number),
-                                                    "RHS of a '*' epxression in a '+' expression must be a variable".to_string()
-                                                )),
-                                            };
-
-                                            if !variables.contains_key(&right) {
-                                                let index = v.len();
-                                                variables.insert(right, index);
-
-                                                u.push(Vec::new());
-                                                v.push(vec![(gate_number.into(), left)]);
-                                                w.push(Vec::new());
-                                            } else {
-                                                // We can unwrap because we just checked that the key exists
-                                                let index = variables.get(&right).unwrap();
-                                                v[*index].push((gate_number.into(), left));
-                                            }
-                                        }
-                                        _ => {
-                                            return Err(StructureErr(
-                                                Some(gate_number),
-                                                "Invalid expression found in '+' expression"
-                                                    .to_string(),
-                                            ))
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {
-                                return Err(StructureErr(
-                                    Some(gate_number),
-                                    "Invalid expression found in '*' expression".to_string(),
-                                ))
-                            }
-                        }
-                    }
-                } else {
-                    return Err(StructureErr(
-                        Some(gate_number),
-                        "Program expression must be a list of '=' expressions".to_string(),
-                    ));
-                }
-            }
-        } else {
-            return Err(StructureErr(
-                Some(gate_number),
-                "Expected fourth expression to be 'program'".to_string(),
-            ));
-        }
-
-        let roots = (1..gate_number + 1).map(|r| r.into()).collect::<Vec<_>>();
-
-        Ok(DummyRep {
-            u,
-            v,
-            w,
-            roots,
-            input,
-        })
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
-struct TokenList<T> {
-    tokens: Vec<Token<T>>,
+pub struct TokenList<T> {
+    pub tokens: Vec<Token<T>>,
 }
 
 impl<T> IntoIterator for TokenList<T> {
@@ -339,7 +21,7 @@ impl<T> From<Vec<Token<T>>> for TokenList<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Expression<T> {
+pub enum Expression<T> {
     In(Vec<Expression<T>>),
     Out(Vec<Expression<T>>),
     Verify(Vec<Expression<T>>),
@@ -352,7 +34,7 @@ enum Expression<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Key {
+pub enum Key {
     In,
     Out,
     Verify,
@@ -363,7 +45,7 @@ enum Key {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Token<T> {
+pub enum Token<T> {
     Keyword(Key),
     Var(String),
     Parenthesis(ParenCase),
@@ -371,12 +53,12 @@ enum Token<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum ParenCase {
+pub enum ParenCase {
     Open,
     Close,
 }
 
-fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ParseErr> {
+pub fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ParseErr> {
     use self::Key::*;
     use self::ParseErr::StructureErr;
     use self::Token::*;
@@ -500,7 +182,7 @@ fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ParseE
     }
 }
 
-fn next_group<I, T>(token_iter: &mut I) -> TokenList<T>
+pub fn next_group<I, T>(token_iter: &mut I) -> TokenList<T>
 where
     I: Iterator<Item = Token<T>>,
 {
@@ -533,7 +215,7 @@ where
     }
 }
 
-fn try_to_list<T>(code: String) -> Result<TokenList<T>, ParseErr>
+pub fn try_to_list<T>(code: String) -> Result<TokenList<T>, ParseErr>
 where
     T: FromStr,
 {
@@ -560,7 +242,7 @@ where
 }
 
 #[derive(Debug, PartialEq)]
-enum ParseErr {
+pub enum ParseErr {
     SyntaxErr(usize, String),
     StructureErr(Option<usize>, String),
 }
@@ -649,6 +331,7 @@ fn split_at_char(s: &str, c: char) -> (&str, &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::super::field::z251::Z251;
     use super::*;
 
     #[test]
@@ -952,61 +635,5 @@ mod tests {
             ),
         ]);
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn try_parse_impl_test() {
-        let code = "(in x a b c)
-                    (out y)
-                    (verify x y)
-
-                    (program
-                        (= t1
-                            (* x a))
-                        (= t2
-                            (* x (+ t1 b)))
-                        (= y
-                            (* 1 (+ t2 c))))";
-        
-        // The order of appearance of the variables is (input vairables first):
-        // x y t1 a t2 b c
-        
-        let expected = DummyRep {
-            u: vec![
-                vec![(3.into(), 1.into())], // 1
-                vec![(1.into(), 1.into()), (2.into(), 1.into())], // x
-                vec![], // y
-                vec![], // t1
-                vec![], // a
-                vec![], // t2
-                vec![], // b
-                vec![], // c
-            ],
-            v: vec![
-                vec![], // 1
-                vec![], // x
-                vec![], // y
-                vec![(2.into(), 1.into())], // t1
-                vec![(1.into(), 1.into())], // a
-                vec![(3.into(), 1.into())], // t2
-                vec![(2.into(), 1.into())], // b
-                vec![(3.into(), 1.into())], // c
-            ],
-            w: vec![
-                vec![], // 1
-                vec![], // x
-                vec![(3.into(), 1.into())], // y
-                vec![(1.into(), 1.into())], // t1
-                vec![], // a
-                vec![(2.into(), 1.into())], // t2
-                vec![], // b
-                vec![], // c
-            ],
-            roots: vec![1.into(), 2.into(), 3.into()],
-            input: 2,
-        };
-        let actual = ASTParser::try_parse(code).unwrap();
-
-        assert_eq!(expected, actual);
     }
 }
