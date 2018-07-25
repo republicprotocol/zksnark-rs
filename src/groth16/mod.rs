@@ -670,4 +670,32 @@ mod tests {
             assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
         }
     }
+
+    #[test]
+    fn qap_from_ast() {
+        let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
+            "test_programs/lispesque_quad.zk",
+        ).unwrap())
+            .unwrap();
+        let qap = root_rep.into();
+
+        for _ in 0..1000 {
+            let (x, a, b, c) = (
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+                Z251::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
+            
+            // The order of the weights is now determined by
+            // the order that the variables appear in the file
+            let weights: Vec<Z251> = vec![1.into(), x, share, a * x, a, x * (a * x + b), b, c];
+            let (sigmag1, sigmag2) = setup(&qap);
+
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
+    }
 }
