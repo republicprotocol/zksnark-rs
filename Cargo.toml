@@ -6,3 +6,4 @@ authors = ["ross"]
 [dependencies]
 itertools = "0.6.0"
 rand = "0.5.2"
+bn = "0.4.3"

@@ -1,12 +1,14 @@
+extern crate bn;
+
 use self::circuit::*;
-use self::dummy_poly::{root_poly, DummyPoly};
+use self::coefficient_poly::{root_poly, CoefficientPoly};
 use super::field::z251::Z251;
 use super::field::*;
 use std::iter::{once, repeat, Sum};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 mod circuit;
-mod dummy_poly;
+mod coefficient_poly;
 
 pub trait Random {
     fn random_elem() -> Self;
@@ -37,7 +39,7 @@ pub struct QAP<P> {
     degree: usize,
 }
 
-impl<T> From<T> for QAP<DummyPoly>
+impl<T> From<T> for QAP<CoefficientPoly<Z251>>
 where
     T: RootRepresentation<Z251>,
 {
@@ -45,13 +47,13 @@ where
         let (mut u, mut v, mut w) = (Vec::new(), Vec::new(), Vec::new());
 
         for points in root_rep.u() {
-            u.push(DummyPoly::from((root_rep.roots(), points)));
+            u.push(CoefficientPoly::from((root_rep.roots(), points)));
         }
         for points in root_rep.v() {
-            v.push(DummyPoly::from((root_rep.roots(), points)));
+            v.push(CoefficientPoly::from((root_rep.roots(), points)));
         }
         for points in root_rep.w() {
-            w.push(DummyPoly::from((root_rep.roots(), points)));
+            w.push(CoefficientPoly::from((root_rep.roots(), points)));
         }
 
         assert_eq!(u.len(), v.len());
@@ -267,6 +269,7 @@ mod tests {
     use self::circuit::dummy_rep::DummyRep;
     use super::super::encryption::Encryptable;
     use super::*;
+    use std::str::FromStr;
 
     impl Random for Z251 {
         fn random_elem() -> Self {
@@ -315,14 +318,16 @@ mod tests {
         }
     }
 
-    #[cfg(test)]
-    pub fn constant(c: usize) -> DummyPoly {
+    pub fn constant<T>(c: usize) -> CoefficientPoly<T>
+    where
+        T: From<usize>,
+    {
         vec![c.into()].into()
     }
 
     #[test]
     fn single_mult_honest() {
-        let qap: QAP<DummyPoly> = QAP {
+        let qap: QAP<CoefficientPoly<Z251>> = QAP {
             u: vec![constant(0), constant(0), constant(1), constant(0)],
             v: vec![constant(0), constant(0), constant(0), constant(1)],
             w: vec![constant(0), constant(1), constant(0), constant(0)],
@@ -371,7 +376,7 @@ mod tests {
         let mut count = 0;
         let total = 10000;
 
-        let qap: QAP<DummyPoly> = QAP {
+        let qap: QAP<CoefficientPoly<Z251>> = QAP {
             u: vec![constant(0), constant(0), constant(1), constant(0)],
             v: vec![constant(0), constant(0), constant(0), constant(1)],
             w: vec![constant(0), constant(1), constant(0), constant(0)],
@@ -413,7 +418,7 @@ mod tests {
 
     #[test]
     fn quadratic_share_honest() {
-        let qap: QAP<DummyPoly> = QAP {
+        let qap: QAP<CoefficientPoly<Z251>> = QAP {
             u: [
                 [1, 124, 126],
                 [0, 127, 125],
@@ -481,7 +486,7 @@ mod tests {
         let mut count = 0;
         let total = 10000;
 
-        let qap: QAP<DummyPoly> = QAP {
+        let qap: QAP<CoefficientPoly<Z251>> = QAP {
             u: [
                 [1, 124, 126],
                 [0, 127, 125],
@@ -735,6 +740,98 @@ mod tests {
             let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
 
             assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+    struct Z251bn(Z251);
+
+    impl Add for Z251bn {
+        type Output = Z251bn;
+
+        fn add(self, rhs: Z251bn) -> Self::Output {
+            Z251bn(self.0 + rhs.0)
+        }
+    }
+
+    impl Neg for Z251bn {
+        type Output = Z251bn;
+
+        fn neg(self) -> Self::Output {
+            Z251bn(-self.0)
+        }
+    }
+
+    impl Sub for Z251bn {
+        type Output = Z251bn;
+
+        fn sub(self, rhs: Z251bn) -> Self::Output {
+            Z251bn(self.0 - rhs.0)
+        }
+    }
+
+    impl Mul for Z251bn {
+        type Output = Z251bn;
+
+        fn mul(self, rhs: Z251bn) -> Self::Output {
+            Z251bn(self.0 * rhs.0)
+        }
+    }
+
+    impl Div for Z251bn {
+        type Output = Z251bn;
+
+        fn div(self, rhs: Z251bn) -> Self::Output {
+            Z251bn(self.0 / rhs.0)
+        }
+    }
+
+    impl Field for Z251bn {
+        fn mul_inv(self) -> Self {
+            Z251bn(self.0.mul_inv())
+        }
+
+        fn add_identity() -> Self {
+            Z251bn(Z251::add_identity())
+        }
+        fn mul_identity() -> Self {
+            Z251bn(Z251::mul_identity())
+        }
+    }
+
+    impl From<usize> for Z251bn {
+        fn from(n: usize) -> Self {
+            Z251bn(n.into())
+        }
+    }
+
+    impl FromStr for Z251bn {
+        type Err = ::std::num::ParseIntError;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Ok(Z251bn(Z251::from_str(s)?))
+        }
+    }
+
+    impl EllipticEncryptable for Z251bn {
+        type G1 = bn::G1;
+        type G2 = bn::G2;
+        type GT = Self;
+
+        fn encrypt_g1(self) -> Self::G1 {
+            unimplemented!()
+        }
+        fn encrypt_g2(self) -> Self::G2 {
+            unimplemented!()
+        }
+        fn exp_encrypted_g1(self, g1: Self::G1) -> Self::G1 {
+            unimplemented!()
+        }
+        fn exp_encrypted_g2(self, g2: Self::G2) -> Self::G2 {
+            unimplemented!()
+        }
+        fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
+            unimplemented!()
         }
     }
 }

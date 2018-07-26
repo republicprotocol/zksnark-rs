@@ -1,24 +1,30 @@
 use super::*;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct DummyPoly {
-    coeffs: Vec<Z251>,
+pub struct CoefficientPoly<T> {
+    coeffs: Vec<T>,
 }
 
-impl From<Vec<Z251>> for DummyPoly {
-    fn from(coeffs: Vec<Z251>) -> Self {
-        DummyPoly { coeffs }
+impl<T> From<Vec<T>> for CoefficientPoly<T> {
+    fn from(coeffs: Vec<T>) -> Self {
+        CoefficientPoly { coeffs }
     }
 }
 
-impl Polynomial<Z251> for DummyPoly {
-    fn coefficients(&self) -> Vec<Z251> {
+impl<T> Polynomial<T> for CoefficientPoly<T>
+where
+    T: Copy + Clone + PartialEq + Field,
+{
+    fn coefficients(&self) -> Vec<T> {
         self.coeffs.clone()
     }
 }
 
-impl Add for DummyPoly {
-    type Output = DummyPoly;
+impl<T> Add for CoefficientPoly<T>
+where
+    T: Clone + From<usize> + Add<Output = T>,
+{
+    type Output = CoefficientPoly<T>;
 
     fn add(self, rhs: Self) -> Self::Output {
         let coeffs = if self.coeffs.len() < rhs.coeffs.len() {
@@ -37,11 +43,14 @@ impl Add for DummyPoly {
                 .collect::<Vec<_>>()
         };
 
-        DummyPoly { coeffs }
+        CoefficientPoly { coeffs }
     }
 }
 
-impl Neg for DummyPoly {
+impl<T> Neg for CoefficientPoly<T>
+where
+    T: Neg<Output = T> + Copy,
+{
     type Output = Self;
 
     fn neg(mut self) -> Self::Output {
@@ -51,7 +60,10 @@ impl Neg for DummyPoly {
     }
 }
 
-impl Sub for DummyPoly {
+impl<T> Sub for CoefficientPoly<T>
+where
+    T: Copy + From<usize> + Add<Output = T> + Neg<Output = T>,
+{
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -59,21 +71,28 @@ impl Sub for DummyPoly {
     }
 }
 
-impl Sum for DummyPoly {
+impl<T> Sum for CoefficientPoly<T>
+where
+    T: From<usize> + Clone + Add<Output = T>,
+{
     fn sum<I>(iter: I) -> Self
     where
         I: Iterator<Item = Self>,
+        T: From<usize> + Clone + From<usize> + Add<Output = T>,
     {
         iter.fold(
-            DummyPoly {
-                coeffs: vec![Z251::from(0)],
+            CoefficientPoly {
+                coeffs: vec![T::from(0)],
             },
             |acc, x| acc + x,
         )
     }
 }
 
-impl Mul for DummyPoly {
+impl<T> Mul for CoefficientPoly<T>
+where
+    T: Clone + Copy + PartialEq + Field + From<usize> + Add<Output = T> + Mul<Output = T>,
+{
     type Output = Self;
 
     fn mul(mut self, mut rhs: Self) -> Self::Output {
@@ -100,18 +119,21 @@ impl Mul for DummyPoly {
 
                 self_iter
                     .zip(rhs_iter)
-                    .fold(Z251::from(0), |acc, (&a, &b)| acc + a * b)
+                    .fold(T::from(0), |acc, (&a, &b)| acc + a * b)
             })
             .collect::<Vec<_>>();
 
-        DummyPoly { coeffs }
+        CoefficientPoly { coeffs }
     }
 }
 
-impl Mul<Z251> for DummyPoly {
+impl<T> Mul<T> for CoefficientPoly<T>
+where
+    T: Mul<Output = T> + Copy,
+{
     type Output = Self;
 
-    fn mul(mut self, rhs: Z251) -> Self::Output {
+    fn mul(mut self, rhs: T) -> Self::Output {
         self.coeffs
             .as_mut_slice()
             .iter_mut()
@@ -121,7 +143,10 @@ impl Mul<Z251> for DummyPoly {
     }
 }
 
-impl Div for DummyPoly {
+impl<T> Div for CoefficientPoly<T>
+where
+    T: Copy + Clone + PartialEq + Field,
+{
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -129,10 +154,11 @@ impl Div for DummyPoly {
     }
 }
 
-impl<I, J> From<(I, J)> for DummyPoly
+impl<T, I, J> From<(I, J)> for CoefficientPoly<T>
 where
-    I: Iterator<Item = Z251>,
-    J: Iterator<Item = (Z251, Z251)>,
+    T: Clone + Copy + PartialEq + Field + From<usize> + Add<Output = T> + Mul<Output = T>,
+    I: Iterator<Item = T>,
+    J: Iterator<Item = (T, T)>,
 {
     fn from((roots, points): (I, J)) -> Self {
         let roots_vec = roots.collect::<Vec<_>>();
@@ -142,23 +168,32 @@ where
     }
 }
 
-fn lagrange_basis<I>(roots: I, x: Z251) -> DummyPoly
+fn lagrange_basis<T, I>(roots: I, x: T) -> CoefficientPoly<T>
 where
-    I: Iterator<Item = Z251>,
+    T: Div<Output = T>
+        + Clone
+        + Copy
+        + PartialEq
+        + Field
+        + From<usize>
+        + Add<Output = T>
+        + Mul<Output = T>,
+    I: Iterator<Item = T>,
 {
     roots
         .filter(|&r| r != x)
         .fold(vec![1.into()].into(), |acc, m| {
-            DummyPoly::from(vec![-m, 1.into()]) * (Z251::from(1) / (x - m)) * acc
+            CoefficientPoly::<T>::from(vec![-m, 1.into()]) * (T::from(1) / (x - m)) * acc
         })
 }
 
-pub fn root_poly<I>(roots: I) -> DummyPoly
+pub fn root_poly<T, I>(roots: I) -> CoefficientPoly<T>
 where
-    I: Iterator<Item = Z251>,
+    T: Clone + Copy + PartialEq + Field + From<usize> + Add<Output = T> + Mul<Output = T>,
+    I: Iterator<Item = T>,
 {
-    roots.fold(DummyPoly::from(vec![1.into()]), |acc, r| {
-        acc * (DummyPoly::from(vec![-r, 1.into()]))
+    roots.fold(CoefficientPoly::from(vec![1.into()]), |acc, r| {
+        acc * (CoefficientPoly::from(vec![-r, 1.into()]))
     })
 }
 
@@ -166,10 +201,13 @@ where
 mod tests {
     use super::*;
 
-    impl DummyPoly {
+    impl<T> CoefficientPoly<T>
+    where
+        T: PartialEq + Field + Copy,
+    {
         fn is_zero(&self) -> bool {
             for &c in self.coeffs.as_slice() {
-                if c != Z251::add_identity() {
+                if c != T::add_identity() {
                     return false;
                 }
             }
@@ -181,12 +219,12 @@ mod tests {
     #[test]
     fn dummy_add() {
         // Trivial addition
-        let a = DummyPoly::from(vec![]);
-        let b = DummyPoly::from(vec![]);
+        let a = CoefficientPoly::<Z251>::from(vec![]);
+        let b = CoefficientPoly::<Z251>::from(vec![]);
         assert!((a + b).is_zero());
 
         // Addition with one trivial term
-        let a = DummyPoly::from(vec![]);
+        let a = CoefficientPoly::from(vec![]);
         let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
         assert_eq!(
             a + b,
@@ -194,7 +232,7 @@ mod tests {
         );
 
         // Addition with one zero term
-        let a = DummyPoly::from(vec![Z251::from(0)]);
+        let a = CoefficientPoly::from(vec![Z251::from(0)]);
         let b = vec![Z251::from(1), Z251::from(2), Z251::from(3)].into();
         assert_eq!(
             a + b,
@@ -202,7 +240,7 @@ mod tests {
         );
 
         // Addition with leading zeros
-        let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
+        let a = CoefficientPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
         let b = vec![Z251::from(1), Z251::from(2), Z251::from(3), Z251::from(0)].into();
         assert_eq!(
             a + b,
@@ -210,7 +248,7 @@ mod tests {
         );
 
         // Addition with overflow
-        let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
+        let a = CoefficientPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
         let b = vec![Z251::from(123), Z251::from(234), Z251::from(3)].into();
         assert_eq!(
             a + b,
@@ -224,7 +262,7 @@ mod tests {
         // Generate random quadratic polynomials
 
         for _ in 0..1000 {
-            let a = DummyPoly::from(vec![
+            let a = CoefficientPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
@@ -238,12 +276,12 @@ mod tests {
     fn dummy_sub() {
         // Check that if c = a - b then a = b + c
         for _ in 0..1000 {
-            let a = DummyPoly::from(vec![
+            let a = CoefficientPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
             ]);
-            let b = DummyPoly::from(vec![
+            let b = CoefficientPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
@@ -256,14 +294,14 @@ mod tests {
     #[test]
     fn dummy_sum() {
         let mut polys = Vec::with_capacity(20);
-        let mut sum: DummyPoly;
+        let mut sum: CoefficientPoly<Z251>;
 
         for _ in 0..1000 {
             polys.clear();
             sum = vec![Z251::add_identity(); 3].into();
 
             for _ in 0..20 {
-                let a = DummyPoly::from(vec![
+                let a = CoefficientPoly::from(vec![
                     Z251::random_elem(),
                     Z251::random_elem(),
                     Z251::random_elem(),
@@ -279,23 +317,23 @@ mod tests {
     #[test]
     fn dummy_mul() {
         // Trivial multiplication
-        let a = DummyPoly::from(vec![]);
-        let b = DummyPoly::from(vec![]);
+        let a = CoefficientPoly::<Z251>::from(vec![]);
+        let b = CoefficientPoly::<Z251>::from(vec![]);
         assert!((a * b).is_zero());
 
         // Multiplication with one trivial term
-        let a = DummyPoly::from(vec![]);
-        let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        let a = CoefficientPoly::<Z251>::from(vec![]);
+        let b = CoefficientPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
         assert!((a * b).is_zero());
 
         // Multiplication with one zero term
-        let a = DummyPoly::from(vec![Z251::from(0)]);
-        let b = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        let a = CoefficientPoly::from(vec![Z251::from(0)]);
+        let b = CoefficientPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
         assert!((a * b).is_zero());
 
         // Multiplication with leading zeros
-        let a = DummyPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
-        let b = DummyPoly::from(vec![
+        let a = CoefficientPoly::from(vec![Z251::from(4), Z251::from(5), Z251::from(6)]);
+        let b = CoefficientPoly::from(vec![
             Z251::from(1),
             Z251::from(2),
             Z251::from(3),
@@ -313,8 +351,8 @@ mod tests {
         );
 
         // Multiplication with overflow
-        let a = DummyPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
-        let b = DummyPoly::from(vec![Z251::from(123), Z251::from(234), Z251::from(3)]);
+        let a = CoefficientPoly::from(vec![Z251::from(234), Z251::from(100), Z251::from(6)]);
+        let b = CoefficientPoly::from(vec![Z251::from(123), Z251::from(234), Z251::from(3)]);
         assert_eq!(
             a * b,
             vec![
@@ -330,33 +368,33 @@ mod tests {
     #[test]
     fn dummy_scalar_mul() {
         // Scalar multiplication with trivial polynomial
-        let a = DummyPoly::from(vec![]);
+        let a = CoefficientPoly::from(vec![]);
         let s = Z251::from(69);
         assert!((a * s).is_zero());
 
         // Scalar multiplication with zero polynomial
-        let a = DummyPoly::from(vec![0.into()]);
+        let a = CoefficientPoly::from(vec![0.into()]);
         let s = Z251::from(69);
         assert!((a * s).is_zero());
 
         // Scalar multiplication with non-zero polynomial
-        let a = DummyPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
+        let a = CoefficientPoly::from(vec![Z251::from(1), Z251::from(2), Z251::from(3)]);
         let s = Z251::from(69);
         assert_eq!(
             a * s,
-            DummyPoly::from(vec![Z251::from(69), Z251::from(138), Z251::from(207)])
+            CoefficientPoly::from(vec![Z251::from(69), Z251::from(138), Z251::from(207)])
         );
 
         // Scalar multiplication with overflow
-        let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
+        let a = CoefficientPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
         let s = Z251::from(69);
         assert_eq!(
             a * s,
-            DummyPoly::from(vec![Z251::from(125), Z251::from(138), Z251::from(207)])
+            CoefficientPoly::from(vec![Z251::from(125), Z251::from(138), Z251::from(207)])
         );
 
         // Scalar multiplication zero scalar
-        let a = DummyPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
+        let a = CoefficientPoly::from(vec![Z251::from(20), Z251::from(2), Z251::from(3)]);
         let s = Z251::from(0);
         assert!((a * s).is_zero());
     }
@@ -366,12 +404,12 @@ mod tests {
         // Check that if a * b = c then a = c / b
 
         for _ in 0..1000 {
-            let mut a = DummyPoly::from(vec![
+            let mut a = CoefficientPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
             ]);
-            let b = DummyPoly::from(vec![
+            let b = CoefficientPoly::from(vec![
                 Z251::random_elem(),
                 Z251::random_elem(),
                 Z251::random_elem(),
@@ -390,7 +428,7 @@ mod tests {
     fn dummy_lagrange() {
         for max in 2..25 {
             for i in 1..max {
-                let roots = (1..max).map(|x| x.into());
+                let roots = (1..max).map(|x| Z251::from(x));
                 let poly = lagrange_basis(roots, i.into());
 
                 for j in 1..max {
@@ -407,11 +445,11 @@ mod tests {
     #[test]
     fn dummy_from_roots() {
         for mask in 1..255_u8 {
-            let roots = (1..9).map(|x| x.into());
+            let roots = (1..9).map(|x| Z251::from(x));
             let points = (0..8_u8)
                 .filter(|i| (1_u8 << i) & mask != 0)
                 .map(|i| ((i as usize + 1).into(), (i as usize + 2).into()));
-            let poly = DummyPoly::from((roots, points));
+            let poly = CoefficientPoly::from((roots, points));
 
             for i in 0..8_u8 {
                 if (1_u8 << i) & mask != 0 {
@@ -429,7 +467,7 @@ mod tests {
     #[test]
     fn dummy_root_poly() {
         for i in 2..25 {
-            let poly = root_poly((1..i).map(|x| x.into()));
+            let poly = root_poly((1..i).map(|x| Z251::from(x)));
 
             for j in 1..i {
                 assert_eq!(poly.evaluate(j.into()), Z251::add_identity());
