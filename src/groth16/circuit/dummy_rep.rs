@@ -1,20 +1,24 @@
 use super::super::super::field::z251::Z251;
+use super::super::super::field::*;
 use super::RootRepresentation;
 use std::vec::IntoIter;
 
 #[derive(Debug, PartialEq)]
-pub struct DummyRep {
-    pub u: Vec<Vec<(Z251, Z251)>>,
-    pub v: Vec<Vec<(Z251, Z251)>>,
-    pub w: Vec<Vec<(Z251, Z251)>>,
-    pub roots: Vec<Z251>,
+pub struct DummyRep<F> {
+    pub u: Vec<Vec<(F, F)>>,
+    pub v: Vec<Vec<(F, F)>>,
+    pub w: Vec<Vec<(F, F)>>,
+    pub roots: Vec<F>,
     pub input: usize,
 }
 
-impl RootRepresentation<Z251> for DummyRep {
+impl<F> RootRepresentation<F> for DummyRep<F>
+where
+    F: Field + Clone,
+{
     type Row = IntoIter<Self::Column>;
-    type Column = IntoIter<(Z251, Z251)>;
-    type Roots = IntoIter<Z251>;
+    type Column = IntoIter<(F, F)>;
+    type Roots = IntoIter<F>;
 
     fn u(&self) -> Self::Row {
         self.u
@@ -48,7 +52,7 @@ impl RootRepresentation<Z251> for DummyRep {
     }
 }
 
-impl<'a> From<&'a str> for DummyRep {
+impl<'a> From<&'a str> for DummyRep<Z251> {
     fn from(code: &'a str) -> Self {
         let mut line_count = 0;
         let mut lines = code.lines();

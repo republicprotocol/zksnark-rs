@@ -1,19 +1,20 @@
 use self::ast::*;
 use self::dummy_rep::DummyRep;
 use super::super::field::z251::Z251;
+use std::str::FromStr;
 use super::super::field::*;
 use std::collections::HashMap;
 
 mod ast;
 pub mod dummy_rep;
 
-pub trait RootRepresentation<T>
+pub trait RootRepresentation<F>
 where
-    T: Field,
+    F: Field,
 {
     type Row: Iterator<Item = Self::Column>;
-    type Column: Iterator<Item = (T, T)>;
-    type Roots: Iterator<Item = T>;
+    type Column: Iterator<Item = (F, F)>;
+    type Roots: Iterator<Item = F>;
 
     fn u(&self) -> Self::Row;
     fn v(&self) -> Self::Row;
@@ -32,12 +33,15 @@ where
 
 pub struct ASTParser {}
 
-impl TryParse<DummyRep, Z251, ParseErr> for ASTParser {
-    fn try_parse(code: &str) -> Result<DummyRep, ParseErr> {
+impl<F> TryParse<DummyRep<F>, F, ParseErr> for ASTParser
+where
+    F: Field + Clone + FromStr + From<usize>,
+{
+    fn try_parse(code: &str) -> Result<DummyRep<F>, ParseErr> {
         use self::Expression::*;
         use self::ParseErr::*;
 
-        let token_list = try_to_list::<Z251>(code.to_string())?;
+        let token_list = try_to_list::<F>(code.to_string())?;
         let group_iter = &mut token_list.into_iter();
         let mut expressions = Vec::new();
 
@@ -53,9 +57,9 @@ impl TryParse<DummyRep, Z251, ParseErr> for ASTParser {
 
         let mut variables: HashMap<String, usize> = HashMap::new();
         let mut gate_number = 0;
-        let mut u: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
-        let mut v: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
-        let mut w: Vec<Vec<(Z251, Z251)>> = vec![Vec::new()];
+        let mut u: Vec<Vec<(F, F)>> = vec![Vec::new()];
+        let mut v: Vec<Vec<(F, F)>> = vec![Vec::new()];
+        let mut w: Vec<Vec<(F, F)>> = vec![Vec::new()];
         let mut input: usize = 0;
 
         // Only accept the following format (empty lines don't matter):
@@ -366,7 +370,7 @@ mod tests {
         // The order of appearance of the variables is (input vairables first):
         // x y t1 a t2 b c
 
-        let expected = DummyRep {
+        let expected = DummyRep::<Z251> {
             u: vec![
                 vec![(3.into(), 1.into())],                       // 1
                 vec![(1.into(), 1.into()), (2.into(), 1.into())], // x
