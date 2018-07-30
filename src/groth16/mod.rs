@@ -269,6 +269,8 @@ mod tests {
     use self::circuit::dummy_rep::DummyRep;
     use super::super::encryption::Encryptable;
     use super::*;
+    use std::str::FromStr;
+    use std::time::{Duration, Instant};
 
     impl Random for Z251 {
         fn random_elem() -> Self {
@@ -811,6 +813,17 @@ mod tests {
         }
     }
 
+    impl FromStr for FrLocal {
+        type Err = ();
+        
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            match Fr::from_str(s) {
+                None => Err(()),
+                Some(n) => Ok(FrLocal(n)),
+            }
+        }
+    }
+
     impl Random for FrLocal {
         fn random_elem() -> Self {
             let rng = &mut rand::thread_rng();
@@ -848,7 +861,7 @@ mod tests {
 
     #[test]
     fn exp_encrypted_test() {
-        for _ in 0..10 {
+        for _ in 0..1000 {
             let (a, b) = (FrLocal::random_elem(), FrLocal::random_elem());
             assert!(a.exp_encrypted_g1(b.encrypt_g1()) == (a * b).encrypt_g1());
         }
@@ -974,7 +987,7 @@ mod tests {
         };
         let weights: Vec<FrLocal> = vec![1.into(), 51.into(), 3.into(), 17.into()];
 
-        for _ in 0..1 {
+        for _ in 0..10 {
             let (sigmag1, sigmag2) = setup(&qap);
 
             let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
@@ -988,70 +1001,85 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn bn_encrypt_test() {
-    //     // Quadratic polynomial share
-    //     let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
-    //         "test_programs/lispesque_quad.zk",
-    //     ).unwrap())
-    //         .unwrap();
-    //     let qap: QAP<CoefficientPoly<Z251bn>> = root_rep.into();
+    #[test]
+    fn bn_encrypt_quad_test() {
+        let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
+            "test_programs/lispesque_quad.zk",
+        ).unwrap())
+            .unwrap();
+        let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
-    //     for _ in 0..1 {
-    //         let (x, a, b, c) = (
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //         );
-    //         let share = a * x * x + b * x + c;
+        for _ in 0..10 {
+            let (x, a, b, c) = (
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+            );
+            let share = a * x * x + b * x + c;
 
-    //         // The order of the weights is now determined by
-    //         // the order that the variables appear in the file
-    //         let weights: Vec<Z251bn> = vec![1.into(), x, share, a * x, a, x * (a * x + b), b, c];
-    //         let (sigmag1, sigmag2) = setup(&qap);
+            // The order of the weights is now determined by
+            // the order that the variables appear in the file
+            let weights: Vec<FrLocal> = vec![1.into(), x, share, a * x, a, x * (a * x + b), b, c];
+            let (sigmag1, sigmag2) = setup(&qap);
 
-    //         let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-    //         assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
-    //     }
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+        }
+    }
 
-    //     // Cubic polynomial share
-    //     let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
-    //         "test_programs/lispesque_cubic.zk",
-    //     ).unwrap())
-    //         .unwrap();
-    //     let qap: QAP<CoefficientPoly<Z251bn>> = root_rep.into();
+    #[test]
+    fn bn_encrypt_cubic_test() {
+        let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
+            "test_programs/lispesque_cubic.zk",
+        ).unwrap())
+            .unwrap();
+        let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
-    //     for _ in 0..1 {
-    //         let (x, a, b, c, d) = (
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //             Z251bn::random_elem(),
-    //         );
-    //         let share = a * x * x * x + b * x * x + c * x + d;
+        let trials = 500;
+        let (mut setup_time, mut proof_time, mut verify_time) = (0, 0, 0);
 
-    //         // The order of the weights is now determined by
-    //         // the order that the variables appear in the file
-    //         let weights: Vec<Z251bn> = vec![
-    //             1.into(),
-    //             x,
-    //             share,
-    //             a * x,
-    //             a,
-    //             x * (a * x + b),
-    //             b,
-    //             x * (x * (a * x + b) + c),
-    //             c,
-    //             d,
-    //         ];
-    //         let (sigmag1, sigmag2) = setup(&qap);
+        for _ in 0..trials {
+            let (x, a, b, c, d) = (
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+                FrLocal::random_elem(),
+            );
+            let share = a * x * x * x + b * x * x + c * x + d;
 
-    //         let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+            // The order of the weights is now determined by
+            // the order that the variables appear in the file
+            let weights: Vec<FrLocal> = vec![
+                1.into(),
+                x,
+                share,
+                a * x,
+                a,
+                x * (a * x + b),
+                b,
+                x * (x * (a * x + b) + c),
+                c,
+                d,
+            ];
 
-    //         assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
-    //     }
-    // }
+            let now = Instant::now();
+            let (sigmag1, sigmag2) = setup(&qap);
+            setup_time += now.elapsed().subsec_millis();
+            
+            let now = Instant::now();
+            let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
+            proof_time += now.elapsed().subsec_millis();
+
+            let now = Instant::now();
+            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+            verify_time += now.elapsed().subsec_millis();
+        }
+
+        println!("Average setup time: {}", setup_time / trials);
+        println!("Average proof time: {}", proof_time / trials);
+        println!("Average verify time: {}", verify_time / trials);
+    }
 }
