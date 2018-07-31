@@ -1,3 +1,6 @@
+//! Defines the `Field` trait along with other utility functions for working
+//! with fields.
+
 extern crate itertools;
 
 use self::itertools::unfold;

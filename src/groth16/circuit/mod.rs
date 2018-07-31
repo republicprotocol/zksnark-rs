@@ -1,6 +1,5 @@
-use self::ast::*;
+use self::ast::{Expression, ParseErr};
 use self::dummy_rep::DummyRep;
-use super::super::field::z251::Z251;
 use std::str::FromStr;
 use super::super::field::*;
 use std::collections::HashMap;
@@ -41,17 +40,17 @@ where
         use self::Expression::*;
         use self::ParseErr::*;
 
-        let token_list = try_to_list::<F>(code.to_string())?;
+        let token_list = ast::try_to_list::<F>(code.to_string())?;
         let group_iter = &mut token_list.into_iter();
         let mut expressions = Vec::new();
 
         loop {
-            let group = next_group(group_iter);
+            let group = ast::next_group(group_iter);
             if group.tokens.len() == 0 {
                 break;
             }
 
-            let expression = parse_expression(group)?;
+            let expression = ast::parse_expression(group)?;
             expressions.push(expression);
         }
 
@@ -352,6 +351,7 @@ where
 mod tests {
     use super::dummy_rep::DummyRep;
     use super::*;
+    use super::super::super::field::z251::Z251;
 
     #[test]
     fn try_parse_impl_test() {

@@ -228,10 +228,10 @@ where
     for line in code.lines() {
         for substr in line.split_whitespace() {
             match parse_token::<T>(substr) {
+                Ok(ref mut t) => tokens.append(t),
                 Err(TokenErr(e)) => {
                     return Err(SyntaxErr(current_line, e));
                 }
-                Ok(ref mut t) => tokens.append(t),
             }
         }
 
