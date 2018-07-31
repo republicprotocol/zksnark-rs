@@ -30,8 +30,9 @@
 //!     (= y
 //!         (* 1 (+ t2 c))))
 //! ```
-//! The order must always follow `in`, `out`, `verify` and then `program`. The
-//! keywords are as follows:
+//! The order must always follow `in`, `out`, `verify` and then `program`.
+//! Currently parentheses are 'sticky' in that there must not be any whitespace
+//! between them and their interior tokens. The keywords are as follows:
 //! * `in` precedes the list of input wires to the circuit, excluding the
 //!   constant unity wire.
 //! * `out` precedes the list of output wires from the circuit.
@@ -72,7 +73,10 @@
 //!     (= x
 //!         (* 1 (+ (* 4 temp) c 6))))
 //! ```
-//! Suppose that the prove wants to prove that they know values `a` and `c` for which the circuit is satisfied when the verifier inputs `b = 2` and `x = 34`. The following code is an example of the setup, prove and verify process.
+//! Suppose that the prove wants to prove that they know values `a` and `c` for
+//! which the circuit is satisfied when the verifier inputs `b = 2` and `x =
+//! 34`. The following code is an example of the setup, prove and verify
+//! process.
 //! ```
 //! extern crate zksnark;
 //!
@@ -116,10 +120,14 @@ mod encryption;
 pub mod field;
 pub mod groth16;
 
-#[doc(hidden)] pub use groth16::circuit::{ASTParser, TryParse};
-#[doc(hidden)] pub use groth16::coefficient_poly::CoefficientPoly;
-#[doc(hidden)] pub use groth16::fr::FrLocal;
-#[doc(hidden)] pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
+#[doc(hidden)]
+pub use groth16::circuit::{ASTParser, TryParse};
+#[doc(hidden)]
+pub use groth16::coefficient_poly::CoefficientPoly;
+#[doc(hidden)]
+pub use groth16::fr::FrLocal;
+#[doc(hidden)]
+pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
 
 #[cfg(test)]
 mod tests {
@@ -155,7 +163,7 @@ mod tests {
         let (sigmag1, sigmag2) = groth16::setup(&qap);
 
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
-
+        
         assert!(!groth16::verify(
             &qap,
             (sigmag1, sigmag2),
