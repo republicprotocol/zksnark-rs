@@ -77,7 +77,7 @@ Suppose that the prove wants to prove that they know values `a` and `c` for
 which the circuit is satisfied when the verifier inputs `b = 2` and `x =
 34`. The following code is an example of the setup, prove and verify
 process.
-```
+```rust
 extern crate zksnark;
 
 use zksnark::groth16;
