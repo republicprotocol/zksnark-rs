@@ -1,9 +1,10 @@
 use self::ast::{Expression, ParseErr};
 use self::dummy_rep::DummyRep;
-use std::str::FromStr;
 use super::super::field::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 
+mod arithmetic_circuit;
 mod ast;
 pub mod dummy_rep;
 
@@ -40,19 +41,7 @@ where
         use self::Expression::*;
         use self::ParseErr::*;
 
-        let token_list = ast::try_to_list::<F>(code.to_string())?;
-        let group_iter = &mut token_list.into_iter();
-        let mut expressions = Vec::new();
-
-        loop {
-            let group = ast::next_group(group_iter);
-            if group.tokens.len() == 0 {
-                break;
-            }
-
-            let expression = ast::parse_expression(group)?;
-            expressions.push(expression);
-        }
+        let expressions = ast::expressions(code)?;
 
         let mut variables: HashMap<String, usize> = HashMap::new();
         let mut gate_number = 0;
@@ -197,14 +186,14 @@ where
                                                 Literal(lit) => lit,
                                                 _ => return Err(StructureErr(
                                                     Some(gate_number),
-                                                    "LHS of a '*' epxression in a '+' expression must be a literal".to_string()
+                                                    "LHS of a '*' expression in a '+' expression must be a literal".to_string()
                                                 )),
                                             };
                                             let right = match *right {
                                                 Var(vr) => vr,
                                                 _ => return Err(StructureErr(
                                                     Some(gate_number),
-                                                    "RHS of a '*' epxression in a '+' expression must be a variable".to_string()
+                                                    "RHS of a '*' expression in a '+' expression must be a variable".to_string()
                                                 )),
                                             };
 
@@ -279,14 +268,14 @@ where
                                                 Literal(lit) => lit,
                                                 _ => return Err(StructureErr(
                                                     Some(gate_number),
-                                                    "LHS of a '*' epxression in a '+' expression must be a literal".to_string()
+                                                    "LHS of a '*' expression in a '+' expression must be a literal".to_string()
                                                 )),
                                             };
                                             let right = match *right {
                                                 Var(vr) => vr,
                                                 _ => return Err(StructureErr(
                                                     Some(gate_number),
-                                                    "RHS of a '*' epxression in a '+' expression must be a variable".to_string()
+                                                    "RHS of a '*' expression in a '+' expression must be a variable".to_string()
                                                 )),
                                             };
 
@@ -349,9 +338,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::super::field::z251::Z251;
     use super::dummy_rep::DummyRep;
     use super::*;
-    use super::super::super::field::z251::Z251;
 
     #[test]
     fn try_parse_impl_test() {

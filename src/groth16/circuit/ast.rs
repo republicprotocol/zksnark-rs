@@ -58,7 +58,28 @@ pub enum ParenCase {
     Close,
 }
 
-pub fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ParseErr> {
+pub fn expressions<F>(code: &str) -> Result<Vec<Expression<F>>, ParseErr>
+where
+    F: FromStr,
+{
+    let token_list = try_to_list::<F>(code.to_string())?;
+    let group_iter = &mut token_list.into_iter();
+    let mut expressions = Vec::new();
+
+    loop {
+        let group = next_group(group_iter);
+        if group.tokens.len() == 0 {
+            break;
+        }
+
+        let expression = parse_expression(group)?;
+        expressions.push(expression);
+    }
+
+    Ok(expressions)
+}
+
+fn parse_expression<T>(token_list: TokenList<T>) -> Result<Expression<T>, ParseErr> {
     use self::Key::*;
     use self::ParseErr::StructureErr;
     use self::Token::*;
