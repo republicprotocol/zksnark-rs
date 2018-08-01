@@ -10,6 +10,7 @@ mod ast;
 pub mod dummy_rep;
 
 use self::arithmetic_circuit::{AddGate, Circuit, CircuitGate, MulGate, ScalarGate};
+use self::ast::TokenList;
 
 pub trait RootRepresentation<F>
 where
@@ -339,27 +340,117 @@ where
     }
 }
 
-// fn weights<'a, F>(
-//     expressions: Vec<Expression<F>>,
-//     assignments: HashMap<String, F>,
-// ) -> Result<&'a [F], ParseErr> {
-//     use self::Expression::*;
-//     use self::ParseErr::*;
+fn weights<'a, F>(
+    code: &str,
+    mut assignments: HashMap<String, F>,
+) -> Result<Vec<F>, ParseErr>
+where
+    F: Clone + Field + FromStr + PartialEq,
+{
+    use self::Expression::*;
+    use self::ParseErr::*;
 
-//     let mut exp_iter = expressions.as_slice().iter();
+    let expressions = ast::expressions(code)?;
+    let mut exp_iter = expressions.as_slice().iter();
+    let token_list: TokenList<F> = ast::try_to_list(code.to_string())?;
+    let variables = ast::variable_order(token_list);
 
-//     let inputs = match exp_iter.next() {
-//         Some(In(i)) => i,
-//         _ => {
-//             return Err(StructureErr(
-//                 None,
-//                 "Expected first expression to be 'in'".to_string(),
-//             ))
-//         }
-//     };
+    let inputs = match exp_iter.next() {
+        Some(In(i)) => i,
+        _ => {
+            return Err(StructureErr(
+                None,
+                "Expected first expression to be 'in'".to_string(),
+            ))
+        }
+    };
 
-//     unimplemented!()
-// }
+    {
+        let constrained = inputs.as_slice().iter().all(|e| {
+            if let Var(var) = e {
+                assignments.contains_key(var)
+            } else {
+                false
+            }
+        });
+
+        if !constrained {
+            return Err(StructureErr(
+                None,
+                "Under constained or malformed inputs".to_string(),
+            ));
+        }
+    }
+
+    match exp_iter.next() {
+        Some(Out(_)) => (),
+        _ => {
+            return Err(StructureErr(
+                None,
+                "Expected second expression to be 'out'".to_string(),
+            ))
+        }
+    }
+
+    if let Some(Verify(vars)) = exp_iter.next() {
+        for var in vars.into_iter() {
+            match var {
+                Var(var) => (),
+                _ => panic!("parse_expression() did not correctly parse 'verify'"),
+            }
+        }
+    } else {
+        return Err(StructureErr(
+            None,
+            "Expected third expression to be 'verify'".to_string(),
+        ));
+    }
+
+    if let Some(Program(program)) = exp_iter.next() {
+        for assignment in program.into_iter() {
+            if let Assign(left, right) = assignment {
+                if let Var(ref var) = **left {
+                    if assignments.contains_key(var) {
+                        return Err(StructureErr(
+                            None,
+                            "Attempted to assign to an already assigned variable".to_string(),
+                        ));
+                    }
+
+                    match evaluate(right, &assignments) {
+                        Some(value) => assignments.insert(var.clone(), value),
+                        None => {
+                            return Err(StructureErr(
+                                None,
+                                "Under constrained expression".to_string(),
+                            ))
+                        }
+                    };
+                } else {
+                    panic!("parse_expression() did not correctly parse '='");
+                }
+            } else {
+                return Err(StructureErr(
+                    None,
+                    "Program expression must be a list of '=' expressions".to_string(),
+                ));
+            }
+        }
+    } else {
+        return Err(StructureErr(
+            None,
+            "Expected fourth expression to be 'program'".to_string(),
+        ));
+    }
+
+    let weights = variables.into_iter().map(|v| {
+        assignments
+            .remove(&v)
+            .expect("Every variable should have an assignment")
+    });
+
+    Ok(::std::iter::once(F::mul_identity()).chain(weights).collect::<Vec<_>>())
+}
 
 fn evaluate<F>(expression: &Expression<F>, assignments: &HashMap<String, F>) -> Option<F>
 where
@@ -385,6 +476,7 @@ mod tests {
     use super::super::super::field::z251::Z251;
     use super::dummy_rep::DummyRep;
     use super::*;
+    use super::ast;
 
     #[test]
     fn try_parse_impl_test() {
@@ -465,5 +557,34 @@ mod tests {
         // All inputs assigned
         assignments.insert("c".to_string(), 4.into());
         assert_eq!(evaluate(&expression, &assignments), Some(34.into()));
+    }
+
+    #[test]
+    fn weights_test() {
+        let code = "(in a b c)
+                    (out x)
+                    (verify b x)
+
+                    (program
+                        (= temp
+                            (* a b))
+                        (= x
+                            (* 1 (+ (* 4 temp) c 6))))";
+
+        let mut assignments = HashMap::<_, Z251>::new();
+        assignments.insert("a".to_string(), 3.into());
+        assignments.insert("b".to_string(), 2.into());
+        assignments.insert("c".to_string(), 4.into());
+
+        let expected: Vec<Z251> = vec![
+            1.into(),  // Unity input
+            2.into(),  // b = 2
+            34.into(), // x = 34
+            6.into(),  // temp = ab = 6
+            3.into(),  // a = 3
+            4.into(),  // c = 4
+        ];
+
+        assert_eq!(Ok(expected), weights(&code, assignments));
     }
 }

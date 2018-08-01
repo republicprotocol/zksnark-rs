@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,6 +57,29 @@ pub enum Token<T> {
 pub enum ParenCase {
     Open,
     Close,
+}
+
+pub fn variable_order<F>(token_list: TokenList<F>) -> Vec<String>
+where
+    F: PartialEq,
+{
+    let mut seen = HashMap::<String, ()>::new();
+
+    token_list
+        .into_iter()
+        .skip_while(|t| *t != Token::Keyword(Key::Verify))
+        .filter_map(|t| match t {
+            Token::Var(var) => {
+                if seen.contains_key(&var) {
+                    None
+                } else {
+                    seen.insert(var.clone(), ());
+                    Some(var)
+                }
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
 }
 
 pub fn expressions<F>(code: &str) -> Result<Vec<Expression<F>>, ParseErr>
@@ -656,5 +680,28 @@ mod tests {
             ),
         ]);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn variable_order_test() {
+        let code = "(in x a b c)
+                    (out y)
+                    (verify x y)
+
+                    (program
+                        (= t1
+                            (* x a))
+                        (= t2
+                            (* x (+ t1 b)))
+                        (= y
+                            (* 1 (+ t2 c))))";
+        let token_list: TokenList<Z251> = try_to_list(code.to_string()).unwrap();
+        assert_eq!(
+            variable_order(token_list),
+            vec!["x", "y", "t1", "a", "t2", "b", "c"]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        );
     }
 }
