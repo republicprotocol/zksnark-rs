@@ -2,11 +2,14 @@ use self::ast::{Expression, ParseErr};
 use self::dummy_rep::DummyRep;
 use super::super::field::*;
 use std::collections::HashMap;
+use std::ops::Mul;
 use std::str::FromStr;
 
 mod arithmetic_circuit;
 mod ast;
 pub mod dummy_rep;
+
+use self::arithmetic_circuit::{AddGate, Circuit, CircuitGate, MulGate, ScalarGate};
 
 pub trait RootRepresentation<F>
 where
@@ -336,6 +339,47 @@ where
     }
 }
 
+// fn weights<'a, F>(
+//     expressions: Vec<Expression<F>>,
+//     assignments: HashMap<String, F>,
+// ) -> Result<&'a [F], ParseErr> {
+//     use self::Expression::*;
+//     use self::ParseErr::*;
+
+//     let mut exp_iter = expressions.as_slice().iter();
+
+//     let inputs = match exp_iter.next() {
+//         Some(In(i)) => i,
+//         _ => {
+//             return Err(StructureErr(
+//                 None,
+//                 "Expected first expression to be 'in'".to_string(),
+//             ))
+//         }
+//     };
+
+//     unimplemented!()
+// }
+
+fn evaluate<F>(expression: &Expression<F>, assignments: &HashMap<String, F>) -> Option<F>
+where
+    F: Clone + Field,
+{
+    use self::Expression::{Add, Literal, Mul, Var};
+
+    match *expression {
+        Literal(ref lit) => Some(lit.clone()),
+        Var(ref var) => assignments.get(var).cloned(),
+        Mul(ref left, ref right) => {
+            evaluate(left, assignments).and_then(|l| evaluate(right, assignments).map(|r| l * r))
+        }
+        Add(ref inputs) => inputs.into_iter().try_fold(F::add_identity(), |acc, x| {
+            evaluate(&x, assignments).map(|v| acc + v)
+        }),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::field::z251::Z251;
@@ -396,5 +440,30 @@ mod tests {
         let actual = ASTParser::try_parse(code).unwrap();
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn evaluate_test() {
+        use self::Expression::*;
+
+        let mut assignments = HashMap::<_, Z251>::new();
+        assignments.insert("a".to_string(), 3.into());
+        assignments.insert("b".to_string(), 2.into());
+
+        let temp: Expression<Z251> = Mul(
+            Box::new(Var("a".to_string())),
+            Box::new(Var("b".to_string())),
+        );
+        let scale_temp = Mul(Box::new(Literal(4.into())), Box::new(temp));
+        let six = Mul(Box::new(Literal(6.into())), Box::new(Literal(1.into())));
+        let sum = Add(vec![scale_temp, Var("c".to_string()), six]);
+        let expression = Mul(Box::new(Literal(1.into())), Box::new(sum));
+
+        // Not all inputs assigned
+        assert_eq!(evaluate(&expression, &assignments), None);
+
+        // All inputs assigned
+        assignments.insert("c".to_string(), 4.into());
+        assert_eq!(evaluate(&expression, &assignments), Some(34.into()));
     }
 }

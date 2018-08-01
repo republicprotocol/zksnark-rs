@@ -1,21 +1,31 @@
 use std::fmt::Debug;
 use std::ops::{Add, Mul};
 
-trait CircuitGate<F>: Debug {
+pub trait CircuitGate<F>: Debug {
     fn evaluate(&self) -> Option<F>;
 }
 
-trait Zero<F> {
+pub trait Zero<F> {
     fn zero() -> F;
 }
 
+// Memory arena for a collection of gates that constitute a circuit
+pub struct Circuit<'a, F: 'a> {
+    outputs: &'a [&'a CircuitGate<F>],
+    gates: &'a [&'a CircuitGate<F>],
+}
+
+impl<'a, F> Circuit<'a, F> {
+
+}
+
 #[derive(Debug, PartialEq)]
-struct Wire<F> {
+pub struct InputWire<F> {
     identifier: String,
     value: Option<F>,
 }
 
-impl<F> CircuitGate<F> for Wire<F>
+impl<F> CircuitGate<F> for InputWire<F>
 where
     F: Clone + Debug,
 {
@@ -25,9 +35,8 @@ where
 }
 
 #[derive(Debug)]
-struct AddGate<'a, F: 'a> {
+pub struct AddGate<'a, F: 'a> {
     inputs: &'a [&'a CircuitGate<F>],
-    // output: &'a Wire<F>,
 }
 
 impl<'a, F> CircuitGate<F> for AddGate<'a, F>
@@ -42,10 +51,9 @@ where
 }
 
 #[derive(Debug)]
-struct MulGate<'a, F: 'a> {
+pub struct MulGate<'a, F: 'a> {
     left: &'a CircuitGate<F>,
     right: &'a CircuitGate<F>,
-    // output: &'a Wire<F>,
 }
 
 impl<'a, F> CircuitGate<F> for MulGate<'a, F>
@@ -60,7 +68,7 @@ where
 }
 
 #[derive(Debug)]
-struct ScalarGate<'a, F: 'a> {
+pub struct ScalarGate<'a, F: 'a> {
     input: &'a CircuitGate<F>,
     scalar: F,
 }
@@ -86,79 +94,71 @@ mod tests {
 
     #[test]
     fn add_gate_test() {
-        let a_none = &Wire::<usize> {
+        let a_none = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: None,
         };
-        let a_some = &Wire::<usize> {
+        let a_some = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: Some(2),
         };
-        let b = &Wire::<usize> {
+        let b = &InputWire::<usize> {
             identifier: "b".to_string(),
             value: Some(3),
         };
-        // let c = &Wire::<usize> {
-        //     identifier: "c".to_string(),
-        //     value: None,
-        // };
         let gate = AddGate {
             inputs: &[a_none, b],
-            // output: c,
         };
 
+        // None + 3 = None
         assert_eq!(gate.evaluate(), None);
 
         let gate = AddGate {
             inputs: &[a_some, b],
-            // output: c,
         };
 
+        // 2 + 3 = 5
         assert_eq!(gate.evaluate(), Some(5));
     }
 
     #[test]
     fn mul_gate_test() {
-        let a_none = &Wire::<usize> {
+        let a_none = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: None,
         };
-        let a_some = &Wire::<usize> {
+        let a_some = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: Some(2),
         };
-        let b = &Wire::<usize> {
+        let b = &InputWire::<usize> {
             identifier: "b".to_string(),
             value: Some(3),
         };
-        // let c = &Wire::<usize> {
-        //     identifier: "c".to_string(),
-        //     value: None,
-        // };
         let gate = MulGate {
             left: a_none,
             right: b,
-            // output: c,
         };
 
+        // None * 3 = None
         assert_eq!(gate.evaluate(), None);
 
         let gate = MulGate {
             left: a_some,
             right: b,
-            // output: c,
         };
 
+        // 2 * 3 = None
         assert_eq!(gate.evaluate(), Some(6));
     }
 
     #[test]
     fn scalar_gate_test() {
-        let a_none = &Wire::<usize> {
+        let a_none = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: None,
         };
-        let a_some = &Wire::<usize> {
+        let a_some = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: Some(2),
         };
@@ -167,6 +167,7 @@ mod tests {
             scalar: 3,
         };
 
+        // None * 3 = None
         assert_eq!(gate.evaluate(), None);
 
         let gate = ScalarGate {
@@ -174,25 +175,26 @@ mod tests {
             scalar: 3,
         };
 
+        // 2 * 3 = 6
         assert_eq!(gate.evaluate(), Some(6));
     }
 
     #[test]
     fn circuit_test() {
         // x = 4ab + c + 6
-        let one = &Wire::<usize> {
+        let one = &InputWire::<usize> {
             identifier: "1".to_string(),
             value: Some(1),
         };
-        let a = &Wire::<usize> {
+        let a = &InputWire::<usize> {
             identifier: "a".to_string(),
             value: Some(3),
         };
-        let b = &Wire::<usize> {
+        let b = &InputWire::<usize> {
             identifier: "b".to_string(),
             value: Some(2),
         };
-        let c = &Wire::<usize> {
+        let c = &InputWire::<usize> {
             identifier: "c".to_string(),
             value: Some(4),
         };
