@@ -95,10 +95,7 @@ let qap: QAP<CoefficientPoly<FrLocal>> =
         .unwrap()
         .into();
 
-let mut assignments = HashMap::new();
-assignments.insert("a".to_string(), 3.into());
-assignments.insert("b".to_string(), 2.into());
-assignments.insert("c".to_string(), 4.into());
+let assignments = &[3.into(), 2.into(), 4.into()];
 let weights = groth16::weights(code, assignments).unwrap();
 
 let (sigmag1, sigmag2) = groth16::setup(&qap);

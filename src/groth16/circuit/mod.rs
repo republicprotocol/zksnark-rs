@@ -339,7 +339,7 @@ where
 
 pub fn weights<'a, F>(
     code: &str,
-    mut assignments: HashMap<String, F>,
+    values: &[F],
 ) -> Result<Vec<F>, ParseErr>
 where
     F: Clone + Field + FromStr + PartialEq,
@@ -347,6 +347,7 @@ where
     use self::Expression::*;
     use self::ParseErr::*;
 
+    let mut assignments: HashMap<String, F> = HashMap::new();
     let expressions = ast::expressions(code)?;
     let mut exp_iter = expressions.as_slice().iter();
     let token_list: TokenList<F> = ast::try_to_list(code.to_string())?;
@@ -362,22 +363,20 @@ where
         }
     };
 
-    {
-        let constrained = inputs.as_slice().iter().all(|e| {
-            if let Var(var) = e {
-                assignments.contains_key(var)
-            } else {
-                false
-            }
-        });
-
-        if !constrained {
-            return Err(StructureErr(
-                None,
-                "Under constained or malformed inputs".to_string(),
-            ));
-        }
+    if inputs.len() != values.len() {
+        return Err(StructureErr(
+            None,
+            "Wrong number of values supplied".to_string(),
+        ));
     }
+
+    inputs.as_slice().iter().zip(values).for_each(|(e, val)| {
+        if let Var(var) = e {
+            assignments.insert(var.clone(), val.clone());
+        } else {
+            panic!("Under constained or malformed inputs".to_string());
+        }
+    });
 
     match exp_iter.next() {
         Some(Out(_)) => (),
@@ -567,10 +566,7 @@ mod tests {
                         (= x
                             (* 1 (+ (* 4 temp) c 6))))";
 
-        let mut assignments = HashMap::<_, Z251>::new();
-        assignments.insert("a".to_string(), 3.into());
-        assignments.insert("b".to_string(), 2.into());
-        assignments.insert("c".to_string(), 4.into());
+        let assignments = &[3.into(), 2.into(), 4.into()];
 
         let expected: Vec<Z251> = vec![
             1.into(),  // Unity input
