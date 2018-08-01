@@ -1,12 +1,8 @@
 use std::ops::{Add, Mul};
+use std::fmt::Debug;
 
-trait CircuitGate<F> {
+trait CircuitGate<F> : Debug {
     fn evaluate(&self) -> Option<F>;
-    fn output(&mut self) -> &mut Wire<F>;
-    fn propagate(&mut self) -> Result<(), ()> {
-        self.output().value = self.evaluate();
-        self.output().value.as_ref().map(|_| ()).ok_or(())
-    }
 }
 
 trait Zero<F> {
@@ -19,45 +15,47 @@ struct Wire<F> {
     value: Option<F>,
 }
 
+impl<F> CircuitGate<F> for Wire<F>
+where
+    F: Clone + Debug,
+{
+    fn evaluate(&self) -> Option<F> {
+        self.value.as_ref().map(|v| v.clone())
+    }
+}
+
+#[derive(Debug)]
 struct AddGate<'a, F: 'a> {
-    input: &'a mut [&'a mut Wire<F>],
-    output: &'a mut Wire<F>,
+    inputs: &'a [&'a CircuitGate<F>],
+    output: &'a Wire<F>,
 }
 
 impl<'a, F> CircuitGate<F> for AddGate<'a, F>
 where
-    F: 'a + Zero<F> + Add<Output = F> + Clone,
+    F: 'a + Zero<F> + Add<Output = F> + Debug,
 {
     fn evaluate(&self) -> Option<F> {
-        self.input.iter().try_fold(F::zero(), |acc, x| {
-            x.value.as_ref().map(|v| acc + v.clone())
-        })
-    }
-
-    fn output(&mut self) -> &mut Wire<F> {
-        self.output
+        self.inputs
+            .iter()
+            .try_fold(F::zero(), |acc, x| x.evaluate().map(|v| acc + v))
     }
 }
 
+#[derive(Debug)]
 struct MulGate<'a, F: 'a> {
-    input: (&'a mut Wire<F>, &'a mut Wire<F>),
-    output: &'a mut Wire<F>,
+    left: &'a CircuitGate<F>,
+    right: &'a CircuitGate<F>,
+    output: &'a Wire<F>,
 }
 
 impl<'a, F> CircuitGate<F> for MulGate<'a, F>
 where
-    F: 'a + Mul<Output = F> + Clone,
+    F: 'a + Mul<Output = F> + Debug,
 {
     fn evaluate(&self) -> Option<F> {
-        self.input
-            .0
-            .value
-            .as_ref()
-            .and_then(|l| self.input.1.value.as_ref().map(|r| l.clone() * r.clone()))
-    }
-
-    fn output(&mut self) -> &mut Wire<F> {
-        self.output
+        self.left
+            .evaluate()
+            .and_then(|l| self.right.evaluate().map(|r| l * r))
     }
 }
 
@@ -73,71 +71,69 @@ mod tests {
 
     #[test]
     fn add_gate_test() {
-        let a = &mut Wire::<usize> {
+        let a_none = &Wire::<usize> {
+            identifier: "a".to_string(),
+            value: None,
+        };
+        let a_some = &Wire::<usize> {
             identifier: "a".to_string(),
             value: Some(2),
         };
-        let b = &mut Wire::<usize> {
+        let b = &Wire::<usize> {
             identifier: "b".to_string(),
-            value: None,
+            value: Some(3),
         };
-        let mut c = Wire::<usize> {
+        let c = &Wire::<usize> {
             identifier: "c".to_string(),
             value: None,
         };
-
-        let mut gate = AddGate::<usize> {
-            input: &mut [a, b],
-            output: &mut c
+        let gate = AddGate {
+            inputs: &[a_none, b],
+            output: c,
         };
 
         assert_eq!(gate.evaluate(), None);
-        assert_eq!(gate.propagate(), Err(()));
-
-        gate.input[1].value = Some(3);
+        
+        let gate = AddGate {
+            inputs: &[a_some, b],
+            output: c,
+        };
 
         assert_eq!(gate.evaluate(), Some(5));
-
-        gate.propagate().expect("All input wires are assigned");
-
-        assert_eq!(*gate.output(), Wire::<usize> {
-            identifier: "c".to_string(),
-            value: Some(5),
-        });
     }
-    
+
     #[test]
     fn mul_gate_test() {
-        let a = &mut Wire::<usize> {
+        let a_none = &Wire::<usize> {
+            identifier: "a".to_string(),
+            value: None,
+        };
+        let a_some = &Wire::<usize> {
             identifier: "a".to_string(),
             value: Some(2),
         };
-        let b = &mut Wire::<usize> {
+        let b = &Wire::<usize> {
             identifier: "b".to_string(),
-            value: None,
+            value: Some(3),
         };
-        let mut c = Wire::<usize> {
+        let c = &Wire::<usize> {
             identifier: "c".to_string(),
             value: None,
         };
-
-        let mut gate = MulGate::<usize> {
-            input: (a, b),
-            output: &mut c
+        let gate = MulGate {
+            left: a_none,
+            right: b,
+            output: c,
         };
 
         assert_eq!(gate.evaluate(), None);
-        assert_eq!(gate.propagate(), Err(()));
-
-        gate.input.1.value = Some(3);
+        
+        let gate = MulGate {
+            left: a_some,
+            right: b,
+            output: c,
+        };
 
         assert_eq!(gate.evaluate(), Some(6));
-
-        gate.propagate().expect("All input wires are assigned");
-
-        assert_eq!(*gate.output(), Wire::<usize> {
-            identifier: "c".to_string(),
-            value: Some(6),
-        });
     }
 }
