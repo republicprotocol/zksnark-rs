@@ -4,7 +4,6 @@ use super::super::field::*;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-mod arithmetic_circuit;
 mod ast;
 pub mod dummy_rep;
 
@@ -474,7 +473,6 @@ mod tests {
     use super::super::super::field::z251::Z251;
     use super::dummy_rep::DummyRep;
     use super::*;
-    use super::ast;
 
     #[test]
     fn try_parse_impl_test() {
