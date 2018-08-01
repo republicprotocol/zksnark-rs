@@ -1,5 +1,7 @@
 # Zero Knowledge SNARKs
 
+> This library is not ready for production.
+
 This crate provides functionality for creating and using zero knowledge
 proofs. The implementation is based on
  [groth16](https://eprint.iacr.org/2016/260.pdf).
