@@ -17,6 +17,7 @@ pub mod coefficient_poly;
 pub mod fr;
 
 pub use self::fr::FrLocal;
+pub use self::circuit::weights;
 
 /// Represents that a type can produce a random element of itself.
 pub trait Random {

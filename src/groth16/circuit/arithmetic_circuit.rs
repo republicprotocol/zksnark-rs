@@ -9,16 +9,6 @@ pub trait Zero<F> {
     fn zero() -> F;
 }
 
-// Memory arena for a collection of gates that constitute a circuit
-pub struct Circuit<'a, F: 'a> {
-    outputs: &'a [&'a CircuitGate<F>],
-    gates: &'a [&'a CircuitGate<F>],
-}
-
-impl<'a, F> Circuit<'a, F> {
-
-}
-
 #[derive(Debug, PartialEq)]
 pub struct InputWire<F> {
     identifier: String,

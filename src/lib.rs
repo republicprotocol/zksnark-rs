@@ -133,22 +133,22 @@ pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn simple_circuit_test() {
         // x = 4ab + c + 6
+        let code = &*::std::fs::read_to_string("test_programs/simple.zk").unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> =
-            ASTParser::try_parse(&*::std::fs::read_to_string("test_programs/simple.zk").unwrap())
+            ASTParser::try_parse(code)
                 .unwrap()
                 .into();
-        let weights: Vec<FrLocal> = vec![
-            1.into(),  // Unity input
-            2.into(),  // b = 2
-            34.into(), // x = 34
-            6.into(),  // temp = ab = 6
-            3.into(),  // a = 3
-            4.into(),  // c = 4
-        ];
+        
+        let mut assignments = HashMap::new();
+        assignments.insert("a".to_string(), 3.into());
+        assignments.insert("b".to_string(), 2.into());
+        assignments.insert("c".to_string(), 4.into());
+        let weights = groth16::weights(code, assignments).unwrap();
 
         let (sigmag1, sigmag2) = groth16::setup(&qap);
 

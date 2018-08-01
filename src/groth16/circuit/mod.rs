@@ -2,14 +2,12 @@ use self::ast::{Expression, ParseErr};
 use self::dummy_rep::DummyRep;
 use super::super::field::*;
 use std::collections::HashMap;
-use std::ops::Mul;
 use std::str::FromStr;
 
 mod arithmetic_circuit;
 mod ast;
 pub mod dummy_rep;
 
-use self::arithmetic_circuit::{AddGate, Circuit, CircuitGate, MulGate, ScalarGate};
 use self::ast::TokenList;
 
 pub trait RootRepresentation<F>
@@ -340,7 +338,7 @@ where
     }
 }
 
-fn weights<'a, F>(
+pub fn weights<'a, F>(
     code: &str,
     mut assignments: HashMap<String, F>,
 ) -> Result<Vec<F>, ParseErr>
@@ -395,7 +393,7 @@ where
     if let Some(Verify(vars)) = exp_iter.next() {
         for var in vars.into_iter() {
             match var {
-                Var(var) => (),
+                Var(_) => (),
                 _ => panic!("parse_expression() did not correctly parse 'verify'"),
             }
         }
