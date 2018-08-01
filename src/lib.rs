@@ -93,7 +93,13 @@
 //!         .unwrap()
 //!         .into();
 //! 
-//! let assignments = &[3.into(), 2.into(), 4.into()];
+//! // The assignments are the inputs to the circuit in the order they
+//! // appear in the file
+//! let assignments = &[
+//!     3.into(), // a
+//!     2.into(), // b
+//!     4.into(), // c
+//! ];
 //! let weights = groth16::weights(code, assignments).unwrap();
 //! 
 //! let (sigmag1, sigmag2) = groth16::setup(&qap);
@@ -139,7 +145,13 @@ mod tests {
                 .unwrap()
                 .into();
         
-        let assignments = &[3.into(), 2.into(), 4.into()];
+        // The assignments are the inputs to the circuit in the order they
+        // appear in the file
+        let assignments = &[
+            3.into(), // a
+            2.into(), // b
+            4.into(), // c
+        ];
         let weights = groth16::weights(code, assignments).unwrap();
 
         let (sigmag1, sigmag2) = groth16::setup(&qap);
