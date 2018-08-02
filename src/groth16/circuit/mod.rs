@@ -337,7 +337,7 @@ where
     }
 }
 
-pub fn weights<'a, F>(
+pub fn weights<F>(
     code: &str,
     values: &[F],
 ) -> Result<Vec<F>, ParseErr>
