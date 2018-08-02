@@ -73,10 +73,10 @@
 //!     (= x
 //!         (* 1 (+ (* 4 temp) c 6))))
 //! ```
-//! Suppose that the prove wants to prove that they know values `a` and `c` for
+//! Suppose that the prover wants to prove that they know values `a` and `c` for
 //! which the circuit is satisfied when the verifier inputs `b = 2` and `x =
-//! 34`. The following code is an example of the setup, prove and verify
-//! process.
+//! 34`. For our example we will use the satisfying assignments `a = 3` and `c =
+//! 4`. The following code is an example of the setup, prove and verify process.
 //! ```
 //! extern crate zksnark;
 //!
@@ -92,7 +92,7 @@
 //!     ASTParser::try_parse(code)
 //!         .unwrap()
 //!         .into();
-//! 
+//!
 //! // The assignments are the inputs to the circuit in the order they
 //! // appear in the file
 //! let assignments = &[
@@ -101,11 +101,11 @@
 //!     4.into(), // c
 //! ];
 //! let weights = groth16::weights(code, assignments).unwrap();
-//! 
+//!
 //! let (sigmag1, sigmag2) = groth16::setup(&qap);
-//! 
+//!
 //! let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
-//! 
+//!
 //! assert!(groth16::verify(
 //!     &qap,
 //!     (sigmag1, sigmag2),

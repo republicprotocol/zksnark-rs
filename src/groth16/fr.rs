@@ -1,7 +1,7 @@
 extern crate bn;
 extern crate rand;
 
-use self::bn::*;
+use self::bn::{Fr, G1, G2, Group, Gt};
 pub use super::*;
 use std::str::FromStr;
 
@@ -116,7 +116,7 @@ impl EllipticEncryptable for FrLocal {
         G2Local(g2.0 * self.0)
     }
     fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
-        GtLocal(pairing(g1.0, g2.0))
+        GtLocal(bn::pairing(g1.0, g2.0))
     }
 }
 
@@ -230,9 +230,9 @@ impl Add for GtLocal {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::tests::constant;
     use super::super::circuit::{ASTParser, TryParse};
+    use super::super::tests::constant;
+    use super::*;
     use std::time::Instant;
 
     #[test]
@@ -354,9 +354,7 @@ mod tests {
     #[test]
     fn bn_encrypt_deg_15_test() {
         let code = &*::std::fs::read_to_string("test_programs/deg_15.zk").unwrap();
-        let root_rep = ASTParser::try_parse(
-            code
-        ).unwrap();
+        let root_rep = ASTParser::try_parse(code).unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         let trials = 10;
