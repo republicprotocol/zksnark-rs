@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+mod lexer;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenList<T> {
     pub tokens: Vec<Token<T>>,
