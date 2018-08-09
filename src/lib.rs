@@ -134,17 +134,16 @@ pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
 
 #[cfg(test)]
 mod tests {
+    use super::field::z251::Z251;
+    use super::groth16::Random;
     use super::*;
 
     #[test]
     fn simple_circuit_test() {
         // x = 4ab + c + 6
         let code = &*::std::fs::read_to_string("test_programs/simple.zk").unwrap();
-        let qap: QAP<CoefficientPoly<FrLocal>> =
-            ASTParser::try_parse(code)
-                .unwrap()
-                .into();
-        
+        let qap: QAP<CoefficientPoly<FrLocal>> = ASTParser::try_parse(code).unwrap().into();
+
         // The assignments are the inputs to the circuit in the order they
         // appear in the file
         let assignments = &[
@@ -168,12 +167,78 @@ mod tests {
         let (sigmag1, sigmag2) = groth16::setup(&qap);
 
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
-        
+
         assert!(!groth16::verify(
             &qap,
             (sigmag1, sigmag2),
             &vec![FrLocal::from(2), FrLocal::from(25)],
             proof
         ));
+    }
+
+    fn to_bits(mut n: u8) -> [u8; 8] {
+        let mut bits: [u8; 8] = [0; 8];
+
+        for i in 0..8 {
+            bits[i] = n % 2;
+            n = n >> 1;
+        }
+
+        bits
+    }
+
+    #[test]
+    fn comparator_8bit_test() {
+        // Circuit for checking if a > b
+        let code = &*::std::fs::read_to_string("test_programs/8bit_comparator.zk").unwrap();
+        let qap: QAP<CoefficientPoly<Z251>> = ASTParser::try_parse(code).unwrap().into();
+
+        for _ in 0..1000 {
+            let (a, b) = (Z251::random_elem(), Z251::random_elem());
+            let (abits, bbits) = (to_bits(a.inner), to_bits(b.inner));
+
+            let assignments = abits
+                .iter()
+                .chain(bbits.iter())
+                .map(|&bit| Z251::from(bit as usize))
+                .collect::<Vec<_>>();
+            let weights = groth16::weights(code, &assignments).unwrap();
+
+            let (sigmag1, sigmag2) = groth16::setup(&qap);
+
+            let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+            if a.inner > b.inner {
+                let mut inputs = vec![Z251::from(1)];
+                inputs.append(
+                    &mut bbits
+                        .iter()
+                        .map(|&bit| Z251::from(bit as usize))
+                        .collect::<Vec<_>>(),
+                );
+
+                assert!(groth16::verify(
+                    &qap,
+                    (sigmag1, sigmag2),
+                    &inputs,
+                    proof
+                ));
+            } else {
+                let mut inputs = vec![Z251::from(0)];
+                inputs.append(
+                    &mut bbits
+                        .iter()
+                        .map(|&bit| Z251::from(bit as usize))
+                        .collect::<Vec<_>>(),
+                );
+
+                assert!(groth16::verify(
+                    &qap,
+                    (sigmag1, sigmag2),
+                    &inputs,
+                    proof
+                ));
+            }
+        }
     }
 }
