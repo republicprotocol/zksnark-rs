@@ -1,30 +1,9 @@
 use super::{Interval, Span, Token};
 use std::error::Error;
-use std::fmt;
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-#[derive(Debug)]
-enum ZKTokenError {
-    ParseLiteral(String, Interval),
-}
-
-impl Display for ZKTokenError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use self::ZKTokenError::*;
-
-        match self {
-            ParseLiteral(token, Interval(start, _)) => {
-                write!(f, "{}: could not parse literal '{}'", start, token)
-            }
-        }
-    }
-}
-
-impl Error for ZKTokenError {}
-
 #[derive(Debug, PartialEq)]
-enum ZKToken<T> {
+pub enum ZKToken<T> {
     // Keywords
     In(Interval),
     Out(Interval),
@@ -75,25 +54,21 @@ where
         reserved.contains(*c)
     }
 
-    fn try_from_str(s: &str, interval: &Interval) -> Result<Self, Box<Error>> {
+    fn try_from_str(s: &str, interval: &Interval) -> Option<Self> {
         use self::ZKToken::*;
 
         match s {
-            "in" => Ok(In(interval.clone())),
-            "out" => Ok(Out(interval.clone())),
-            "verify" => Ok(Verify(interval.clone())),
-            "program" => Ok(Program(interval.clone())),
-            "=" => Ok(Assign(interval.clone())),
-            "*" => Ok(Mul(interval.clone())),
-            "+" => Ok(Add(interval.clone())),
-            "(" => Ok(ParenL(interval.clone())),
-            ")" => Ok(ParenR(interval.clone())),
-            s if first_is_numeric(s) => Ok(Literal(
-                interval.clone(),
-                T::from_str(s)
-                    .map_err(|_| ZKTokenError::ParseLiteral(s.to_owned(), interval.clone()))?,
-            )),
-            s => Ok(Var(interval.clone(), s.to_owned())),
+            "in" => Some(In(interval.clone())),
+            "out" => Some(Out(interval.clone())),
+            "verify" => Some(Verify(interval.clone())),
+            "program" => Some(Program(interval.clone())),
+            "=" => Some(Assign(interval.clone())),
+            "*" => Some(Mul(interval.clone())),
+            "+" => Some(Add(interval.clone())),
+            "(" => Some(ParenL(interval.clone())),
+            ")" => Some(ParenR(interval.clone())),
+            s if first_is_numeric(s) => T::from_str(s).ok().map(|t| Literal(interval.clone(), t)),
+            s => Some(Var(interval.clone(), s.to_owned())),
         }
     }
 }
@@ -138,47 +113,47 @@ mod tests {
 
         // Ok
         assert_eq!(
-            ZKToken::<usize>::try_from_str("in", &interval).unwrap(),
-            In(interval.clone())
+            ZKToken::<usize>::try_from_str("in", &interval),
+            Some(In(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("out", &interval).unwrap(),
-            Out(interval.clone())
+            ZKToken::<usize>::try_from_str("out", &interval),
+            Some(Out(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("verify", &interval).unwrap(),
-            Verify(interval.clone())
+            ZKToken::<usize>::try_from_str("verify", &interval),
+            Some(Verify(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("program", &interval).unwrap(),
-            Program(interval.clone())
+            ZKToken::<usize>::try_from_str("program", &interval),
+            Some(Program(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("=", &interval).unwrap(),
-            Assign(interval.clone())
+            ZKToken::<usize>::try_from_str("=", &interval),
+            Some(Assign(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("*", &interval).unwrap(),
-            Mul(interval.clone())
+            ZKToken::<usize>::try_from_str("*", &interval),
+            Some(Mul(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("+", &interval).unwrap(),
-            Add(interval.clone())
+            ZKToken::<usize>::try_from_str("+", &interval),
+            Some(Add(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("(", &interval).unwrap(),
-            ParenL(interval.clone())
+            ZKToken::<usize>::try_from_str("(", &interval),
+            Some(ParenL(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str(")", &interval).unwrap(),
-            ParenR(interval.clone())
+            ZKToken::<usize>::try_from_str(")", &interval),
+            Some(ParenR(interval.clone()))
         );
         assert_eq!(
-            ZKToken::<usize>::try_from_str("variable", &interval).unwrap(),
-            Var(interval.clone(), "variable".to_owned())
+            ZKToken::<usize>::try_from_str("variable", &interval),
+            Some(Var(interval.clone(), "variable".to_owned()))
         );
 
         // Err
-        assert!(ZKToken::<usize>::try_from_str("6variable", &interval).is_err());
+        assert_eq!(ZKToken::<usize>::try_from_str("6variable", &interval), None);
     }
 }
