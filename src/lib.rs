@@ -193,7 +193,7 @@ mod tests {
         let code = &*::std::fs::read_to_string("test_programs/8bit_comparator.zk").unwrap();
         let qap: QAP<CoefficientPoly<Z251>> = ASTParser::try_parse(code).unwrap().into();
 
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let (a, b) = (Z251::random_elem(), Z251::random_elem());
             let (abits, bbits) = (to_bits(a.inner), to_bits(b.inner));
 
@@ -216,6 +216,7 @@ mod tests {
                         .map(|&bit| Z251::from(bit as usize))
                         .collect::<Vec<_>>(),
                 );
+                inputs.append(&mut vec![0.into(); 16]);
 
                 assert!(groth16::verify(
                     &qap,
@@ -231,6 +232,7 @@ mod tests {
                         .map(|&bit| Z251::from(bit as usize))
                         .collect::<Vec<_>>(),
                 );
+                inputs.append(&mut vec![0.into(); 16]);
 
                 assert!(groth16::verify(
                     &qap,

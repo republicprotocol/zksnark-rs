@@ -1,6 +1,6 @@
 (in a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7)
 (out res ca0 ca1 ca2 ca3 ca4 ca5 ca6 ca7 cb0 cb1 cb2 cb3 cb4 cb5 cb6 cb7)
-(verify res b0 b1 b2 b3 b4 b5 b6 b7)
+(verify res b0 b1 b2 b3 b4 b5 b6 b7 ca0 ca1 ca2 ca3 ca4 ca5 ca6 ca7 cb0 cb1 cb2 cb3 cb4 cb5 cb6 cb7)
 
 (program
     (= ca0 (* a0 (+ a0 250)))
