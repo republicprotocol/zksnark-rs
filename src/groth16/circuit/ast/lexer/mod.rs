@@ -23,7 +23,7 @@ impl Position {
         } = self.clone();
 
         let column = column as isize + offset;
-        let column = if column.is_negative() {
+        let column = if column < 0 {
             panic!("Attempted to offset a Position too far to the left");
         } else {
             column as usize
@@ -89,10 +89,17 @@ where
 {
     use self::LexerError::*;
 
-    let mut line = 1;
-    let mut context = "".to_string();
     let mut tokens = Vec::new();
     let filename = file.as_ref().to_str().ok_or(Filename)?.to_owned();
+
+    let mut file = File::open(file)?;
+    let mut code = String::new();
+    file.read_to_string(&mut code)?;
+
+    let mut column: usize;
+    let mut line = 1;
+    let mut context = "".to_string();
+
     let mut start_position: Position;
     let mut current_position = Position {
         filename: filename.clone(),
@@ -100,12 +107,8 @@ where
         column: 1,
     };
 
-    let mut file = File::open(file)?;
-    let mut code = String::new();
-    file.read_to_string(&mut code)?;
-
     for ln in code.lines() {
-        let mut column = 2;
+        column = 2;
         start_position = Position {
             filename: filename.clone(),
             line,
