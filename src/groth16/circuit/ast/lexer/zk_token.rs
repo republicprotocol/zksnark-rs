@@ -89,7 +89,7 @@ struct ParenMatchVisitor<T> {
     phantom: PhantomData<T>,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 enum ParenMatchError {
     MissingR(Position),
     MissingL(Position),
@@ -119,7 +119,7 @@ impl<T> Visitor for ParenMatchVisitor<T> {
                 ParenL(Interval(pos, _)) => {
                     let mut depth = 1;
 
-                    for token in host.0.iter().skip(i) {
+                    for token in host.0.iter().skip(i + 1) {
                         depth += match token {
                             ParenL(_) => 1,
                             ParenR(_) => -1,
@@ -132,7 +132,7 @@ impl<T> Visitor for ParenMatchVisitor<T> {
                     }
 
                     if depth != 0 {
-                        Err(MissingR(*pos))?;
+                        Err(MissingR(pos.clone()))?;
                     }
                 }
                 ParenR(Interval(pos, _)) => {
@@ -151,13 +151,14 @@ impl<T> Visitor for ParenMatchVisitor<T> {
                     }
 
                     if depth != 0 {
-                        Err(MissingL(*pos))?;
+                        Err(MissingL(pos.clone()))?;
                     }
                 }
+                _ => (),
             }
         }
 
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -239,5 +240,408 @@ mod tests {
 
         // Err
         assert_eq!(ZKToken::<usize>::try_from_str("6variable", &interval), None);
+    }
+
+    #[test]
+    fn paren_match_test() {
+        use self::ParenMatchError::*;
+        use self::ZKToken::*;
+
+        let mut visitor = ParenMatchVisitor::<usize> {
+            phantom: PhantomData,
+        };
+
+        // (= a (* b c))
+        let token_list = TokenList(vec![
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 1,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+            )),
+            Assign(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 3,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 4,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 5,
+                    },
+                ),
+                "a".to_owned(),
+            ),
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 6,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+            )),
+            Mul(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 8,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 9,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 10,
+                    },
+                ),
+                "b".to_owned(),
+            ),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 11,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 12,
+                    },
+                ),
+                "c".to_owned(),
+            ),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 12,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 13,
+                },
+            )),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 13,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 14,
+                },
+            )),
+        ]);
+
+        assert_eq!(token_list.accept(&mut visitor).unwrap(), ());
+
+        // (= a (* b c)
+        let token_list = TokenList(vec![
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 1,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+            )),
+            Assign(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 3,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 4,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 5,
+                    },
+                ),
+                "a".to_owned(),
+            ),
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 6,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+            )),
+            Mul(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 8,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 9,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 10,
+                    },
+                ),
+                "b".to_owned(),
+            ),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 11,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 12,
+                    },
+                ),
+                "c".to_owned(),
+            ),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 12,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 13,
+                },
+            )),
+        ]);
+
+        assert_eq!(
+            *token_list
+                .accept(&mut visitor)
+                .unwrap_err()
+                .as_fail()
+                .downcast_ref::<ParenMatchError>()
+                .unwrap(),
+            MissingR(Position {
+                filename: "foo.zk".to_owned(),
+                line: 1,
+                column: 1,
+            })
+        );
+
+        // (= a (* b c)))
+        let token_list = TokenList(vec![
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 1,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+            )),
+            Assign(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 2,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 3,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 4,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 5,
+                    },
+                ),
+                "a".to_owned(),
+            ),
+            ParenL(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 6,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+            )),
+            Mul(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 7,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 8,
+                },
+            )),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 9,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 10,
+                    },
+                ),
+                "b".to_owned(),
+            ),
+            Var(
+                Interval(
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 11,
+                    },
+                    Position {
+                        filename: "foo.zk".to_owned(),
+                        line: 1,
+                        column: 12,
+                    },
+                ),
+                "c".to_owned(),
+            ),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 12,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 13,
+                },
+            )),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 13,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 14,
+                },
+            )),
+            ParenR(Interval(
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 14,
+                },
+                Position {
+                    filename: "foo.zk".to_owned(),
+                    line: 1,
+                    column: 15,
+                },
+            )),
+        ]);
+
+        assert_eq!(
+            *token_list
+                .accept(&mut visitor)
+                .unwrap_err()
+                .as_fail()
+                .downcast_ref::<ParenMatchError>()
+                .unwrap(),
+            MissingL(Position {
+                filename: "foo.zk".to_owned(),
+                line: 1,
+                column: 14,
+            })
+        );
     }
 }

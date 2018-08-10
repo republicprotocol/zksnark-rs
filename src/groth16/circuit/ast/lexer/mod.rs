@@ -723,6 +723,6 @@ mod tests {
             ParenR::<usize>(intervals[44].clone()),
         ];
 
-        assert_eq!(Ok(expected), actual);
+        assert_eq!(expected, actual.unwrap());
     }
 }
