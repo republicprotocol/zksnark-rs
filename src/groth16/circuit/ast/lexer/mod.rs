@@ -1,4 +1,4 @@
-use std::error::Error;
+use failure::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -55,7 +55,7 @@ pub trait Token: Sized + Span {
     fn try_from_str(&str, &Interval) -> Option<Self>;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum LexerError {
     ParseLiteral(String, Interval),
     Filename,
@@ -74,15 +74,13 @@ impl Display for LexerError {
     }
 }
 
-impl Error for LexerError {}
-
 impl From<::std::io::Error> for LexerError {
     fn from(_: ::std::io::Error) -> Self {
         LexerError::Filename
     }
 }
 
-pub fn lex_file<T, P>(file: P) -> Result<Vec<T>, LexerError>
+pub fn lex_file<T, P>(file: P) -> Result<Vec<T>, Error>
 where
     T: Token,
     P: AsRef<Path>,

@@ -1,6 +1,11 @@
-use super::{Interval, Span, Token};
-use std::error::Error;
+use super::{Interval, Position, Span, Token};
+use failure::Error;
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::marker::PhantomData;
 use std::str::FromStr;
+
+use super::super::{Host, Visitor};
 
 #[derive(Debug, PartialEq)]
 pub enum ZKToken<T> {
@@ -44,10 +49,9 @@ impl<T> Span for ZKToken<T> {
     }
 }
 
-impl<T, E> Token for ZKToken<T>
+impl<T> Token for ZKToken<T>
 where
-    T: FromStr<Err = E>,
-    E: Error + 'static,
+    T: FromStr,
 {
     fn is_reserved(c: &char) -> bool {
         let reserved = "=*+()";
@@ -75,6 +79,86 @@ where
 
 fn first_is_numeric(s: &str) -> bool {
     s.chars().next().map_or(false, |c| c.is_numeric())
+}
+
+struct TokenList<T>(Vec<ZKToken<T>>);
+
+impl<T> Host for TokenList<T> {}
+
+struct ParenMatchVisitor<T> {
+    phantom: PhantomData<T>,
+}
+
+#[derive(Debug, Fail)]
+enum ParenMatchError {
+    MissingR(Position),
+    MissingL(Position),
+}
+
+impl Display for ParenMatchError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use self::ParenMatchError::*;
+
+        match self {
+            MissingR(pos) => write!(f, "'(' at {} has no matching ')'", pos),
+            MissingL(pos) => write!(f, "')' at {} has no matching '('", pos),
+        }
+    }
+}
+
+impl<T> Visitor for ParenMatchVisitor<T> {
+    type Target = TokenList<T>;
+    type Ret = Result<(), Error>;
+
+    fn visit(&mut self, host: &Self::Target) -> Self::Ret {
+        use self::ParenMatchError::*;
+        use self::ZKToken::*;
+
+        for (i, token) in host.0.iter().enumerate() {
+            match token {
+                ParenL(Interval(pos, _)) => {
+                    let mut depth = 1;
+
+                    for token in host.0.iter().skip(i) {
+                        depth += match token {
+                            ParenL(_) => 1,
+                            ParenR(_) => -1,
+                            _ => 0,
+                        };
+
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+
+                    if depth != 0 {
+                        Err(MissingR(*pos))?;
+                    }
+                }
+                ParenR(Interval(pos, _)) => {
+                    let mut depth = 1;
+
+                    for token in host.0.iter().rev().skip(host.0.len() - i) {
+                        depth += match token {
+                            ParenR(_) => 1,
+                            ParenL(_) => -1,
+                            _ => 0,
+                        };
+
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+
+                    if depth != 0 {
+                        Err(MissingL(*pos))?;
+                    }
+                }
+            }
+        }
+
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

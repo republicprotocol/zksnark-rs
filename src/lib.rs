@@ -119,6 +119,8 @@
     html_root_url = "https://docs.rs/rand/0.5.4"
 )]
 
+#[macro_use] extern crate failure;
+
 mod encryption;
 pub mod field;
 pub mod groth16;

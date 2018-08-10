@@ -3,6 +3,22 @@ use std::str::FromStr;
 
 mod lexer;
 
+trait Host: Sized {
+    fn accept<V>(&self, visitor: &mut V) -> <V as Visitor>::Ret
+    where
+        V: Visitor<Target = Self>,
+    {
+        visitor.visit(self)
+    }
+}
+
+trait Visitor {
+    type Target: Host;
+    type Ret;
+
+    fn visit(&mut self, host: &Self::Target) -> Self::Ret;
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenList<T> {
     pub tokens: Vec<Token<T>>,

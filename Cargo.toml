@@ -9,5 +9,6 @@ authors = ["ross"]
 [dependencies]
 bn = "0.4.3"
 bigint = "4.4.0"
+failure = "0.1.2"
 itertools = "0.6.0"
 rand = "~0.3.14"
