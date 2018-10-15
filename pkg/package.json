@@ -1,0 +1,15 @@
+{
+  "name": "zksnark",
+  "collaborators": [
+    "ross"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "zksnark_bg.wasm",
+    "zksnark.js",
+    "zksnark.d.ts"
+  ],
+  "module": "zksnark.js",
+  "types": "zksnark.d.ts",
+  "sideEffects": "false"
+}
