@@ -87,12 +87,14 @@ impl FromStr for FrLocal {
 
 impl Random for FrLocal {
     fn random_elem() -> Self {
-        let rng = &mut rand::thread_rng();
-        let mut r = Fr::random(rng);
-        while r == Fr::zero() {
-            r = Fr::random(rng);
-        }
-        FrLocal(r)
+        // TODO: Don't unwrap.
+        // let mut rng = rand::rngs::OsRng::new().unwrap();
+        // let mut r = Fr::random(&mut rng);
+        // while r == Fr::zero() {
+        //     r = Fr::random(&mut rng);
+        // }
+        // FrLocal(r)
+        FrLocal(Fr::from_str("69").unwrap())
     }
 }
 
