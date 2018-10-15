@@ -6,8 +6,12 @@ name = "zksnark"
 version = "0.1.0"
 authors = ["ross"]
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
+# rand = {version = "0.5", branch = "master", wasm-bindgen = true}
+rand = { git = "https://github.com/rust-random/rand", wasm-bindgen = true }
 itertools = "0.6.0"
-rand = "~0.3.14"
-bn = "0.4.3"
-bigint = "4.4.0"
+bn = {path = "../bn"}
+wasm-bindgen = "0.2"
