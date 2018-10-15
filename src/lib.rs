@@ -119,6 +119,10 @@
     html_root_url = "https://docs.rs/rand/0.5.4"
 )]
 
+extern crate wasm_bindgen;
+
+use wasm_bindgen::prelude::*;
+
 mod encryption;
 pub mod field;
 pub mod groth16;
@@ -131,6 +135,56 @@ pub use groth16::coefficient_poly::CoefficientPoly;
 pub use groth16::fr::FrLocal;
 #[doc(hidden)]
 pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
+
+#[wasm_bindgen]
+extern "C" {
+    pub fn alert(s: &str);
+}
+
+#[wasm_bindgen]
+pub fn greet() {
+    let code = "(in a b c)
+(out x)
+(verify b x)
+
+(program
+    (= temp
+        (* a b))
+    (= x
+        (* 1 (+ (* 4 temp) c 6))))";
+    let qap: QAP<CoefficientPoly<FrLocal>> = ASTParser::try_parse(code).unwrap().into();
+
+    let assignments = &[
+        3.into(), // a
+        2.into(), // b
+        4.into(), // c
+    ];
+    let weights = groth16::weights(code, assignments).unwrap();
+
+    let (sigmag1, sigmag2) = groth16::setup(&qap);
+
+    let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+    let assertion1 = groth16::verify(
+        &qap,
+        (sigmag1, sigmag2),
+        &vec![FrLocal::from(2), FrLocal::from(34)],
+        proof,
+    );
+
+    let (sigmag1, sigmag2) = groth16::setup(&qap);
+
+    let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+    let assertion2 = !groth16::verify(
+        &qap,
+        (sigmag1, sigmag2),
+        &vec![FrLocal::from(2), FrLocal::from(25)],
+        proof,
+    );
+
+    alert(&format!("Test results: {}, {}", assertion1, assertion2));
+}
 
 #[cfg(test)]
 mod tests {
@@ -218,12 +272,7 @@ mod tests {
                 );
                 inputs.append(&mut vec![0.into(); 16]);
 
-                assert!(groth16::verify(
-                    &qap,
-                    (sigmag1, sigmag2),
-                    &inputs,
-                    proof
-                ));
+                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
             } else {
                 let mut inputs = vec![Z251::from(0)];
                 inputs.append(
@@ -234,12 +283,7 @@ mod tests {
                 );
                 inputs.append(&mut vec![0.into(); 16]);
 
-                assert!(groth16::verify(
-                    &qap,
-                    (sigmag1, sigmag2),
-                    &inputs,
-                    proof
-                ));
+                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
             }
         }
     }
