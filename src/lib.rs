@@ -137,53 +137,64 @@ pub use groth16::fr::FrLocal;
 pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
 
 #[wasm_bindgen]
-extern "C" {
-    pub fn alert(s: &str);
+pub struct QAPJS {
+    qap: QAP<CoefficientPoly<FrLocal>>,
 }
 
 #[wasm_bindgen]
-pub fn greet() {
-    let code = "(in a b c)
-(out x)
-(verify b x)
+pub struct CRSJS {
+    g1: SigmaG1<groth16::fr::G1Local>,
+    g2: SigmaG2<groth16::fr::G2Local>,
+}
 
-(program
-    (= temp
-        (* a b))
-    (= x
-        (* 1 (+ (* 4 temp) c 6))))";
-    let qap: QAP<CoefficientPoly<FrLocal>> = ASTParser::try_parse(code).unwrap().into();
+#[wasm_bindgen]
+pub struct ProofJS {
+    proof: Proof<groth16::fr::G1Local, groth16::fr::G2Local>,
+}
 
-    let assignments = &[
-        3.into(), // a
-        2.into(), // b
-        4.into(), // c
-    ];
-    let weights = groth16::weights(code, assignments).unwrap();
+#[wasm_bindgen]
+pub fn get_qap(code: &str) -> QAPJS {
+    let qap = ASTParser::try_parse(code).unwrap().into();
+    QAPJS { qap }
+}
 
-    let (sigmag1, sigmag2) = groth16::setup(&qap);
+#[wasm_bindgen]
+pub fn get_crs(qap: &QAPJS) -> CRSJS {
+    let (g1, g2) = groth16::setup(&qap.qap);
+    CRSJS { g1, g2 }
+}
 
-    let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+#[wasm_bindgen]
+pub fn prove(code: &str, assignments: Vec<u32>, qap: &QAPJS, crs: &CRSJS) -> ProofJS {
+    let CRSJS {
+        g1: ref sigmag1,
+        g2: ref sigmag2,
+    } = crs;
+    let assignments = assignments
+        .into_iter()
+        .map(|a| (a as usize).into())
+        .collect::<Vec<_>>();
+    let weights = groth16::weights(code, assignments.as_slice()).unwrap();
+    let proof = groth16::prove(&qap.qap, (sigmag1, sigmag2), &weights);
 
-    let assertion1 = groth16::verify(
-        &qap,
+    ProofJS { proof }
+}
+
+#[wasm_bindgen]
+pub fn verify(qap: &QAPJS, crs: CRSJS, inputs: Vec<u32>, proof: ProofJS) -> bool {
+    let CRSJS {
+        g1: sigmag1,
+        g2: sigmag2,
+    } = crs;
+    groth16::verify(
+        &qap.qap,
         (sigmag1, sigmag2),
-        &vec![FrLocal::from(2), FrLocal::from(34)],
-        proof,
-    );
-
-    let (sigmag1, sigmag2) = groth16::setup(&qap);
-
-    let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
-
-    let assertion2 = !groth16::verify(
-        &qap,
-        (sigmag1, sigmag2),
-        &vec![FrLocal::from(2), FrLocal::from(25)],
-        proof,
-    );
-
-    alert(&format!("Test results are: {}, {}", assertion1, assertion2));
+        &inputs
+            .into_iter()
+            .map(|i| FrLocal::from(i as usize))
+            .collect::<Vec<_>>(),
+        proof.proof,
+    )
 }
 
 #[cfg(test)]
