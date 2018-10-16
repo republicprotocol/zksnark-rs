@@ -183,7 +183,7 @@ pub fn greet() {
         proof,
     );
 
-    alert(&format!("Test results: {}, {}", assertion1, assertion2));
+    alert(&format!("Test results are: {}, {}", assertion1, assertion2));
 }
 
 #[cfg(test)]
