@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 mod ast;
+mod builder;
 pub mod dummy_rep;
 
 use self::ast::TokenList;
