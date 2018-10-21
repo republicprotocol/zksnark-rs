@@ -89,18 +89,20 @@ use zksnark::groth16::fr::FrLocal;
 use zksnark::groth16::coefficient_poly::CoefficientPoly;
 
 // x = 4ab + c + 6
+let code = &*::std::fs::read_to_string("test_programs/simple.zk").unwrap();
 let qap: QAP<CoefficientPoly<FrLocal>> =
-    ASTParser::try_parse(&*::std::fs::read_to_string("test_programs/simple.zk").unwrap())
+    ASTParser::try_parse(code)
         .unwrap()
         .into();
-let weights: Vec<FrLocal> = vec![
-    1.into(),  // Unity input
-    2.into(),  // b = 2
-    34.into(), // x = 34
-    6.into(),  // temp = ab = 6
-    3.into(),  // a = 3
-    4.into(),  // c = 4
+
+// The assignments are the inputs to the circuit in the order they
+// appear in the file
+let assignments = &[
+    3.into(), // a
+    2.into(), // b
+    4.into(), // c
 ];
+let weights = groth16::weights(code, assignments).unwrap();
 
 let (sigmag1, sigmag2) = groth16::setup(&qap);
 

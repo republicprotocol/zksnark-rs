@@ -1,7 +1,7 @@
 extern crate bn;
 extern crate rand;
 
-use self::bn::*;
+use self::bn::{Fr, G1, G2, Group, Gt};
 pub use super::*;
 use std::str::FromStr;
 
@@ -116,7 +116,7 @@ impl EllipticEncryptable for FrLocal {
         G2Local(g2.0 * self.0)
     }
     fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
-        GtLocal(pairing(g1.0, g2.0))
+        GtLocal(bn::pairing(g1.0, g2.0))
     }
 }
 
@@ -230,9 +230,9 @@ impl Add for GtLocal {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::tests::constant;
     use super::super::circuit::{ASTParser, TryParse};
+    use super::super::tests::constant;
+    use super::*;
     use std::time::Instant;
 
     #[test]
@@ -353,9 +353,8 @@ mod tests {
 
     #[test]
     fn bn_encrypt_deg_15_test() {
-        let root_rep = ASTParser::try_parse(
-            &*::std::fs::read_to_string("test_programs/deg_15.zk").unwrap()
-        ).unwrap();
+        let code = &*::std::fs::read_to_string("test_programs/deg_15.zk").unwrap();
+        let root_rep = ASTParser::try_parse(code).unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         let trials = 10;
@@ -381,46 +380,11 @@ mod tests {
                 FrLocal::random_elem(),
                 FrLocal::random_elem(),
             );
-            let share = p + x * (o + x * (n + x * (m + x * (l + x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))))))))))));
 
             // The order of the weights is now determined by
             // the order that the variables appear in the file
-            let weights: Vec<FrLocal> = vec![
-                1.into(),
-                x,
-                share,
-                a * x,
-                a,
-                x * (b + x * a),
-                b,
-                x * (c + x * (b + x * a)),
-                c,
-                x * (d + x * (c + x * (b + x * a))),
-                d,
-                x * (e + x * (d + x * (c + x * (b + x * a)))),
-                e,
-                x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))),
-                f,
-                x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a)))))),
-                g,
-                x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))))),
-                h,
-                x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a)))))))),
-                i,
-                x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))))))),
-                j,
-                x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a)))))))))),
-                k,
-                x * (l + x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))))))))),
-                l,
-                x * (m + x * (l + x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a)))))))))))),
-                m,
-                x * (n + x * (m + x * (l + x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a))))))))))))),
-                n,
-                x * (o + x * (n + x * (m + x * (l + x * (k + x * (j + x * (i + x * (h + x * (g + x * (f + x * (e + x * (d + x * (c + x * (b + x * a)))))))))))))),
-                o,
-                p,
-            ];
+            let inputs = &[x, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p];
+            let weights = weights(code, inputs).unwrap();
 
             let now = Instant::now();
             let (sigmag1, sigmag2) = setup(&qap);
@@ -431,7 +395,7 @@ mod tests {
             proof_time += now.elapsed().subsec_millis();
 
             let now = Instant::now();
-            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+            assert!(verify(&qap, (sigmag1, sigmag2), &weights[1..3], proof));
             verify_time += now.elapsed().subsec_millis();
         }
 
