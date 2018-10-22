@@ -71,3 +71,24 @@ fn or_test() {
         assert!(circuit.evaluate(or) == Z251::from(*l_or_r));
     }
 }
+
+#[test]
+fn xor_test() {
+    let logic_table = [
+        (0, 0, 0),
+        (0, 1, 1),
+        (1, 0, 1),
+        (1, 1, 0),
+    ];
+
+    for (l, r, l_xor_r) in logic_table.iter() {
+        let mut circuit = Circuit::<Z251>::new();
+        let l_wire = circuit.new_wire();
+        let r_wire = circuit.new_wire();
+        let xor = circuit.new_xor(l_wire, r_wire);
+
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(xor) == Z251::from(*l_xor_r));
+    }
+}
