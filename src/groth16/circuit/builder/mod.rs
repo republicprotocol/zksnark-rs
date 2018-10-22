@@ -1,6 +1,9 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy)]
 pub enum ConnectionType<T>
 where
@@ -17,10 +20,10 @@ pub struct SubCircuitInputs<T> {
     right_inputs: Vec<(T, WireId)>,
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct WireId(usize);
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubCircuitId(usize);
 
 pub struct Circuit<T>
@@ -40,6 +43,7 @@ where
     T: Copy + Field,
 {
     pub fn new() -> Self {
+        // TODO: Initialise the unity wire value to be one?
         Circuit {
             next_wire_id: WireId(1),
             next_sub_circuit_id: SubCircuitId(0),
@@ -56,7 +60,19 @@ where
     pub fn new_wire(&mut self) -> WireId {
         let next_wire_id = self.next_wire_id;
         self.next_wire_id.0 += 1;
+        self.wire_values.insert(next_wire_id, None);
         next_wire_id
+    }
+
+    pub fn value(&self, wire: WireId) -> Option<T> {
+        *self
+            .wire_values
+            .get(&wire)
+            .expect("wire is not defined in this circuit")
+    }
+
+    pub fn set_value(&mut self, wire: WireId, value: T) {
+        self.wire_values.insert(wire, Some(value));
     }
 
     fn insert_connection(&mut self, wire: WireId, connection: ConnectionType<T>) {
@@ -74,24 +90,26 @@ where
         left_inputs: Vec<(T, WireId)>,
         right_inputs: Vec<(T, WireId)>,
     ) -> WireId {
+        use self::ConnectionType::{Left, Output, Right};
+
         let sub_circuit_id = self.next_sub_circuit_id;
         self.next_sub_circuit_id.0 += 1;
         let output_wire = self.new_wire();
 
         // Update the LHS wire mappings
         for (weight, wire) in left_inputs.clone().into_iter() {
-            let connection = ConnectionType::Left(weight, sub_circuit_id);
+            let connection = Left(weight, sub_circuit_id);
             self.insert_connection(wire, connection);
         }
 
         // Update the RHS wire mappings
         for (weight, wire) in right_inputs.clone().into_iter() {
-            let connection = ConnectionType::Right(weight, sub_circuit_id);
+            let connection = Right(weight, sub_circuit_id);
             self.insert_connection(wire, connection);
         }
 
         // Update the output wire mappings
-        let connection = ConnectionType::Output(sub_circuit_id);
+        let connection = Output(sub_circuit_id);
         self.insert_connection(output_wire, connection);
 
         // Update the sub circuit mapping
@@ -130,6 +148,8 @@ where
     }
 
     pub fn evaluate(&mut self, wire: WireId) -> T {
+        use self::ConnectionType::Output;
+
         if wire == self.unity_wire() {
             return T::mul_identity();
         }
@@ -143,13 +163,8 @@ where
                     .get(&wire)
                     .expect("a wire must be attached to something")
                     .into_iter()
-                    .filter_map(|c| {
-                        if let &ConnectionType::Output(sc) = c {
-                            Some(sc)
-                        } else {
-                            None
-                        }
-                    }).nth(0)
+                    .filter_map(|c| if let &Output(sc) = c { Some(sc) } else { None })
+                    .nth(0)
                     .expect("a wire with an unknown value must be the output of a sub circuit");
 
                 let value = self.evaluate_sub_circuit(output_sub_circuit);
@@ -163,7 +178,7 @@ where
         let lhs = vec![(T::mul_identity(), input)];
         let rhs = vec![
             (T::mul_identity(), input),
-            (T::mul_identity().mul_inv(), self.unity_wire()),
+            (-T::mul_identity(), self.unity_wire()),
         ];
 
         self.new_sub_circuit(lhs, rhs)
