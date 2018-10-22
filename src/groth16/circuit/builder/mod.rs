@@ -175,28 +175,36 @@ where
     }
 
     pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
-        let lhs = vec![(T::mul_identity(), input)];
-        let rhs = vec![
+        let lhs_inputs = vec![(T::mul_identity(), input)];
+        let rhs_inputs = vec![
             (T::mul_identity(), input),
             (-T::mul_identity(), self.unity_wire()),
         ];
 
-        self.new_sub_circuit(lhs, rhs)
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let lhs = vec![(T::mul_identity(), lhs)];
-        let rhs = vec![(T::mul_identity(), rhs)];
+        let lhs_inputs = vec![(T::mul_identity(), lhs)];
+        let rhs_inputs = vec![(T::mul_identity(), rhs)];
         
-        self.new_sub_circuit(lhs, rhs)
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     pub fn new_or(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_and_rhs = self.new_and(lhs, rhs);
         let one = T::mul_identity();
-        let lhs = vec![(-one, lhs_and_rhs), (one, lhs), (one, rhs)];
-        let rhs = vec![(one, self.unity_wire())];
+        let lhs_inputs = vec![(-one, lhs_and_rhs), (one, lhs), (one, rhs)];
+        let rhs_inputs = vec![(one, self.unity_wire())];
 
-        self.new_sub_circuit(lhs, rhs)
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+    }
+
+    pub fn new_xor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+        let one = T::mul_identity();
+        let lhs_inputs = vec![(one, lhs), (-one, rhs)];
+        let rhs_inputs = vec![(one, lhs), (-one, rhs)];
+
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 }
