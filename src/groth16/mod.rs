@@ -8,7 +8,7 @@
 use self::circuit::RootRepresentation;
 use self::coefficient_poly::{root_poly, CoefficientPoly};
 use super::field::z251::Z251;
-use super::field::{Field, Polynomial, polynomial_division, powers};
+use super::field::{polynomial_division, powers, Field, FieldIdentity, Polynomial};
 use std::iter::{once, repeat, Sum};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -16,8 +16,8 @@ pub mod circuit;
 pub mod coefficient_poly;
 pub mod fr;
 
-pub use self::fr::FrLocal;
 pub use self::circuit::weights;
+pub use self::fr::FrLocal;
 
 /// Represents that a type can produce a random element of itself.
 pub trait Random {
@@ -144,25 +144,26 @@ where
         T::random_elem(),
     );
     let xi = powers(x).take(qap.degree).collect::<Vec<_>>();
-    let sum_gamma = qap.u
+    let sum_gamma = qap
+        .u
         .as_slice()
         .iter()
         .zip(qap.v.as_slice().iter().zip(qap.w.as_slice().iter()))
         .map(|(ui, (vi, wi))| {
             ((beta * ui.evaluate(x) + alpha * vi.evaluate(x) + wi.evaluate(x)) / gamma).encrypt_g1()
-        })
-        .take(qap.input + 1)
+        }).take(qap.input + 1)
         .collect::<Vec<_>>();
-    let sum_delta = qap.u
+    let sum_delta = qap
+        .u
         .as_slice()
         .iter()
         .zip(qap.v.as_slice().iter().zip(qap.w.as_slice().iter()))
         .map(|(ui, (vi, wi))| {
             ((beta * ui.evaluate(x) + alpha * vi.evaluate(x) + wi.evaluate(x)) / delta).encrypt_g1()
-        })
-        .skip(qap.input + 1)
+        }).skip(qap.input + 1)
         .collect::<Vec<_>>();
-    let xi_t = xi.as_slice()
+    let xi_t = xi
+        .as_slice()
         .iter()
         .take(xi.len() - 1)
         .map(|&i| ((i * qap.t.evaluate(x)) / delta).encrypt_g1())
@@ -172,7 +173,8 @@ where
         alpha: alpha.encrypt_g1(),
         beta: beta.encrypt_g1(),
         delta: delta.encrypt_g1(),
-        xi: xi.as_slice()
+        xi: xi
+            .as_slice()
             .iter()
             .map(|&i| i.encrypt_g1())
             .collect::<Vec<_>>(),
@@ -184,7 +186,8 @@ where
         beta: beta.encrypt_g2(),
         gamma: gamma.encrypt_g2(),
         delta: delta.encrypt_g2(),
-        xi: xi.as_slice()
+        xi: xi
+            .as_slice()
             .iter()
             .map(|&i| i.encrypt_g2())
             .collect::<Vec<_>>(),
@@ -227,19 +230,22 @@ where
 {
     let (r, s) = (T::random_elem(), T::random_elem());
 
-    let u_sum = qap.u
+    let u_sum = qap
+        .u
         .clone()
         .into_iter()
         .zip(weights.iter())
         .map(|(p, &a)| p * a)
         .sum::<P>();
-    let v_sum = qap.v
+    let v_sum = qap
+        .v
         .clone()
         .into_iter()
         .zip(weights.iter())
         .map(|(p, &a)| p * a)
         .sum::<P>();
-    let w_sum = qap.w
+    let w_sum = qap
+        .w
         .clone()
         .into_iter()
         .zip(weights.iter())
@@ -270,7 +276,8 @@ where
 
     let h = (u_sum * v_sum - w_sum) / qap.t.clone();
 
-    let c = h.coefficients()
+    let c = h
+        .coefficients()
         .into_iter()
         .zip(sigmag1.xi_t.clone().into_iter())
         .map(|(c, x)| c.exp_encrypted_g1(x))
@@ -280,7 +287,8 @@ where
             .skip(qap.input + 1)
             .zip(sigmag1.sum_delta.clone().into_iter())
             .map(|(c, x)| c.exp_encrypted_g1(x))
-            .sum::<U>() + s.exp_encrypted_g1(a)
+            .sum::<U>()
+        + s.exp_encrypted_g1(a)
         + r.exp_encrypted_g1(sigmag1.beta + b_g1 + s.exp_encrypted_g1(sigmag1.delta))
         - (r * s).exp_encrypted_g1(sigmag1.delta);
 
@@ -302,26 +310,27 @@ where
     let sum_term = sigmag1
         .sum_gamma
         .into_iter()
-        .zip(once(T::mul_identity()).chain(inputs.iter().map(|&x| x)))
+        .zip(once(T::one()).chain(inputs.iter().map(|&x| x)))
         .map(|(x, a)| a.exp_encrypted_g1(x))
         .sum::<U>();
 
     T::pairing(sigmag1.alpha, sigmag2.beta)
         + T::pairing(sum_term, sigmag2.gamma)
-        + T::pairing(proof.c, sigmag2.delta) == T::pairing(proof.a, proof.b)
+        + T::pairing(proof.c, sigmag2.delta)
+        == T::pairing(proof.a, proof.b)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::circuit::{ASTParser, TryParse};
     use self::circuit::dummy_rep::DummyRep;
     use super::super::encryption::Encryptable;
+    use super::circuit::{ASTParser, TryParse};
     use super::*;
 
     impl Random for Z251 {
         fn random_elem() -> Self {
             let mut r = Z251::random();
-            while r == Z251::add_identity() {
+            while r == Z251::zero() {
                 r = Z251::random();
             }
             r
@@ -352,7 +361,7 @@ mod tests {
 
     impl Identity for Z251 {
         fn is_identity(&self) -> bool {
-            *self == Self::add_identity()
+            *self == Self::zero()
         }
     }
 
@@ -475,7 +484,8 @@ mod tests {
                 [0, 0, 0],
                 [0, 0, 0],
                 [0, 0, 0],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             v: [
@@ -487,7 +497,8 @@ mod tests {
                 [1, 124, 126],
                 [248, 4, 250],
                 [1, 124, 126],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             w: [
@@ -499,7 +510,8 @@ mod tests {
                 [0, 0, 0],
                 [3, 123, 126],
                 [248, 4, 250],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             t: [245, 11, 245, 1]
@@ -543,7 +555,8 @@ mod tests {
                 [0, 0, 0],
                 [0, 0, 0],
                 [0, 0, 0],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             v: [
@@ -555,7 +568,8 @@ mod tests {
                 [1, 124, 126],
                 [248, 4, 250],
                 [1, 124, 126],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             w: [
@@ -567,7 +581,8 @@ mod tests {
                 [0, 0, 0],
                 [3, 123, 126],
                 [248, 4, 250],
-            ].iter()
+            ]
+                .iter()
                 .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
                 .collect::<Vec<_>>(),
             t: [245, 11, 245, 1]
@@ -726,10 +741,9 @@ mod tests {
     #[test]
     fn qap_from_ast() {
         // Quadratic polynomial share
-        let root_rep: DummyRep<Z251> = ASTParser::try_parse(&*::std::fs::read_to_string(
-            "test_programs/lispesque_quad.zk",
-        ).unwrap())
-            .unwrap();
+        let root_rep: DummyRep<Z251> = ASTParser::try_parse(
+            &*::std::fs::read_to_string("test_programs/lispesque_quad.zk").unwrap(),
+        ).unwrap();
         let qap = root_rep.into();
 
         for _ in 0..1000 {
@@ -752,10 +766,9 @@ mod tests {
         }
 
         // Cubic polynomial share
-        let root_rep: DummyRep<Z251> = ASTParser::try_parse(&*::std::fs::read_to_string(
-            "test_programs/lispesque_cubic.zk",
-        ).unwrap())
-            .unwrap();
+        let root_rep: DummyRep<Z251> = ASTParser::try_parse(
+            &*::std::fs::read_to_string("test_programs/lispesque_cubic.zk").unwrap(),
+        ).unwrap();
         let qap = root_rep.into();
 
         for _ in 0..1000 {

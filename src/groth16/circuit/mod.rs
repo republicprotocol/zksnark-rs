@@ -337,10 +337,7 @@ where
     }
 }
 
-pub fn weights<F>(
-    code: &str,
-    values: &[F],
-) -> Result<Vec<F>, ParseErr>
+pub fn weights<F>(code: &str, values: &[F]) -> Result<Vec<F>, ParseErr>
 where
     F: Clone + Field + FromStr + PartialEq,
 {
@@ -445,7 +442,9 @@ where
             .expect("Every variable should have an assignment")
     });
 
-    Ok(::std::iter::once(F::mul_identity()).chain(weights).collect::<Vec<_>>())
+    Ok(::std::iter::once(F::one())
+        .chain(weights)
+        .collect::<Vec<_>>())
 }
 
 fn evaluate<F>(expression: &Expression<F>, assignments: &HashMap<String, F>) -> Option<F>
@@ -460,7 +459,7 @@ where
         Mul(ref left, ref right) => {
             evaluate(left, assignments).and_then(|l| evaluate(right, assignments).map(|r| l * r))
         }
-        Add(ref inputs) => inputs.into_iter().try_fold(F::add_identity(), |acc, x| {
+        Add(ref inputs) => inputs.into_iter().try_fold(F::zero(), |acc, x| {
             evaluate(&x, assignments).map(|v| acc + v)
         }),
         _ => None,

@@ -1,7 +1,7 @@
 extern crate bn;
 extern crate rand;
 
-use self::bn::{Fr, G1, G2, Group, Gt};
+use self::bn::{Fr, Group, Gt, G1, G2};
 pub use super::*;
 use std::str::FromStr;
 
@@ -55,16 +55,18 @@ impl Div for FrLocal {
     }
 }
 
+impl FieldIdentity for FrLocal {
+    fn zero() -> Self {
+        FrLocal(Fr::zero())
+    }
+    fn one() -> Self {
+        FrLocal(Fr::one())
+    }
+}
+
 impl Field for FrLocal {
     fn mul_inv(self) -> Self {
         FrLocal(self.0.inverse().expect("Tried to get mul inv of zero"))
-    }
-
-    fn add_identity() -> Self {
-        FrLocal(Fr::zero())
-    }
-    fn mul_identity() -> Self {
-        FrLocal(Fr::one())
     }
 }
 
@@ -122,7 +124,7 @@ impl EllipticEncryptable for FrLocal {
 
 impl Identity for FrLocal {
     fn is_identity(&self) -> bool {
-        *self == Self::add_identity()
+        *self == Self::zero()
     }
 }
 
@@ -131,7 +133,7 @@ impl Sum for FrLocal {
     where
         I: Iterator<Item = Self>,
     {
-        iter.fold(FrLocal::add_identity(), |acc, x| acc + x)
+        iter.fold(FrLocal::zero(), |acc, x| acc + x)
     }
 }
 
@@ -271,10 +273,9 @@ mod tests {
 
     #[test]
     fn bn_encrypt_quad_test() {
-        let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
-            "test_programs/lispesque_quad.zk",
-        ).unwrap())
-            .unwrap();
+        let root_rep = ASTParser::try_parse(
+            &*::std::fs::read_to_string("test_programs/lispesque_quad.zk").unwrap(),
+        ).unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         for _ in 0..10 {
@@ -299,10 +300,9 @@ mod tests {
 
     #[test]
     fn bn_encrypt_cubic_test() {
-        let root_rep = ASTParser::try_parse(&*::std::fs::read_to_string(
-            "test_programs/lispesque_cubic.zk",
-        ).unwrap())
-            .unwrap();
+        let root_rep = ASTParser::try_parse(
+            &*::std::fs::read_to_string("test_programs/lispesque_cubic.zk").unwrap(),
+        ).unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         let trials = 10;

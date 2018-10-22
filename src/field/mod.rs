@@ -9,6 +9,29 @@ use std::str::FromStr;
 
 pub mod z251;
 
+/// [`FieldIdentity`] only makes sense when defined with a Field. The reason
+/// this trait is not a part of [`Field`] is to provide a "zero" element and a
+/// "one" element to types that cannot define a multiplicative inverse to be a
+/// [`Field`]. Currently this includes: [`isize`] and is used in [`z251`].
+///
+/// As such [`zero()`] is the value that equals an element added to its additive
+/// inverse and the [`one()`] is the value that equals an element multiplied by
+/// its multiplicative inverse.
+pub trait FieldIdentity {
+    fn zero() -> Self;
+    fn one() -> Self;
+}
+
+impl FieldIdentity for isize {
+    fn zero() -> Self {
+        0
+    }
+    fn one() -> Self {
+        1
+    }
+}
+
+/// A [`Field`] here has the same classical mathematical definition of a field.
 pub trait Field:
     Sized
     + Add<Output = Self>
@@ -16,33 +39,21 @@ pub trait Field:
     + Sub<Output = Self>
     + Mul<Output = Self>
     + Div<Output = Self>
+    + FieldIdentity
+    + Copy
 {
     fn mul_inv(self) -> Self;
-
-    fn add_identity() -> Self;
-    fn mul_identity() -> Self;
-}
-
-pub trait ZeroElement {
-    fn zero() -> Self;
-}
-
-pub trait OneElement {
-    fn one() -> Self;
-}
-
-impl ZeroElement for isize {
-    fn zero() -> Self {
-        0
+    fn add_inv(self) -> Self {
+        -self
     }
 }
 
-impl OneElement for isize {
-    fn one() -> Self {
-        1
-    }
-}
-
+/// ```rust
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+/// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().degree(), 3);
+/// assert_eq!((1..5).count(),4);
+/// ```
 pub trait Polynomial<T>: From<Vec<T>>
 where
     T: Field + PartialEq + Copy,
@@ -56,13 +67,14 @@ where
             .as_slice()
             .iter()
             .zip(powers(x))
-            .fold(T::add_identity(), |acc, (&c, x)| acc + c * x)
+            .fold(T::zero(), |acc, (&c, x)| acc + c * x)
     }
     fn remove_leading_zeros(&mut self) {
-        *self = self.coefficients()
+        *self = self
+            .coefficients()
             .into_iter()
             .rev()
-            .skip_while(|&c| c == T::add_identity())
+            .skip_while(|&c| c == T::zero())
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
@@ -82,7 +94,7 @@ where
 
 fn ext_euc_alg<T>(a: T, b: T) -> (T, T, T)
 where
-    T: Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Eq + ZeroElement + OneElement + Copy,
+    T: Div<Output = T> + Mul<Output = T> + Sub<Output = T> + Eq + FieldIdentity + Copy,
 {
     let (ref mut r0, ref mut r1) = (a, b);
     let (ref mut s0, ref mut s1) = (T::one(), T::zero());
@@ -114,8 +126,7 @@ where
         + Sub<Output = T>
         + Add<Output = T>
         + Eq
-        + ZeroElement
-        + OneElement
+        + FieldIdentity
         + Copy,
 {
     let prod = moduli.iter().fold(T::one(), |acc, x| acc * *x);
@@ -127,8 +138,7 @@ where
         .map(|(x, a)| {
             let (_, m, _) = ext_euc_alg(x, *a);
             m * x
-        })
-        .zip(rems)
+        }).zip(rems)
         .map(|(a, b)| a * *b)
         .fold(T::zero(), |acc, x| acc + x)
 }
@@ -143,7 +153,7 @@ where
     };
 
     for c in coeffs.iter().rev() {
-        if *c == T::add_identity() && degree != 0 {
+        if *c == T::zero() && degree != 0 {
             degree -= 1;
         } else {
             return degree;
@@ -161,23 +171,21 @@ where
     if dividend
         .coefficients()
         .into_iter()
-        .skip_while(|&c| c == T::add_identity())
-        .count() == 0
+        .skip_while(|&c| c == T::zero())
+        .count()
+        == 0
     {
         panic!("Dividend must be non-zero");
     }
 
     if dividend.degree() > poly.degree() {
-        return (
-            P::from(vec![T::add_identity()]),
-            P::from(vec![T::add_identity()]),
-        );
+        return (P::from(vec![T::zero()]), P::from(vec![T::zero()]));
     }
 
     poly.remove_leading_zeros();
     dividend.remove_leading_zeros();
 
-    let mut q = vec![T::add_identity(); poly.degree() + 1 - dividend.degree()];
+    let mut q = vec![T::zero(); poly.degree() + 1 - dividend.degree()];
     let mut r = poly.coefficients();
     let d = dividend.degree();
     let c = dividend.coefficients()[d];
@@ -188,7 +196,7 @@ where
         r.as_mut_slice()
             .iter_mut()
             .rev()
-            .skip_while(|&&mut c| c == T::add_identity())
+            .skip_while(|&&mut c| c == T::zero())
             .zip(dividend.coefficients().into_iter().map(|a| a * s).rev())
             .for_each(|(r, b)| *r = *r - b);
 
@@ -203,7 +211,7 @@ where
     T: Field + Copy,
 {
     use std::iter::once;
-    let identity = T::mul_identity();
+    let identity = T::one();
 
     once(identity).chain(unfold(identity, move |state| {
         *state = *state * x;
@@ -221,9 +229,8 @@ where
             seq.iter()
                 .zip(powers(ri))
                 .map(|(&a, r)| a * r)
-                .fold(T::add_identity(), |acc, x| acc + x)
-        })
-        .collect::<Vec<_>>()
+                .fold(T::zero(), |acc, x| acc + x)
+        }).collect::<Vec<_>>()
 }
 
 pub fn idft<T>(seq: &[T], root: T) -> Vec<T>
@@ -236,16 +243,15 @@ where
             seq.iter()
                 .zip(powers(ri))
                 .map(|(&a, r)| a * r)
-                .fold(T::add_identity(), |acc, x| acc + x)
+                .fold(T::zero(), |acc, x| acc + x)
                 * T::from(seq.len()).mul_inv()
-        })
-        .collect::<Vec<_>>()
+        }).collect::<Vec<_>>()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::z251::Z251;
+    use super::*;
 
     #[test]
     fn powers_test() {
@@ -265,18 +271,18 @@ mod tests {
     #[test]
     fn dft_test() {
         // 25 divies 251 - 1 and 5 has order 25 in Z251
-        let mut seq = [Z251::add_identity(); 25];
+        let mut seq = [Z251::zero(); 25];
         seq[0] = 1.into();
         seq[1] = 2.into();
         seq[2] = 3.into();
         let root = 5.into();
 
         let result = vec![
-            6, 86, 169, 189, 203, 131, 237, 118, 115, 91, 248, 177, 8, 48, 34, 136, 177, 203, 125, 57,
-            237, 81, 9, 30, 122,
+            6, 86, 169, 189, 203, 131, 237, 118, 115, 91, 248, 177, 8, 48, 34, 136, 177, 203, 125,
+            57, 237, 81, 9, 30, 122,
         ].into_iter()
-            .map(Z251::from)
-            .collect::<Vec<_>>();
+        .map(Z251::from)
+        .collect::<Vec<_>>();
 
         assert_eq!(dft(&seq[..], root), result);
     }
@@ -284,7 +290,7 @@ mod tests {
     #[test]
     fn idft_test() {
         // 25 divies 251 - 1 and 5 has order 25 in Z251
-        let mut seq = [Z251::add_identity(); 25];
+        let mut seq = [Z251::zero(); 25];
         seq[0] = 1.into();
         seq[1] = 2.into();
         seq[2] = 3.into();
@@ -350,4 +356,3 @@ mod tests {
         polynomial_division(a, b);
     }
 }
-

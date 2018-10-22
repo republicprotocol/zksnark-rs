@@ -60,23 +60,26 @@ impl Div for Z251 {
     }
 }
 
-impl Field for Z251 {
-    fn mul_inv(self) -> Self {
-        Z251::mul_identity().div(self)
-    }
-
-    fn add_identity() -> Self {
+impl FieldIdentity for Z251 {
+    fn zero() -> Self {
         Z251 { inner: 0 }
     }
-    fn mul_identity() -> Self {
+    fn one() -> Self {
         Z251 { inner: 1 }
+    }
+}
+
+impl Field for Z251 {
+    fn mul_inv(self) -> Self {
+        Z251::one().div(self)
     }
 }
 
 impl From<usize> for Z251 {
     fn from(n: usize) -> Self {
-        assert!(n < 251);
-        Z251 { inner: n as u8 }
+        Z251 {
+            inner: (n % 251) as u8,
+        }
     }
 }
 
@@ -109,7 +112,7 @@ mod tests {
         for i in 1..251 {
             let lhs = Z251 { inner: i };
             let rhs = -Z251 { inner: i };
-            assert_eq!(lhs + rhs, Z251::add_identity());
+            assert_eq!(lhs + rhs, Z251::zero());
         }
     }
 
@@ -118,7 +121,7 @@ mod tests {
         for i in 1..251 {
             let lhs = Z251 { inner: i };
             let rhs = Z251 { inner: i }.mul_inv();
-            assert_eq!(lhs * rhs, Z251::mul_identity());
+            assert_eq!(lhs * rhs, Z251::one());
         }
     }
 
