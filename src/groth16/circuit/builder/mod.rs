@@ -187,7 +187,7 @@ where
     pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_inputs = vec![(T::mul_identity(), lhs)];
         let rhs_inputs = vec![(T::mul_identity(), rhs)];
-        
+
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
@@ -206,5 +206,18 @@ where
         let rhs_inputs = vec![(one, lhs), (-one, rhs)];
 
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
+    }
+
+    pub fn new_fan_in<F>(inputs: &[WireId], mut gate: F) -> WireId
+    where
+        F: FnMut(WireId, WireId) -> WireId,
+    {
+        if inputs.len() < 2 {
+            panic!("cannot fan in with fewer than two inputs");
+        }
+        inputs
+            .iter()
+            .skip(1)
+            .fold(inputs[0], |acc, wire| gate(acc, *wire))
     }
 }
