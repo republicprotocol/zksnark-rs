@@ -92,3 +92,63 @@ fn xor_test() {
         assert!(circuit.evaluate(xor) == Z251::from(*l_xor_r));
     }
 }
+
+#[test]
+fn fan_in_and_test() {
+    for i in 0..256 {
+        let mut circuit = Circuit::<Z251>::new();
+        let mut wires = [WireId(0); 8];
+        for j in 0..8 {
+            let wire = circuit.new_wire();
+            circuit.set_value(wire, Z251::from((i >> j) % 2));
+            wires[j] = wire;
+        }
+
+        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| {circuit.new_and(l, r)});
+        if i != 255 {
+            assert!(circuit.evaluate(output) == Z251::from(0));
+        } else {
+            assert!(circuit.evaluate(output) == Z251::from(1));
+        }
+    }
+}
+
+#[test]
+fn fan_in_or_test() {
+    for i in 0..256 {
+        let mut circuit = Circuit::<Z251>::new();
+        let mut wires = [WireId(0); 8];
+        for j in 0..8 {
+            let wire = circuit.new_wire();
+            circuit.set_value(wire, Z251::from((i >> j) % 2));
+            wires[j] = wire;
+        }
+
+        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| {circuit.new_or(l, r)});
+        if i != 0 {
+            assert!(circuit.evaluate(output) == Z251::from(1));
+        } else {
+            assert!(circuit.evaluate(output) == Z251::from(0));
+        }
+    }
+}
+
+#[test]
+fn fan_in_xor_test() {
+    for i in 0..256 {
+        let mut circuit = Circuit::<Z251>::new();
+        let mut wires = [WireId(0); 8];
+        for j in 0..8 {
+            let wire = circuit.new_wire();
+            circuit.set_value(wire, Z251::from((i >> j) % 2));
+            wires[j] = wire;
+        }
+
+        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| {circuit.new_xor(l, r)});
+        if i.count_ones() % 2 == 0 {
+            assert!(circuit.evaluate(output) == Z251::from(0));
+        } else {
+            assert!(circuit.evaluate(output) == Z251::from(1));
+        }
+    }
+}
