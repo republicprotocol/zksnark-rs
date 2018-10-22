@@ -29,3 +29,24 @@ fn bit_checker_test() {
         assert!(circuit.evaluate(checker) != Z251::from(0));
     }
 }
+
+#[test]
+fn and_test() {
+    let logic_table = [
+        (0, 0, 0),
+        (0, 1, 0),
+        (1, 0, 0),
+        (1, 1, 1),
+    ];
+
+    for (l, r, l_and_r) in logic_table.iter() {
+        let mut circuit = Circuit::<Z251>::new();
+        let l_wire = circuit.new_wire();
+        let r_wire = circuit.new_wire();
+        let and = circuit.new_and(l_wire, r_wire);
+
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(and) == Z251::from(*l_and_r));
+    }
+}
