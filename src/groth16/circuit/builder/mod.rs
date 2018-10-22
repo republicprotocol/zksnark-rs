@@ -190,4 +190,13 @@ where
         
         self.new_sub_circuit(lhs, rhs)
     }
+
+    pub fn new_or(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+        let lhs_and_rhs = self.new_and(lhs, rhs);
+        let one = T::mul_identity();
+        let lhs = vec![(-one, lhs_and_rhs), (one, lhs), (one, rhs)];
+        let rhs = vec![(one, self.unity_wire())];
+
+        self.new_sub_circuit(lhs, rhs)
+    }
 }
