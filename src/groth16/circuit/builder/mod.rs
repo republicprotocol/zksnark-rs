@@ -177,6 +177,14 @@ where
             })
     }
 
+    /// Clears all of the stored circuit wire values (including those manually
+    /// set) so that the same circuit can be reused for different inputs.
+    pub fn reset(&mut self) {
+        for value in self.wire_values.values_mut() {
+            *value = None;
+        }
+    }
+
     pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
         let lhs_inputs = vec![(T::mul_identity(), input)];
         let rhs_inputs = vec![
