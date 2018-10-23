@@ -11,3 +11,6 @@ itertools = "0.6.0"
 rand = "~0.3.14"
 bn = "0.4.3"
 bigint = "4.4.0"
+
+[dev-dependencies]
+quickcheck = "0.7.1"

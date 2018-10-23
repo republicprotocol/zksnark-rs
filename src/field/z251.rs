@@ -77,9 +77,8 @@ impl Field for Z251 {
 
 impl From<usize> for Z251 {
     fn from(n: usize) -> Self {
-        Z251 {
-            inner: (n % 251) as u8,
-        }
+        assert!(n < 251);
+        Z251 { inner: (n) as u8 }
     }
 }
 

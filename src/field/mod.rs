@@ -48,26 +48,68 @@ pub trait Field:
     }
 }
 
+/// A line, [`Polynomial`], represented as a vector of [`Field`] elements where the position in the
+/// vector determines the power of the exponent.
+///
+/// For example: [1,2,0,4] is equivalent to f(x) = x^0 + 2x^1 + 4x^3
+///
+/// # Example
+///
+/// [`degree`] returns the highest exponent of the polynomial.
+///
 /// ```rust
 /// use zksnark::field::z251::Z251;
 /// use zksnark::field::*;
-/// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().degree(), 3);
+///
 /// assert_eq!((1..5).count(),4);
+/// assert_eq!((1..5).collect::<Vec<i32>>(),[1,2,3,4]);
+///
+/// assert_eq!(vec![1,2,0,4].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 3);
+/// assert_eq!(vec![1,1,1,1,9].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 4);
+/// ```
+///
+/// [`evaluate`] take the polynomial and evaluates it at the specified value.
+///     For example: f(x) = 1 + x^2 + 3x^3 then f(1) = 1 + 1^2 + (3*1)^3
+///
+/// ```rust
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+///
+/// assert_eq!(vec![1,1,1].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
+///     Z251::from(7));
+/// assert_eq!(vec![1,1,4].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
+///     Z251::from(19));
+/// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(3)),
+///     Z251::from(142));
+///
 /// ```
 pub trait Polynomial<T>: From<Vec<T>>
 where
-    T: Field + PartialEq + Copy,
+    T: Field + PartialEq,
 {
     fn coefficients(&self) -> Vec<T>;
     fn degree(&self) -> usize {
-        degree(&self.coefficients())
+        let coeffs = self.coefficients();
+        let mut degree = match coeffs.len() {
+            0 => 0,
+            d => d - 1,
+        };
+
+        for c in coeffs.iter().rev() {
+            if *c == T::zero() && degree != 0 {
+                degree -= 1;
+            } else {
+                return degree;
+            }
+        }
+
+        degree
     }
     fn evaluate(&self, x: T) -> T {
         self.coefficients()
-            .as_slice()
             .iter()
-            .zip(powers(x))
-            .fold(T::zero(), |acc, (&c, x)| acc + c * x)
+            .rev()
+            .fold(T::zero(), |acc, y| (acc * x) + *y)
     }
     fn remove_leading_zeros(&mut self) {
         *self = self
@@ -85,7 +127,7 @@ where
 
 impl<T> Polynomial<T> for Vec<T>
 where
-    T: Field + PartialEq + Copy,
+    T: Field + PartialEq,
 {
     fn coefficients(&self) -> Vec<T> {
         self.clone()
@@ -143,30 +185,10 @@ where
         .fold(T::zero(), |acc, x| acc + x)
 }
 
-fn degree<T>(coeffs: &[T]) -> usize
-where
-    T: Field + PartialEq,
-{
-    let mut degree = match coeffs.len() {
-        0 => 0,
-        d => d - 1,
-    };
-
-    for c in coeffs.iter().rev() {
-        if *c == T::zero() && degree != 0 {
-            degree -= 1;
-        } else {
-            return degree;
-        }
-    }
-
-    degree
-}
-
 pub fn polynomial_division<P, T>(mut poly: P, mut dividend: P) -> (P, P)
 where
     P: Polynomial<T>,
-    T: Field + PartialEq + Copy,
+    T: Field + PartialEq,
 {
     if dividend
         .coefficients()
@@ -190,9 +212,9 @@ where
     let d = dividend.degree();
     let c = dividend.coefficients()[d];
 
-    while degree(&r) >= d && r.len() != 0 {
-        let s = r[degree(&r)] / c;
-        q[degree(&r) - d] = s;
+    while r.degree() >= d && r.len() != 0 {
+        let s = r[r.degree()] / c;
+        q[r.degree() - d] = s;
         r.as_mut_slice()
             .iter_mut()
             .rev()
@@ -206,6 +228,17 @@ where
     (q.into(), r.into())
 }
 
+/// Yields an infinite list of powers of x starting from x^0.
+///
+/// ```rust
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+/// assert_eq!(powers(Z251::from(5)).take(3).collect::<Vec<_>>(),
+///     vec![1,5,25].into_iter().map(Z251::from).collect::<Vec<_>>());
+///
+/// assert_eq!(powers(Z251::from(2)).take(5).collect::<Vec<_>>(),
+///     [1,2,4,8,16].iter_mut().map(|x| Z251::from(*x)).collect::<Vec<_>>());
+/// ```
 pub fn powers<T>(x: T) -> impl Iterator<Item = T>
 where
     T: Field + Copy,
@@ -250,8 +283,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::z251::Z251;
+    use super::z251::*;
     use super::*;
+
+    extern crate quickcheck;
+    use self::quickcheck::quickcheck;
+
+    quickcheck! {
+        fn prop_polynomial_evaluate(vec: Vec<usize>, eval_at: usize) -> bool {
+            let poly: Vec<Z251> = vec.into_iter().map(|x| Z251::from(x % 251)).collect();
+            let x: Z251 = Z251::from(eval_at);
+            poly.evaluate(x) == poly
+                .coefficients()
+                .as_slice()
+                .iter()
+                .zip(powers(x))
+                .fold(Z251::zero(), |acc, (&c, x)| acc + c * x)
+        }
+    }
 
     #[test]
     fn powers_test() {
