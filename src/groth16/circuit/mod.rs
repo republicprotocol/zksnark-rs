@@ -484,7 +484,7 @@ where
             .expect("Every variable should have an assignment")
     });
 
-    Ok(::std::iter::once(F::mul_identity())
+    Ok(::std::iter::once(F::one())
         .chain(weights)
         .collect::<Vec<_>>())
 }
@@ -501,7 +501,7 @@ where
         Mul(ref left, ref right) => {
             evaluate(left, assignments).and_then(|l| evaluate(right, assignments).map(|r| l * r))
         }
-        Add(ref inputs) => inputs.into_iter().try_fold(F::add_identity(), |acc, x| {
+        Add(ref inputs) => inputs.into_iter().try_fold(F::zero(), |acc, x| {
             evaluate(&x, assignments).map(|v| acc + v)
         }),
         _ => None,
