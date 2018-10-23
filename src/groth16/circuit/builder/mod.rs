@@ -80,6 +80,10 @@ where
         self.wire_values.insert(wire, Some(value));
     }
 
+    pub fn wire_assignments(&self) -> &HashMap<WireId, Vec<ConnectionType<T>>> {
+        &self.wire_assignments
+    }
+
     pub fn assignments(&self, wire: &WireId) -> &Vec<ConnectionType<T>> {
         self.wire_assignments
             .get(wire)
@@ -94,6 +98,10 @@ where
                 .get_mut(&wire)
                 .map(|v| v.push(connection));
         }
+    }
+
+    pub fn sub_circuits(&self) -> impl Iterator<Item = SubCircuitId> {
+        (0..self.next_sub_circuit_id.0).map(|id| SubCircuitId(id))
     }
 
     pub fn new_sub_circuit(
@@ -197,10 +205,7 @@ where
 
     pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
         let lhs_inputs = vec![(T::one(), input)];
-        let rhs_inputs = vec![
-            (T::one(), input),
-            (-T::one(), self.unity_wire()),
-        ];
+        let rhs_inputs = vec![(T::one(), input), (-T::one(), self.unity_wire())];
 
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
