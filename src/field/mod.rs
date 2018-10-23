@@ -9,13 +9,13 @@ use std::str::FromStr;
 
 pub mod z251;
 
-/// [`FieldIdentity`] only makes sense when defined with a Field. The reason
+/// `FieldIdentity` only makes sense when defined with a Field. The reason
 /// this trait is not a part of [`Field`] is to provide a "zero" element and a
 /// "one" element to types that cannot define a multiplicative inverse to be a
-/// [`Field`]. Currently this includes: [`isize`] and is used in [`z251`].
+/// `Field`. Currently this includes: `isize` and is used in `z251`.
 ///
-/// As such [`zero()`] is the value that equals an element added to its additive
-/// inverse and the [`one()`] is the value that equals an element multiplied by
+/// As such `zero()` is the value that equals an element added to its additive
+/// inverse and the `one()` is the value that equals an element multiplied by
 /// its multiplicative inverse.
 pub trait FieldIdentity {
     fn zero() -> Self;
@@ -31,7 +31,7 @@ impl FieldIdentity for isize {
     }
 }
 
-/// A [`Field`] here has the same classical mathematical definition of a field.
+/// A `Field` here has the same classical mathematical definition of a field.
 pub trait Field:
     Sized
     + Add<Output = Self>
@@ -48,14 +48,14 @@ pub trait Field:
     }
 }
 
-/// A line, [`Polynomial`], represented as a vector of [`Field`] elements where the position in the
+/// A line, `Polynomial`, represented as a vector of `Field` elements where the position in the
 /// vector determines the power of the exponent.
 ///
 /// For example: [1,2,0,4] is equivalent to f(x) = x^0 + 2x^1 + 4x^3
 ///
 /// # Example
 ///
-/// [`degree`] returns the highest exponent of the polynomial.
+/// `degree` returns the highest exponent of the polynomial.
 ///
 /// ```rust
 /// use zksnark::field::z251::Z251;
@@ -68,7 +68,7 @@ pub trait Field:
 /// assert_eq!(vec![1,1,1,1,9].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 4);
 /// ```
 ///
-/// [`evaluate`] take the polynomial and evaluates it at the specified value.
+/// `evaluate` take the polynomial and evaluates it at the specified value.
 ///     For example: f(x) = 1 + x^2 + 3x^3 then f(1) = 1 + 1^2 + (3*1)^3
 ///
 /// ```rust
@@ -161,7 +161,7 @@ where
     (*r0, *s0, *t0)
 }
 
-pub fn chinese_remainder<T>(rems: &[T], moduli: &[T]) -> T
+fn chinese_remainder<T>(rems: &[T], moduli: &[T]) -> T
 where
     T: Div<Output = T>
         + Mul<Output = T>
@@ -185,6 +185,21 @@ where
         .fold(T::zero(), |acc, x| acc + x)
 }
 
+/// `polynomial_division` is the devision of two `Polynomial`
+///
+/// ```rust
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+///
+/// let poly: Vec<Z251> = vec![1,0,3,1].into_iter().map(Z251::from).collect();
+/// let polyDividend: Vec<Z251> = vec![0,0,9,1].into_iter().map(Z251::from).collect();
+///
+/// let num: Vec<Z251> = vec![1].into_iter().map(Z251::from).collect();
+/// let den: Vec<Z251> = vec![1,0,245].into_iter().map(Z251::from).collect();
+///
+/// assert_eq!(polynomial_division(poly, polyDividend), (num, den));
+/// ```
+///
 pub fn polynomial_division<P, T>(mut poly: P, mut dividend: P) -> (P, P)
 where
     P: Polynomial<T>,
@@ -233,6 +248,7 @@ where
 /// ```rust
 /// use zksnark::field::z251::Z251;
 /// use zksnark::field::*;
+///
 /// assert_eq!(powers(Z251::from(5)).take(3).collect::<Vec<_>>(),
 ///     vec![1,5,25].into_iter().map(Z251::from).collect::<Vec<_>>());
 ///
@@ -252,9 +268,11 @@ where
     }))
 }
 
+/// discrete fourier transformation
+///
 pub fn dft<T>(seq: &[T], root: T) -> Vec<T>
 where
-    T: Field + Copy,
+    T: Field,
 {
     powers(root)
         .take(seq.len())
@@ -266,9 +284,11 @@ where
         }).collect::<Vec<_>>()
 }
 
+/// inverse discrete fourier transformation
+///
 pub fn idft<T>(seq: &[T], root: T) -> Vec<T>
 where
-    T: Field + Copy + From<usize>,
+    T: Field + From<usize>,
 {
     powers(root.mul_inv())
         .take(seq.len())
