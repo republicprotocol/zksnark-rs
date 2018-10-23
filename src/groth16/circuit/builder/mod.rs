@@ -149,12 +149,12 @@ where
 
         let lhs = lhs_wires
             .into_iter()
-            .fold(T::add_identity(), |acc, (weight, wire)| {
+            .fold(T::zero(), |acc, (weight, wire)| {
                 acc + weight * self.evaluate(wire)
             });
         let rhs = rhs_wires
             .into_iter()
-            .fold(T::add_identity(), |acc, (weight, wire)| {
+            .fold(T::zero(), |acc, (weight, wire)| {
                 acc + weight * self.evaluate(wire)
             });
         lhs * rhs
@@ -164,7 +164,7 @@ where
         use self::ConnectionType::Output;
 
         if wire == self.unity_wire() {
-            return T::mul_identity();
+            return T::one();
         }
 
         self.wire_values
@@ -196,25 +196,25 @@ where
     }
 
     pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
-        let lhs_inputs = vec![(T::mul_identity(), input)];
+        let lhs_inputs = vec![(T::one(), input)];
         let rhs_inputs = vec![
-            (T::mul_identity(), input),
-            (-T::mul_identity(), self.unity_wire()),
+            (T::one(), input),
+            (-T::one(), self.unity_wire()),
         ];
 
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let lhs_inputs = vec![(T::mul_identity(), lhs)];
-        let rhs_inputs = vec![(T::mul_identity(), rhs)];
+        let lhs_inputs = vec![(T::one(), lhs)];
+        let rhs_inputs = vec![(T::one(), rhs)];
 
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     pub fn new_or(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_and_rhs = self.new_and(lhs, rhs);
-        let one = T::mul_identity();
+        let one = T::one();
         let lhs_inputs = vec![(-one, lhs_and_rhs), (one, lhs), (one, rhs)];
         let rhs_inputs = vec![(one, self.unity_wire())];
 
@@ -222,7 +222,7 @@ where
     }
 
     pub fn new_xor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let one = T::mul_identity();
+        let one = T::one();
         let lhs_inputs = vec![(one, lhs), (-one, rhs)];
         let rhs_inputs = vec![(one, lhs), (-one, rhs)];
 
