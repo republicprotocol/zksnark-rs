@@ -15,9 +15,10 @@ where
 }
 
 #[derive(Clone)]
-pub struct SubCircuitInputs<T> {
+pub struct SubCircuitConnections<T> {
     left_inputs: Vec<(T, WireId)>,
     right_inputs: Vec<(T, WireId)>,
+    output: WireId,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -34,7 +35,7 @@ where
     next_sub_circuit_id: SubCircuitId,
 
     wire_assignments: HashMap<WireId, Vec<ConnectionType<T>>>,
-    sub_circuit_wires: HashMap<SubCircuitId, SubCircuitInputs<T>>,
+    sub_circuit_wires: HashMap<SubCircuitId, SubCircuitConnections<T>>,
     wire_values: HashMap<WireId, Option<T>>,
 }
 
@@ -115,9 +116,10 @@ where
         // Update the sub circuit mapping
         self.sub_circuit_wires.insert(
             sub_circuit_id,
-            SubCircuitInputs {
+            SubCircuitConnections {
                 left_inputs,
                 right_inputs,
+                output: output_wire,
             },
         );
 
@@ -125,9 +127,10 @@ where
     }
 
     fn evaluate_sub_circuit(&mut self, sub_circuit: SubCircuitId) -> T {
-        let SubCircuitInputs {
+        let SubCircuitConnections {
             left_inputs: lhs_wires,
             right_inputs: rhs_wires,
+            output: _,
         } = self
             .sub_circuit_wires
             .get(&sub_circuit)
