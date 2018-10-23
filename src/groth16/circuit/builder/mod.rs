@@ -65,6 +65,10 @@ where
         next_wire_id
     }
 
+    pub fn num_wires(&self) -> usize {
+        self.next_wire_id.0
+    }
+
     pub fn value(&self, wire: WireId) -> Option<T> {
         *self
             .wire_values
@@ -74,6 +78,12 @@ where
 
     pub fn set_value(&mut self, wire: WireId, value: T) {
         self.wire_values.insert(wire, Some(value));
+    }
+
+    pub fn assignments(&self, wire: &WireId) -> &Vec<ConnectionType<T>> {
+        self.wire_assignments
+            .get(wire)
+            .expect("wire id is not defined in this circuit")
     }
 
     fn insert_connection(&mut self, wire: WireId, connection: ConnectionType<T>) {
