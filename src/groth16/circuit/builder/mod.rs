@@ -153,21 +153,21 @@ where
 
     fn evaluate_sub_circuit(&mut self, sub_circuit: SubCircuitId) -> T {
         let SubCircuitConnections {
-            left_inputs: lhs_wires,
-            right_inputs: rhs_wires,
-            output: _,
+            left_inputs,
+            right_inputs,
+            ..
         } = self
             .sub_circuit_wires
             .get(&sub_circuit)
             .expect("a sub circuit referenced by a wire should exist")
             .clone();
 
-        let lhs = lhs_wires
+        let lhs = left_inputs
             .into_iter()
             .fold(T::zero(), |acc, (weight, wire)| {
                 acc + weight * self.evaluate(wire)
             });
-        let rhs = rhs_wires
+        let rhs = right_inputs
             .into_iter()
             .fold(T::zero(), |acc, (weight, wire)| {
                 acc + weight * self.evaluate(wire)
