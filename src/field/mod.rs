@@ -51,43 +51,33 @@ pub trait Field:
 /// A line, `Polynomial`, represented as a vector of `Field` elements where the position in the
 /// vector determines the power of the exponent.
 ///
-/// For example: [1,2,0,4] is equivalent to f(x) = x^0 + 2x^1 + 4x^3
-///
-/// # Example
-///
-/// `degree` returns the highest exponent of the polynomial.
-///
-/// ```rust
-/// use zksnark::field::z251::Z251;
-/// use zksnark::field::*;
-///
-/// assert_eq!((1..5).count(),4);
-/// assert_eq!((1..5).collect::<Vec<i32>>(),[1,2,3,4]);
-///
-/// assert_eq!(vec![1,2,0,4].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 3);
-/// assert_eq!(vec![1,1,1,1,9].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 4);
-/// ```
-///
-/// `evaluate` take the polynomial and evaluates it at the specified value.
-///     For example: f(x) = 1 + x^2 + 3x^3 then f(1) = 1 + 1^2 + (3*1)^3
-///
-/// ```rust
-/// use zksnark::field::z251::Z251;
-/// use zksnark::field::*;
-///
-/// assert_eq!(vec![1,1,1].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
-///     Z251::from(7));
-/// assert_eq!(vec![1,1,4].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
-///     Z251::from(19));
-/// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(3)),
-///     Z251::from(142));
-///
-/// ```
 pub trait Polynomial<T>: From<Vec<T>>
 where
     T: Field + PartialEq,
 {
+    /// This defines how to turn a `Field` into a vector of `Field` for the other functions in this
+    /// trait. In other words, it aligns
+    ///
     fn coefficients(&self) -> Vec<T>;
+
+    /// Returns the highest exponent of the polynomial.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    ///
+    /// // [1, 2, 0, 4] would be f(x) = 1 + 2x + 0x^2 + 4x^3
+    /// // Thus the degree is 3
+    /// assert_eq!(vec![1,2,0,4].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 3);
+    ///
+    /// // [1, 1, 1, 1, 9] would be f(x) = 1 + x + x^2 + x^3 + 9x^4
+    /// // Thus the degree is 4
+    /// assert_eq!(vec![1,1,1,1,9].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 4);
+    /// ```
     fn degree(&self) -> usize {
         let coeffs = self.coefficients();
         let mut degree = match coeffs.len() {
@@ -105,6 +95,29 @@ where
 
         degree
     }
+
+    /// Takes the polynomial and evaluates it at the specified value.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    ///
+    /// // [1, 1, 1] would be f(x) = 1 + x + x^2 thus f(1) = 1 + 1 + 1^2
+    /// // Thus the degree is 4
+    /// assert_eq!(vec![1,1,1].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
+    ///     Z251::from(7));
+    ///
+    /// assert_eq!(vec![1,1,4].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
+    ///     Z251::from(19));
+    ///
+    /// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(3)),
+    ///     Z251::from(142));
+    ///
+    /// ```
     fn evaluate(&self, x: T) -> T {
         self.coefficients()
             .iter()
@@ -187,7 +200,9 @@ where
 
 /// `polynomial_division` is the devision of two `Polynomial`
 ///
-/// ```rust
+/// # Examples
+///
+/// ```
 /// use zksnark::field::z251::Z251;
 /// use zksnark::field::*;
 ///
