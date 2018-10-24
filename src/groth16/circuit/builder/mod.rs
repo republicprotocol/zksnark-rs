@@ -39,6 +39,7 @@ where
     wire_values: HashMap<WireId, Option<T>>,
 }
 
+/// Test
 impl<T> Circuit<T>
 where
     T: Copy + Field,
