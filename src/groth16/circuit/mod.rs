@@ -18,7 +18,6 @@ where
 {
     circuit: Circuit<T>,
     verification_wires: Vec<WireId>,
-    output_wires: Vec<WireId>,
     ordered_wires: Vec<WireId>,
     sub_circuit_point: F,
 }
@@ -31,7 +30,6 @@ where
     pub fn new(
         circuit: Circuit<T>,
         verification_wires: Vec<WireId>,
-        output_wires: Vec<WireId>,
         sub_circuit_point: F,
     ) -> Self {
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
@@ -53,7 +51,6 @@ where
         CircuitInstance {
             circuit,
             verification_wires,
-            output_wires,
             ordered_wires,
             sub_circuit_point,
         }
@@ -65,7 +62,7 @@ where
         }
 
         // Set the values of the input wires of the circuit
-        for (wire, value) in self.output_wires.iter().skip(1).zip(inputs.iter()) {
+        for (wire, value) in self.ordered_wires.iter().skip(1).zip(inputs.iter()) {
             self.circuit.set_value(*wire, *value);
         }
 
