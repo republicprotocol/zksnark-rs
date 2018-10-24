@@ -240,14 +240,17 @@ mod tests {
     fn circuit_builder_test() {
         // Build the circuit
         let mut circuit = Circuit::<FrLocal>::new();
-        let bit = circuit.new_wire();
-        let bit_checker = circuit.new_bit_checker(bit);
-        let mut instance = CircuitInstance::new(circuit, vec![bit_checker], vec![bit], |w| {
+        let x = circuit.new_wire();
+        let x_checker = circuit.new_bit_checker(x);
+        let y = circuit.new_wire();
+        let y_checker = circuit.new_bit_checker(y);
+        let or = circuit.new_or(x, y);
+        let mut instance = CircuitInstance::new(circuit, vec![x_checker, y_checker, or], vec![x, y], |w| {
             FrLocal::from(w.inner_id() + 1)
         });
 
         let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
-        let assignments = vec![FrLocal::from(0)];
+        let assignments = vec![FrLocal::from(0), FrLocal::from(1)];
         let weights = instance.weights(assignments);
 
         let (sigmag1, sigmag2) = groth16::setup(&qap);
@@ -256,7 +259,7 @@ mod tests {
         assert!(groth16::verify(
             &qap,
             (sigmag1, sigmag2),
-            &[FrLocal::from(0)],
+            &[FrLocal::from(0), FrLocal::from(0), FrLocal::from(1)],
             proof
         ));
     }
