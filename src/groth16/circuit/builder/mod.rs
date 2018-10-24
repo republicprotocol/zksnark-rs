@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
 where
     T: Copy,
@@ -26,6 +26,12 @@ pub struct WireId(usize);
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubCircuitId(usize);
+
+impl SubCircuitId {
+    pub fn inner_id(&self) -> usize {
+        self.0
+    }
+}
 
 pub struct Circuit<T>
 where
