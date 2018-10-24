@@ -20,6 +20,7 @@ where
 {
     circuit: Circuit<T>,
     verification_wires: Vec<WireId>,
+    input_wires: Vec<WireId>,
     ordered_wires: Vec<WireId>,
     sub_circuit_point: F,
 }
@@ -29,13 +30,14 @@ where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
 {
-    pub fn new(circuit: Circuit<T>, verification_wires: Vec<WireId>, sub_circuit_point: F) -> Self {
+    pub fn new(circuit: Circuit<T>, verification_wires: Vec<WireId>, input_wires: Vec<WireId>, sub_circuit_point: F) -> Self {
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
 
         let (verification_ids, witness_ids) = circuit
             .wire_assignments()
             .keys()
+            .filter(|w| **w != circuit.unity_wire())
             .partition::<Vec<_>, _>(|k| verification_wires.contains(k));
 
         // Assign the wires that are to be verified to the lower indices
@@ -49,6 +51,7 @@ where
         CircuitInstance {
             circuit,
             verification_wires,
+            input_wires,
             ordered_wires,
             sub_circuit_point,
         }
@@ -60,7 +63,7 @@ where
         }
 
         // Set the values of the input wires of the circuit
-        for (wire, value) in self.ordered_wires.iter().skip(1).zip(inputs.iter()) {
+        for (wire, value) in self.input_wires.iter().zip(inputs.iter()) {
             self.circuit.set_value(*wire, *value);
         }
 
