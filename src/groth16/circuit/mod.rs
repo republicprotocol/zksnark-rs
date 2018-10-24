@@ -11,77 +11,106 @@ use self::ast::{Expression, ParseErr};
 use self::builder::{Circuit, ConnectionType, SubCircuitId, WireId};
 use self::dummy_rep::DummyRep;
 
-struct CircuitInstance<T, F>
+pub struct CircuitInstance<T, F>
 where
     T: Copy,
     F: Fn(SubCircuitId) -> T,
 {
     circuit: Circuit<T>,
     verification_wires: Vec<WireId>,
-    point_mapping: F,
+    output_wires: Vec<WireId>,
+    ordered_wires: Vec<WireId>,
+    sub_circuit_point: F,
 }
 
-impl<T, F> From<CircuitInstance<T, F>> for DummyRep<T>
+impl<T, F> CircuitInstance<T, F>
+where
+    T: Copy + Field,
+    F: Fn(SubCircuitId) -> T,
+{
+    pub fn new(
+        circuit: Circuit<T>,
+        verification_wires: Vec<WireId>,
+        output_wires: Vec<WireId>,
+        sub_circuit_point: F,
+    ) -> Self {
+        let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
+        ordered_wires.push(circuit.unity_wire());
+
+        let (verification_ids, witness_ids) = circuit
+            .wire_assignments()
+            .keys()
+            .partition::<Vec<_>, _>(|k| verification_wires.contains(k));
+
+        // Assign the wires that are to be verified to the lower indices
+        ordered_wires.append(
+            &mut verification_ids
+                .into_iter()
+                .chain(witness_ids.into_iter())
+                .collect::<Vec<_>>(),
+        );
+
+        CircuitInstance {
+            circuit,
+            verification_wires,
+            output_wires,
+            ordered_wires,
+            sub_circuit_point,
+        }
+    }
+
+    pub fn weights(&mut self, inputs: Vec<T>) -> Vec<T> {
+        if inputs.len() != self.verification_wires.len() {
+            panic!("must have the same number of verification wires and assignments")
+        }
+
+        // Set the values of the input wires of the circuit
+        for (wire, value) in self.output_wires.iter().skip(1).zip(inputs.iter()) {
+            self.circuit.set_value(*wire, *value);
+        }
+
+        // Iterate through all of the wires and collect the values
+        let CircuitInstance {
+            ordered_wires,
+            circuit,
+            ..
+        } = self;
+
+        ordered_wires
+            .iter()
+            .map(|w| circuit.evaluate(*w))
+            .collect::<Vec<_>>()
+    }
+}
+
+impl<'a, T, F> From<&'a CircuitInstance<T, F>> for DummyRep<T>
 where
     T: Field + Copy,
     F: Fn(SubCircuitId) -> T,
 {
-    fn from(instance: CircuitInstance<T, F>) -> Self {
+    fn from(instance: &CircuitInstance<T, F>) -> Self {
         use self::ConnectionType::*;
 
-        let mut u = Vec::<Vec<(T, T)>>::with_capacity(instance.circuit.num_wires());
-        let mut v = Vec::<Vec<(T, T)>>::with_capacity(instance.circuit.num_wires());
-        let mut w = Vec::<Vec<(T, T)>>::with_capacity(instance.circuit.num_wires());
+        let mut u = vec![vec![]; instance.circuit.num_wires()];
+        let mut v = vec![vec![]; instance.circuit.num_wires()];
+        let mut w = vec![vec![]; instance.circuit.num_wires()];
         let roots = instance
             .circuit
             .sub_circuits()
-            .map(&instance.point_mapping)
+            .map(&instance.sub_circuit_point)
             .collect::<Vec<_>>();
         let input = instance.verification_wires.len();
 
-        // The unity wire corresponds to the first polynomials
-        for connection in instance.circuit.assignments(&instance.circuit.unity_wire()) {
-            match connection {
-                Left(weight, sc_id) => u[0].push(((instance.point_mapping)(*sc_id), *weight)),
-                Right(weight, sc_id) => v[0].push(((instance.point_mapping)(*sc_id), *weight)),
-                Output(_) => panic!("unity wire cannot be the output of a sub circuit"),
-            }
-        }
-
-        // The next polynomials correspond to the wires that are to be verified
-        for wire in instance.verification_wires.iter() {
+        for wire in instance.ordered_wires.iter() {
             let (mut ui, mut vi, mut wi) = (Vec::new(), Vec::new(), Vec::new());
 
-            for connection in instance.circuit.assignments(&wire) {
+            for connection in instance.circuit.assignments(wire) {
                 match connection {
-                    Left(weight, sc_id) => ui.push(((instance.point_mapping)(*sc_id), *weight)),
-                    Right(weight, sc_id) => vi.push(((instance.point_mapping)(*sc_id), *weight)),
-                    Output(sc_id) => wi.push(((instance.point_mapping)(*sc_id), T::one())),
-                }
-            }
-
-            u.push(ui);
-            v.push(vi);
-            w.push(wi);
-        }
-
-        // The rest of the polynomials correspond to the rest of the wires that
-        // make up the witness
-        let witness_wires = instance
-            .circuit
-            .wire_assignments()
-            .iter()
-            .filter(|(k, _)| !instance.verification_wires.contains(k))
-            .map(|(_, v)| v);
-
-        for wire_connections in witness_wires {
-            let (mut ui, mut vi, mut wi) = (Vec::new(), Vec::new(), Vec::new());
-
-            for connection in wire_connections {
-                match connection {
-                    Left(weight, sc_id) => ui.push(((instance.point_mapping)(*sc_id), *weight)),
-                    Right(weight, sc_id) => vi.push(((instance.point_mapping)(*sc_id), *weight)),
-                    Output(sc_id) => wi.push(((instance.point_mapping)(*sc_id), T::one())),
+                    Left(weight, sc_id) => ui.push(((instance.sub_circuit_point)(*sc_id), *weight)),
+                    Right(weight, sc_id) => {
+                        vi.push(((instance.sub_circuit_point)(*sc_id), *weight))
+                    }
+                    Output(sc_id) => wi.push(((instance.sub_circuit_point)(*sc_id), T::one())),
                 }
             }
 
