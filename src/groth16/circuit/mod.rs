@@ -126,8 +126,8 @@ where
     }
 
     pub fn weights(&mut self, inputs: Vec<T>) -> Vec<T> {
-        if inputs.len() != self.verification_wires.len() {
-            panic!("must have the same number of verification wires and assignments")
+        if inputs.len() != self.input_wires.len() {
+            panic!("must have the same number of input wires and assignments")
         }
 
         // Set the values of the input wires of the circuit
