@@ -131,6 +131,8 @@ pub use groth16::coefficient_poly::CoefficientPoly;
 pub use groth16::fr::FrLocal;
 #[doc(hidden)]
 pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
+#[doc(hidden)]
+pub use groth16::circuit::{Circuit, WireId};
 
 #[cfg(test)]
 mod tests {

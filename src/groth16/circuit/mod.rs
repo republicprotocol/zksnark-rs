@@ -8,8 +8,10 @@ pub mod dummy_rep;
 
 use self::ast::TokenList;
 use self::ast::{Expression, ParseErr};
-use self::builder::{Circuit, ConnectionType, SubCircuitId, WireId};
+use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
+
+pub use self::builder::{Circuit, WireId};
 
 pub struct CircuitInstance<T, F>
 where
@@ -27,11 +29,7 @@ where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
 {
-    pub fn new(
-        circuit: Circuit<T>,
-        verification_wires: Vec<WireId>,
-        sub_circuit_point: F,
-    ) -> Self {
+    pub fn new(circuit: Circuit<T>, verification_wires: Vec<WireId>, sub_circuit_point: F) -> Self {
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
 
