@@ -30,7 +30,12 @@ where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
 {
-    pub fn new(circuit: Circuit<T>, verification_wires: Vec<WireId>, input_wires: Vec<WireId>, sub_circuit_point: F) -> Self {
+    pub fn new(
+        circuit: Circuit<T>,
+        verification_wires: Vec<WireId>,
+        input_wires: Vec<WireId>,
+        sub_circuit_point: F,
+    ) -> Self {
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
 
