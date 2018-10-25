@@ -82,6 +82,12 @@ impl From<usize> for Z251 {
     }
 }
 
+impl Into<usize> for Z251 {
+    fn into(self) -> usize {
+        self.inner as usize
+    }
+}
+
 impl FromStr for Z251 {
     type Err = ::std::num::ParseIntError;
 
