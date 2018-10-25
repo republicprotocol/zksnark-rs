@@ -1,6 +1,46 @@
 //! Defines the `Field` trait along with other utility functions for working
 //! with fields.
-
+//!
+//! Usually you won't need to dive into this module unless you want to define
+//! a new type of with either `Field` or `Polynomial` traits.
+//!
+//! The `z251` module is an implementation of a `Field`, useful for testing and
+//! getting to understand how many of the functions work. As such most of the
+//! examples use `z251` in them.
+//!
+//! Also, the examples in this module all use a Vec<Z251> since there is an
+//! implementation of `Polynomial` for Vec, but in the code that uses this
+//! module uses `CoefficentPoly`.
+//!
+//! # Examples
+//!
+//! Basic usage:
+//!
+//! ```
+//! use zksnark::field::z251::Z251;
+//! use zksnark::field::*;
+//!
+//! // `evaluate` a `Polynomial`
+//! //
+//! // [1, 1, 1] would be f(x) = 1 + x + x^2 thus f(2) = 1 + 2 + 2^2
+//! // Thus the evaluation would be 7
+//! let poly_eval = vec![1, 1, 1]
+//!     .into_iter()
+//!     .map(Z251::from)
+//!     .collect::<Vec<_>>();
+//!
+//! assert_eq!(poly_eval.evaluate(Z251::from(2)), Z251::from(7));
+//!
+//! // `polynomial_division`
+//! //
+//! let poly: Vec<Z251> = vec![1, 0, 3, 1].into_iter().map(Z251::from).collect();
+//! let polyDividend: Vec<Z251> = vec![0, 0, 9, 1].into_iter().map(Z251::from).collect();
+//!
+//! let num: Vec<Z251> = vec![1].into_iter().map(Z251::from).collect();
+//! let den: Vec<Z251> = vec![1, 0, 245].into_iter().map(Z251::from).collect();
+//!
+//! assert_eq!(polynomial_division(poly, polyDividend), (num, den));
+//!```
 extern crate itertools;
 
 use self::itertools::unfold;
@@ -41,6 +81,8 @@ pub trait Field:
     + Div<Output = Self>
     + FieldIdentity
     + Copy
+    + PartialEq
+    + Eq
 {
     fn mul_inv(self) -> Self;
     fn add_inv(self) -> Self {
@@ -51,14 +93,56 @@ pub trait Field:
 /// A line, `Polynomial`, represented as a vector of `Field` elements where the position in the
 /// vector determines the power of the exponent.
 ///
-pub trait Polynomial<T>: From<Vec<T>>
+/// # Remarks
+///
+/// If you want examples of how to implement a `Polynomial` go to the `Z251` module.
+///
+/// The polynomial is represented as a list of coefficients where the powers of
+/// "x" are implicit.
+///
+/// For Example: [1, 3, 0, 5] is f(x) = 1 + 3x + 5x^3
+///
+/// # Note
+///
+/// ```
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+///
+/// // The (*) is overloaded to give you back an array
+/// let tmp = vec![1,2,0,4].into_iter()
+///                        .map(Z251::from)
+///                        .collect::<Vec<_>>();
+///
+/// assert_eq!(*tmp, [1.into(),2.into(),0.into(),4.into()]);
+/// ```
+pub trait Polynomial<T>: From<Vec<T>> + Deref<Target = [T]>
 where
-    T: Field + PartialEq,
+    T: Field,
 {
-    /// This defines how to turn a `Field` into a vector of `Field` for the other functions in this
-    /// trait. In other words, it aligns
+    /// This defines how to turn a `Polynomial` into a vector of `Field`. In
+    /// other words, it gives you back the coefficients of the `Polynomial`.
     ///
-    fn coefficients(&self) -> Vec<T>;
+    /// However, since Deref is required for `Polynomial` you may prefer to get
+    /// the coefficients through an iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    ///
+    /// // Get coefficients through an iterator
+    /// let poly = vec![1,2,0,4].into_iter()
+    ///                         .map(Z251::from)
+    ///                         .collect::<Vec<_>>();
+    ///
+    /// let mut iter = poly.iter();
+    ///
+    /// assert_eq!(iter.next(), Some(&Z251::from(1)));
+    /// ```
+    fn coefficients(&self) -> Vec<T> {
+        self.iter().map(|&x| x).collect()
+    }
 
     /// Returns the highest exponent of the polynomial.
     ///
@@ -72,28 +156,31 @@ where
     ///
     /// // [1, 2, 0, 4] would be f(x) = 1 + 2x + 0x^2 + 4x^3
     /// // Thus the degree is 3
-    /// assert_eq!(vec![1,2,0,4].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 3);
-    ///
+    /// assert_eq!(
+    ///     vec![1, 2, 0, 4]
+    ///         .into_iter()
+    ///         .map(Z251::from)
+    ///         .collect::<Vec<_>>()
+    ///         .degree(),
+    ///     3
+    /// );
     /// // [1, 1, 1, 1, 9] would be f(x) = 1 + x + x^2 + x^3 + 9x^4
     /// // Thus the degree is 4
-    /// assert_eq!(vec![1,1,1,1,9].into_iter().map(Z251::from).collect::<Vec<_>>().degree(), 4);
+    /// assert_eq!(
+    ///     vec![1, 1, 1, 1, 9]
+    ///         .into_iter()
+    ///         .map(Z251::from)
+    ///         .collect::<Vec<_>>()
+    ///         .degree(),
+    ///     4
+    /// );
     /// ```
     fn degree(&self) -> usize {
-        let coeffs = self.coefficients();
-        let mut degree = match coeffs.len() {
+        let tmp = self.iter().rev().skip_while(|&&x| x == T::zero()).count();
+        match tmp {
             0 => 0,
-            d => d - 1,
-        };
-
-        for c in coeffs.iter().rev() {
-            if *c == T::zero() && degree != 0 {
-                degree -= 1;
-            } else {
-                return degree;
-            }
+            x => x - 1,
         }
-
-        degree
     }
 
     /// Takes the polynomial and evaluates it at the specified value.
@@ -106,17 +193,34 @@ where
     /// use zksnark::field::z251::Z251;
     /// use zksnark::field::*;
     ///
-    /// // [1, 1, 1] would be f(x) = 1 + x + x^2 thus f(1) = 1 + 1 + 1^2
-    /// // Thus the degree is 4
-    /// assert_eq!(vec![1,1,1].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
-    ///     Z251::from(7));
+    /// // [1, 1, 1] would be f(x) = 1 + x + x^2 thus f(2) = 1 + 2 + 2^2
+    /// assert_eq!(
+    ///    vec![1, 1, 1]
+    ///        .into_iter()
+    ///        .map(Z251::from)
+    ///        .collect::<Vec<_>>()
+    ///        .evaluate(Z251::from(2)),
+    ///    Z251::from(7)
+    /// );
+    /// // [1, 1, 4] would be f(x) = 1 + x + 4x^2 thus f(2) = 1 + 2 + 4*2^2
+    /// assert_eq!(
+    ///     vec![1, 1, 4]
+    ///         .into_iter()
+    ///         .map(Z251::from)
+    ///         .collect::<Vec<_>>()
+    ///         .evaluate(Z251::from(2)),
+    ///     Z251::from(19)
+    /// );
     ///
-    /// assert_eq!(vec![1,1,4].into_iter().map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(2)),
-    ///     Z251::from(19));
-    ///
-    /// assert_eq!((1..5).map(Z251::from).collect::<Vec<_>>().evaluate(Z251::from(3)),
-    ///     Z251::from(142));
-    ///
+    /// // (1, 2, 3, 4) would be f(x) = 1 + 2x + 3x^2 + 4x^3
+    /// // thus f(3) = 1 + 2 * 3 + 3 * 3^2 + 4 * 3^3
+    /// assert_eq!(
+    ///     (1..5)
+    ///         .map(Z251::from)
+    ///         .collect::<Vec<_>>()
+    ///         .evaluate(Z251::from(3)),
+    ///     Z251::from(142)
+    /// );
     /// ```
     fn evaluate(&self, x: T) -> T {
         self.coefficients()
@@ -138,14 +242,7 @@ where
     }
 }
 
-impl<T> Polynomial<T> for Vec<T>
-where
-    T: Field + PartialEq,
-{
-    fn coefficients(&self) -> Vec<T> {
-        self.clone()
-    }
-}
+impl<T> Polynomial<T> for Vec<T> where T: Field {}
 
 fn ext_euc_alg<T>(a: T, b: T) -> (T, T, T)
 where
@@ -198,7 +295,7 @@ where
         .fold(T::zero(), |acc, x| acc + x)
 }
 
-/// `polynomial_division` is the devision of two `Polynomial`
+/// The devision of two `Polynomial`
 ///
 /// # Examples
 ///
@@ -206,11 +303,11 @@ where
 /// use zksnark::field::z251::Z251;
 /// use zksnark::field::*;
 ///
-/// let poly: Vec<Z251> = vec![1,0,3,1].into_iter().map(Z251::from).collect();
-/// let polyDividend: Vec<Z251> = vec![0,0,9,1].into_iter().map(Z251::from).collect();
+/// let poly: Vec<Z251> = vec![1, 0, 3, 1].into_iter().map(Z251::from).collect();
+/// let polyDividend: Vec<Z251> = vec![0, 0, 9, 1].into_iter().map(Z251::from).collect();
 ///
 /// let num: Vec<Z251> = vec![1].into_iter().map(Z251::from).collect();
-/// let den: Vec<Z251> = vec![1,0,245].into_iter().map(Z251::from).collect();
+/// let den: Vec<Z251> = vec![1, 0, 245].into_iter().map(Z251::from).collect();
 ///
 /// assert_eq!(polynomial_division(poly, polyDividend), (num, den));
 /// ```
@@ -218,7 +315,7 @@ where
 pub fn polynomial_division<P, T>(mut poly: P, mut dividend: P) -> (P, P)
 where
     P: Polynomial<T>,
-    T: Field + PartialEq,
+    T: Field,
 {
     if dividend
         .coefficients()
@@ -264,15 +361,25 @@ where
 /// use zksnark::field::z251::Z251;
 /// use zksnark::field::*;
 ///
-/// assert_eq!(powers(Z251::from(5)).take(3).collect::<Vec<_>>(),
-///     vec![1,5,25].into_iter().map(Z251::from).collect::<Vec<_>>());
+/// assert_eq!(
+///     powers(Z251::from(5)).take(3).collect::<Vec<_>>(),
+///     vec![1, 5, 25]
+///         .into_iter()
+///         .map(Z251::from)
+///         .collect::<Vec<_>>()
+/// );
 ///
-/// assert_eq!(powers(Z251::from(2)).take(5).collect::<Vec<_>>(),
-///     [1,2,4,8,16].iter_mut().map(|x| Z251::from(*x)).collect::<Vec<_>>());
+/// assert_eq!(
+///     powers(Z251::from(2)).take(5).collect::<Vec<_>>(),
+///     [1, 2, 4, 8, 16]
+///         .iter_mut()
+///         .map(|x| Z251::from(*x))
+///         .collect::<Vec<_>>()
+/// );
 /// ```
 pub fn powers<T>(x: T) -> impl Iterator<Item = T>
 where
-    T: Field + Copy,
+    T: Field,
 {
     use std::iter::once;
     let identity = T::one();
@@ -283,7 +390,7 @@ where
     }))
 }
 
-/// discrete fourier transformation
+/// Discrete Fourier Transformation
 ///
 pub fn dft<T>(seq: &[T], root: T) -> Vec<T>
 where
@@ -299,7 +406,7 @@ where
         }).collect::<Vec<_>>()
 }
 
-/// inverse discrete fourier transformation
+/// Inverse Discrete Fourier Transformation
 ///
 pub fn idft<T>(seq: &[T], root: T) -> Vec<T>
 where
@@ -334,6 +441,24 @@ mod tests {
                 .iter()
                 .zip(powers(x))
                 .fold(Z251::zero(), |acc, (&c, x)| acc + c * x)
+        }
+        fn prop_degree(vec: Vec<usize>) -> bool {
+            let poly: Vec<Z251> = vec.into_iter().map(|x| Z251::from(x % 251)).collect();
+            let coeffs = poly.coefficients();
+            let mut degree = match coeffs.len() {
+                0 => 0,
+                d => d - 1,
+            };
+
+            for c in coeffs.iter().rev() {
+                if *c == Z251::zero() && degree != 0 {
+                    degree -= 1;
+                } else {
+                    return (degree == poly.degree());
+                }
+            }
+
+            degree == poly.degree()
         }
     }
 

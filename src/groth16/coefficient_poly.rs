@@ -1,4 +1,5 @@
 use super::*;
+use std::ops::Deref;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct CoefficientPoly<T> {
@@ -11,14 +12,14 @@ impl<T> From<Vec<T>> for CoefficientPoly<T> {
     }
 }
 
-impl<T> Polynomial<T> for CoefficientPoly<T>
-where
-    T: Copy + Clone + PartialEq + Field,
-{
-    fn coefficients(&self) -> Vec<T> {
-        self.coeffs.clone()
+impl<T> Deref for CoefficientPoly<T> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        self.coeffs.deref()
     }
 }
+
+impl<T> Polynomial<T> for CoefficientPoly<T> where T: Field {}
 
 impl<T> Add for CoefficientPoly<T>
 where
