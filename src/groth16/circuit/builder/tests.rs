@@ -1,5 +1,6 @@
 use super::super::super::Z251;
 use super::*;
+use std::ops::{BitAnd, BitOr, BitXor};
 
 #[test]
 fn bit_checker_test() {
@@ -37,6 +38,20 @@ fn and_test() {
         circuit.set_value(l_wire, Z251::from(*l));
         circuit.set_value(r_wire, Z251::from(*r));
         assert!(circuit.evaluate(and) == Z251::from(*l_and_r));
+    }
+}
+
+#[test]
+fn not_test() {
+    let logic_table = [(0, 1), (1, 0)];
+    let mut circuit = Circuit::<Z251>::new();
+    let wire = circuit.new_wire();
+    let not = circuit.new_not(wire);
+
+    for (l, an) in logic_table.iter() {
+        circuit.reset();
+        circuit.set_value(wire, Z251::from(*l));
+        assert!(circuit.evaluate(not) == Z251::from(*an));
     }
 }
 
@@ -86,7 +101,7 @@ fn fan_in_and_test() {
             circuit.set_value(wires[j], Z251::from((i >> j) % 2));
         }
 
-        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| circuit.new_and(l, r));
+        let output = circuit.fan_in(&wires, Circuit::new_and);
         if i != 255 {
             assert!(circuit.evaluate(output) == Z251::from(0));
         } else {
@@ -109,7 +124,7 @@ fn fan_in_or_test() {
             circuit.set_value(wires[j], Z251::from((i >> j) % 2));
         }
 
-        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| circuit.new_or(l, r));
+        let output = circuit.fan_in(&wires, Circuit::new_or);
         if i != 0 {
             assert!(circuit.evaluate(output) == Z251::from(1));
         } else {
@@ -132,11 +147,41 @@ fn fan_in_xor_test() {
             circuit.set_value(wires[j], Z251::from((i >> j) % 2));
         }
 
-        let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| circuit.new_xor(l, r));
+        let output = circuit.fan_in(&wires, Circuit::new_xor);
         if i.count_ones() % 2 == 0 {
             assert!(circuit.evaluate(output) == Z251::from(0));
         } else {
             assert!(circuit.evaluate(output) == Z251::from(1));
         }
     }
+}
+
+#[test]
+fn bitwise_op_test() {
+    let mut circuit = Circuit::<Z251>::new();
+    let (l_wires, r_wires): (Vec<_>, Vec<_>) = (0..4)
+        .map(|_| (circuit.new_wire(), circuit.new_wire()))
+        .unzip();
+
+    // let tmp = [|l: usize, r: usize| l ^ r, |l: usize, r: usize| l & r, |l, r| l | r];
+    // let tmp2 = [Circuit::<Z251>::new_xor, Circuit::new_and, Circuit::new_or];
+
+    let out_wires = circuit.bitwise_op(&l_wires, &r_wires, Circuit::new_xor);
+
+    (0..256).map(|n| (n >> 8, n % 16)).for_each(|(l, r)| {
+        circuit.reset();
+        for j in 0..4 {
+            circuit.set_value(l_wires[j], Z251::from((l >> j) % 2));
+            circuit.set_value(r_wires[j], Z251::from((r >> j) % 2));
+        }
+        assert_eq!(
+            out_wires
+                .iter()
+                .map(|&x| circuit.evaluate(x))
+                .map(|x| x.into())
+                .rev()
+                .fold(0, |acc, x: usize| (acc << 1) + x),
+            l ^ r
+        );
+    });
 }

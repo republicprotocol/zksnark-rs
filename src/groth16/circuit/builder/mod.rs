@@ -217,6 +217,13 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    pub fn new_not(&mut self, input: WireId) -> WireId {
+        let lhs_inputs = vec![(T::one(), self.unity_wire())];
+        let rhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), input)];
+
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+    }
+
     pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_inputs = vec![(T::one(), lhs)];
         let rhs_inputs = vec![(T::one(), rhs)];
@@ -241,9 +248,9 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
-    pub fn new_fan_in<F>(inputs: &[WireId], mut gate: F) -> WireId
+    pub fn fan_in<F>(&mut self, inputs: &[WireId], mut gate: F) -> WireId
     where
-        F: FnMut(WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
         if inputs.len() < 2 {
             panic!("cannot fan in with fewer than two inputs");
@@ -251,6 +258,18 @@ where
         inputs
             .iter()
             .skip(1)
-            .fold(inputs[0], |acc, wire| gate(acc, *wire))
+            .fold(inputs[0], |acc, wire| gate(self, acc, *wire))
+    }
+
+    pub fn bitwise_op<F>(&mut self, left: &[WireId], right: &[WireId], mut gate: F) -> Vec<WireId>
+    where
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+    {
+        assert!(left.len() == right.len());
+
+        left.iter()
+            .zip(right.iter())
+            .map(|(&l, &r)| gate(self, l, r))
+            .collect()
     }
 }
