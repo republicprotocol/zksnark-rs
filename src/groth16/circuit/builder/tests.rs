@@ -74,13 +74,16 @@ fn xor_test() {
 
 #[test]
 fn fan_in_and_test() {
+    let mut circuit = Circuit::<Z251>::new();
+    let mut wires = [WireId(0); 8];
+    for j in 0..8 {
+        wires[j] = circuit.new_wire();
+    }
+
     for i in 0..256 {
-        let mut circuit = Circuit::<Z251>::new();
-        let mut wires = [WireId(0); 8];
+        circuit.reset();
         for j in 0..8 {
-            let wire = circuit.new_wire();
-            circuit.set_value(wire, Z251::from((i >> j) % 2));
-            wires[j] = wire;
+            circuit.set_value(wires[j], Z251::from((i >> j) % 2));
         }
 
         let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| circuit.new_and(l, r));
@@ -94,13 +97,16 @@ fn fan_in_and_test() {
 
 #[test]
 fn fan_in_or_test() {
+    let mut circuit = Circuit::<Z251>::new();
+    let mut wires = [WireId(0); 8];
+    for j in 0..8 {
+        wires[j] = circuit.new_wire();
+    }
+
     for i in 0..256 {
-        let mut circuit = Circuit::<Z251>::new();
-        let mut wires = [WireId(0); 8];
+        circuit.reset();
         for j in 0..8 {
-            let wire = circuit.new_wire();
-            circuit.set_value(wire, Z251::from((i >> j) % 2));
-            wires[j] = wire;
+            circuit.set_value(wires[j], Z251::from((i >> j) % 2));
         }
 
         let output = Circuit::<Z251>::new_fan_in(&wires, |l, r| circuit.new_or(l, r));

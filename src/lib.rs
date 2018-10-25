@@ -124,15 +124,17 @@ pub mod field;
 pub mod groth16;
 
 #[doc(hidden)]
+pub use groth16::circuit::dummy_rep::DummyRep;
+#[doc(hidden)]
 pub use groth16::circuit::{ASTParser, TryParse};
+#[doc(hidden)]
+pub use groth16::circuit::{Circuit, CircuitInstance, WireId};
 #[doc(hidden)]
 pub use groth16::coefficient_poly::CoefficientPoly;
 #[doc(hidden)]
 pub use groth16::fr::FrLocal;
 #[doc(hidden)]
 pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
-#[doc(hidden)]
-pub use groth16::circuit::{Circuit, WireId};
 
 #[cfg(test)]
 mod tests {
@@ -219,12 +221,7 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                assert!(groth16::verify(
-                    &qap,
-                    (sigmag1, sigmag2),
-                    &inputs,
-                    proof
-                ));
+                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
             } else {
                 let mut inputs = vec![Z251::from(0)];
                 inputs.append(
@@ -234,13 +231,36 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                assert!(groth16::verify(
-                    &qap,
-                    (sigmag1, sigmag2),
-                    &inputs,
-                    proof
-                ));
+                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
             }
         }
+    }
+
+    #[test]
+    fn circuit_builder_test() {
+        // Build the circuit
+        let mut circuit = Circuit::<FrLocal>::new();
+        let x = circuit.new_wire();
+        let x_checker = circuit.new_bit_checker(x);
+        let y = circuit.new_wire();
+        let y_checker = circuit.new_bit_checker(y);
+        let or = circuit.new_or(x, y);
+        let mut instance = CircuitInstance::new(circuit, vec![x_checker, y_checker, or], vec![x, y], |w| {
+            FrLocal::from(w.inner_id() + 1)
+        });
+
+        let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
+        let assignments = vec![FrLocal::from(0), FrLocal::from(1)];
+        let weights = instance.weights(assignments);
+
+        let (sigmag1, sigmag2) = groth16::setup(&qap);
+        let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+        assert!(groth16::verify(
+            &qap,
+            (sigmag1, sigmag2),
+            &[FrLocal::from(0), FrLocal::from(0), FrLocal::from(1)],
+            proof
+        ));
     }
 }
