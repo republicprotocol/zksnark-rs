@@ -3,8 +3,10 @@ opt-level = 3
 
 [package]
 name = "zksnark"
+description = "An implementation of zkSNARK using groth16"
 version = "0.0.1"
-authors = ["ross"]
+authors = ["Ross"]
+license = "gplv3"
 
 [dependencies]
 itertools = "0.6.0"
