@@ -3,7 +3,7 @@ opt-level = 3
 
 [package]
 name = "zksnark"
-description = "An implementation of zkSNARK using groth16"
+description = "An implementation of zkSNARK using groth16."
 version = "0.0.1"
 authors = ["Ross"]
 license = "GPL-3.0-or-later"
