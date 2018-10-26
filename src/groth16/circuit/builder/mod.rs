@@ -45,7 +45,158 @@ where
     wire_values: HashMap<WireId, Option<T>>,
 }
 
-/// Test
+/// The purpose of this struct is to build circuits into a representation that
+/// can be turned into a `QAP` (Quadratic Arithmetic Program) which is defined
+/// in "groth16/mod.rs". I'll start this off by describing what are the building
+/// blocks for a `Circuit` are made of:
+///
+/// # Sub Circuit
+///
+/// You can think of a circuit as a collection of nodes connected by wires
+/// without any cycles (Directed Acyclic Graph). Nodes are made up of
+/// "sub circuit" which in reality look like this:
+///
+/// ```
+/// // `Left` input wires-> \|/ \|  <- `Right` input wires
+/// //                       +   +  <- Plus operation
+/// //                        \ /   <- (implicit connections, not wires)
+/// //                         *    <- Multiplication operation
+/// //                         |    <- `Output` wire
+/// ```
+///
+/// Lets walk through the example "sub circuit" which is the atomic unit of a
+/// `Circuit`. In this example the left plus operation has 3 input wires and the
+/// right plus operation has 2 input wires. Every plus operation must have at
+/// least one input wire, but may have any number of extra input wires. Each
+/// "wire" also has an associated weight and takes some input, unless it is an
+/// `Output` wire. The way the "sub circuit" is evaluated is by evaluating all
+/// input wires, followed by the plus operation and multiplication operation.
+///
+/// ```
+/// // For Example, given the above "sub circuit" we can evaluate it as follows:
+/// //              We have these inputs and weights on the left wires:
+/// //                 - [(1,1), (0,2), (2,1)] : [(weights, inputs)]
+///
+/// //              And here are the inputs and weights on the right wires:
+/// //                 - [(0,3), (0,1)] : [(weights, inputs)]
+///
+/// //              To evaluate the wires we multiply their inputs by their weight:
+/// //              and then the plus operation adds the results together:
+/// //                 - Left plus operation equals => ((1 * 1) + (0 * 2) + (2 * 1))
+/// //                 - Right plus operation equals => ((0 * 3) + (1 * 0))
+///
+/// //              Finally the multiplication operation multiplies the result
+/// //              of the previous two:
+/// //                 - (((1 * 1) + (0 * 2) + (2 * 1)) * ((0 * 3) + (1 * 0)))
+/// //              
+/// //              Thus the output wire would have the value: 0
+/// ```
+///
+/// Note: A single wire may connect to any number of sub circuits including to
+/// the same sub circuit multiple times on both its left and right inputs.
+/// (Exception, wires must never form a loop anywhere in the `Circuit`)
+///
+/// # `Circuit`
+///
+/// A `Circuit` is made up of many connecting sub circuits. To evaluate a
+/// `Circuit` means to determine the value of the `Circuit`'s output wires.
+/// Which are in turn made up of the sub circuits output wires that do not
+/// connect to another sub circuit's input wires. This also means a `Circuit`
+/// has some number of input wires which come from the sub circuits with input
+/// wires that do not connect to other sub circuit's output wires. `Circuit`s
+/// are pure in the sense that the input uniquely determines the output of the
+/// `Circuit`.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+/// use zksnark::groth16::circuit::*;
+///
+/// // Create an empty circuit
+/// let mut circuit = Circuit::<Z251>::new();
+///
+/// // In order to give our sub circuits input we need input wires that the sub
+/// // circuits will take as arguments.
+/// let input_wire = circuit.new_wire();
+///
+/// // lets start with a bit checker that returns 0 if the input is 0 or 1 and
+/// // some other number in other cases. This is useful after turning the
+/// // `Circuit` into a `CircuitInstance` where these wires can be checked to
+/// // ensure they evaluate to zero. However, in this module we can only
+/// // evaluate the whole `Circuit`
+/// let checker_wire = circuit.new_bit_checker(input_wire);
+///
+/// // First lets give it a zero to check if it does what we think.
+/// circuit.set_value(input_wire, Z251::from(0));
+/// assert_eq!(circuit.evaluate(checker_wire), Z251::from(0));
+///
+/// // Next we need to reset all wire values in order to re-evaluate the circuit
+/// // and in order to set the inputs to new values.
+/// circuit.reset();
+///
+/// // Same check with 1 as input
+/// circuit.set_value(input_wire, Z251::from(1));
+/// assert_eq!(circuit.evaluate(checker_wire), Z251::from(0));
+///
+/// // Just to demonstrate a negative test
+/// circuit.reset();
+/// circuit.set_value(input_wire, Z251::from(2));
+/// assert_ne!(circuit.evaluate(checker_wire), Z251::from(0));
+///
+/// // This gives you a basic idea of how to use some components, but not what
+/// // this actually looks like. Let me draw a picture of what the circuit looks
+/// // like now:
+///
+/// //  (weight 1, input_wire) -> |
+/// //                           / \
+/// //                           |  \| <- (weight -1, unity_wire)
+/// //                           +   +
+/// //                            \ /
+/// //                             *
+/// //                             | <- checker_wire
+///
+/// // Note: the unity wire, is a wire that always outputs the value 1. You can
+/// // think of it as an input wire that is permanently set to an input of one.
+///
+/// // Now we can add something onto that `checker` wire
+/// let not_wire = circuit.new_not(checker_wire);
+///
+/// // Now it looks like this:
+///
+/// //    (weight 1, input_wire) -> |
+/// //                             / \
+/// //                             |  \| <- (weight -1, one wire)
+/// //                             +   +
+/// //                              \ /
+/// //                               *
+/// //                               | <- checker_wire
+/// // ------------------------------|-----------------------------------------
+/// //                               | <- (weight -1, checker_wire)
+/// // (weight 1, unity wire) -> |   |/ <- (weight 1, unity_wire)
+/// //                           +   +
+/// //                            \ /
+/// //                             *
+/// //                             | <- not_wire
+///
+/// // Note: the line "----" is to show where the sub circuit starts and ends
+/// // conceptually. The checker_wire, when inserted into the input of the
+/// // new_not, is the same wire; it just gets assigned a weight.
+///
+/// // reset, because we have different inputs from before
+/// circuit.reset();
+/// circuit.set_value(input_wire, Z251::from(0));
+/// assert_eq!(circuit.evaluate(not_wire), Z251::from(1));
+///
+/// // Check that the not's input was either 0 or 1
+/// // Note, this call will not need to "evaluate" the checker_wire since it
+/// // was already evaluated to get the value of not_wire
+/// assert_eq!(circuit.evaluate(checker_wire), Z251::from(0));
+/// ```
+///
 impl<T> Circuit<T>
 where
     T: Copy + Field,
