@@ -6,7 +6,8 @@ name = "zksnark"
 description = "An implementation of zkSNARK using groth16"
 version = "0.0.1"
 authors = ["Ross"]
-license = "gplv3"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/republicprotocol/zksnark-rs"
 
 [dependencies]
 itertools = "0.6.0"
