@@ -51,18 +51,25 @@ where
     T: Copy + Field,
 {
     pub fn new() -> Self {
-        // TODO: Initialise the unity wire value to be one?
+        let mut wire_values = HashMap::new();
+        wire_values.insert(WireId(0), Some(T::zero()));
+        wire_values.insert(WireId(1), Some(T::one()));
+
         Circuit {
-            next_wire_id: WireId(1),
+            next_wire_id: WireId(2),
             next_sub_circuit_id: SubCircuitId(0),
             wire_assignments: HashMap::new(),
             sub_circuit_wires: HashMap::new(),
-            wire_values: HashMap::new(),
+            wire_values,
         }
     }
 
-    pub fn unity_wire(&self) -> WireId {
+    fn zero_wire(&self) -> WireId {
         WireId(0)
+    }
+
+    pub fn unity_wire(&self) -> WireId {
+        WireId(1)
     }
 
     pub fn new_wire(&mut self) -> WireId {
@@ -178,10 +185,6 @@ where
     pub fn evaluate(&mut self, wire: WireId) -> T {
         use self::ConnectionType::Output;
 
-        if wire == self.unity_wire() {
-            return T::one();
-        }
-
         self.wire_values
             .get(&wire)
             .expect("cannot evaluate unknown wire")
@@ -202,10 +205,21 @@ where
             })
     }
 
-    /// Clears all of the stored circuit wire values (including those manually
-    /// set) so that the same circuit can be reused for different inputs.
+    /// Clears all of the stored circuit wire values (except for the zero and
+    /// unity wires) so that the same circuit can be reused for different
+    /// inputs.
     pub fn reset(&mut self) {
-        for value in self.wire_values.values_mut() {
+        let zero = self.zero_wire();
+        let one = self.unity_wire();
+        let values = self.wire_values.iter_mut().filter_map(|(&k, v)| {
+            if k == zero || k == one {
+                None
+            } else {
+                Some(v)
+            }
+        });
+
+        for value in values {
             *value = None;
         }
     }
