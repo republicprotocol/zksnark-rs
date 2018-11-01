@@ -286,4 +286,28 @@ where
             .map(|(&l, &r)| gate(self, l, r))
             .collect()
     }
+
+    pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
+        let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
+
+        while literal != 0 {
+            let wire = match literal % 2 {
+                0 => self.zero_wire(),
+                1 => self.unity_wire(),
+                _ => unreachable!(),
+            };
+
+            bits.push(wire);
+            literal >>= 1;
+        }
+
+        bits
+    }
+
+    // TODO: Use a slice instead of a Vec for the argument type.
+    pub fn rotate_wires(mut wires: Vec<WireId>, n: usize) -> Vec<WireId> {
+        let mut tail = wires.split_off(n);
+        tail.append(&mut wires);
+        tail
+    }
 }
