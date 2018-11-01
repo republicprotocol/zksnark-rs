@@ -71,6 +71,33 @@ impl FieldIdentity for isize {
     }
 }
 
+///// These ideas are commented out because I'm having trouble converting Fr
+///// into a u64 and I think the input to a Word64 should be a u64 number
+///// instead of going through the Field type.
+/////
+///// This is to constrain Binary inputs to either `One` or `Zero`.
+/////
+///// I know the way I am using the word binary is an abuse of words since all
+///// numbers are binary and here I am talking about values being either 0 or 1.
+///// Forgive me, I cannot think of a better name.
+//pub enum Binary {
+//    One,
+//    Zero,
+//}
+
+///// Here are the possible numbers representations we need in circuit builder.
+///// Since in the circuit builder I need to turn a field into a collection of
+///// wire inputs such that the inputs are either 0 or 1 and correspond to the
+///// values of the bits in the number.
+/////
+///// Since not all valid Fields have a `u64` or `u8` representation I have this
+///// enum to allow `to_bits` to return the correct representation based on the
+///// underlying representation of the field.
+//pub enum NumRep {
+//    Word8(Binary),
+//    Word64(Binary),
+//}
+
 /// A `Field` here has the same classical mathematical definition of a field.
 pub trait Field:
     Sized
@@ -83,19 +110,35 @@ pub trait Field:
     + Copy
     + PartialEq
     + Eq
+    + From<usize>
 {
     fn mul_inv(self) -> Self;
     fn add_inv(self) -> Self {
         -self
     }
+
+    ///// Converts the underlying representation to an array of bits (0 or 1) that
+    ///// corresponds to the value of the bits in the number.
+    /////
+    ///// For Example: 13 is 00001101 then it should become [0, 0, 0, 0, 1, 1, 0,
+    ///// 1].
+    /////
+    ///// This is used in the circuit builder to convert the Field into a `Word8`
+    ///// or a `Word64` wire representation depending on the underlying type of
+    ///// the field.
+    /////
+    ///// Note to self: you should make this an array of struct of "zero" or "one"
+    ///// instead of an array of numbers
+    //fn to_bits(self) -> NumRep;
 }
 
-/// A line, `Polynomial`, represented as a vector of `Field` elements where the position in the
-/// vector determines the power of the exponent.
+/// A line, `Polynomial`, represented as a vector of `Field` elements where the
+/// position in the vector determines the power of the exponent.
 ///
 /// # Remarks
 ///
-/// If you want examples of how to implement a `Polynomial` go to the `Z251` module.
+/// If you want examples of how to implement a `Polynomial` go to the `Z251`
+/// module.
 ///
 /// The polynomial is represented as a list of coefficients where the powers of
 /// "x" are implicit.

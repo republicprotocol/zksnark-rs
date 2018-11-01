@@ -1,5 +1,6 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
+use std::iter::FromIterator;
 
 #[cfg(test)]
 mod tests;
@@ -21,8 +22,246 @@ pub struct SubCircuitConnections<T> {
     output: WireId,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub struct WireId(usize);
+
+/// The idea here is to have each `WireId` have an input of either 0 or 1 and
+/// then group those wires together to form a single `u64` number where `wire1`
+/// corresponds to the first bit (also called the right most bit) of the `u64`,
+/// then `wire2` the second bit and so on.  
+///
+#[derive(Debug, Default)]
+pub struct Word64 {
+    pub wire64: WireId,
+    pub wire63: WireId,
+    pub wire62: WireId,
+    pub wire61: WireId,
+    pub wire60: WireId,
+    pub wire59: WireId,
+    pub wire58: WireId,
+    pub wire57: WireId,
+    pub wire56: WireId,
+    pub wire55: WireId,
+    pub wire54: WireId,
+    pub wire53: WireId,
+    pub wire52: WireId,
+    pub wire51: WireId,
+    pub wire50: WireId,
+    pub wire49: WireId,
+    pub wire48: WireId,
+    pub wire47: WireId,
+    pub wire46: WireId,
+    pub wire45: WireId,
+    pub wire44: WireId,
+    pub wire43: WireId,
+    pub wire42: WireId,
+    pub wire41: WireId,
+    pub wire40: WireId,
+    pub wire39: WireId,
+    pub wire38: WireId,
+    pub wire37: WireId,
+    pub wire36: WireId,
+    pub wire35: WireId,
+    pub wire34: WireId,
+    pub wire33: WireId,
+    pub wire32: WireId,
+    pub wire31: WireId,
+    pub wire30: WireId,
+    pub wire29: WireId,
+    pub wire28: WireId,
+    pub wire27: WireId,
+    pub wire26: WireId,
+    pub wire25: WireId,
+    pub wire24: WireId,
+    pub wire23: WireId,
+    pub wire22: WireId,
+    pub wire21: WireId,
+    pub wire20: WireId,
+    pub wire19: WireId,
+    pub wire18: WireId,
+    pub wire17: WireId,
+    pub wire16: WireId,
+    pub wire15: WireId,
+    pub wire14: WireId,
+    pub wire13: WireId,
+    pub wire12: WireId,
+    pub wire11: WireId,
+    pub wire10: WireId,
+    pub wire9: WireId,
+    pub wire8: WireId,
+    pub wire7: WireId,
+    pub wire6: WireId,
+    pub wire5: WireId,
+    pub wire4: WireId,
+    pub wire3: WireId,
+    pub wire2: WireId,
+    pub wire1: WireId,
+}
+
+impl FromIterator<WireId> for Word64 {
+    fn from_iter<I: IntoIterator<Item = WireId>>(iter: I) -> Self {
+        let mut i = iter.into_iter();
+        Word64 {
+            wire1: i.next().expect("Missing WireId for wire1, (FromIterator)"),
+            wire2: i.next().expect("Missing WireId for wire2, (FromIterator)"),
+            wire3: i.next().expect("Missing WireId for wire3, (FromIterator)"),
+            wire4: i.next().expect("Missing WireId for wire4, (FromIterator)"),
+            wire5: i.next().expect("Missing WireId for wire5, (FromIterator)"),
+            wire6: i.next().expect("Missing WireId for wire6, (FromIterator)"),
+            wire7: i.next().expect("Missing WireId for wire7, (FromIterator)"),
+            wire8: i.next().expect("Missing WireId for wire8, (FromIterator)"),
+            wire9: i.next().expect("Missing WireId for wire9, (FromIterator)"),
+            wire10: i.next().expect("Missing WireId for wire10, (FromIterator)"),
+            wire11: i.next().expect("Missing WireId for wire11, (FromIterator)"),
+            wire12: i.next().expect("Missing WireId for wire12, (FromIterator)"),
+            wire13: i.next().expect("Missing WireId for wire13, (FromIterator)"),
+            wire14: i.next().expect("Missing WireId for wire14, (FromIterator)"),
+            wire15: i.next().expect("Missing WireId for wire15, (FromIterator)"),
+            wire16: i.next().expect("Missing WireId for wire16, (FromIterator)"),
+            wire17: i.next().expect("Missing WireId for wire17, (FromIterator)"),
+            wire18: i.next().expect("Missing WireId for wire18, (FromIterator)"),
+            wire19: i.next().expect("Missing WireId for wire19, (FromIterator)"),
+            wire20: i.next().expect("Missing WireId for wire20, (FromIterator)"),
+            wire21: i.next().expect("Missing WireId for wire21, (FromIterator)"),
+            wire22: i.next().expect("Missing WireId for wire22, (FromIterator)"),
+            wire23: i.next().expect("Missing WireId for wire23, (FromIterator)"),
+            wire24: i.next().expect("Missing WireId for wire24, (FromIterator)"),
+            wire25: i.next().expect("Missing WireId for wire25, (FromIterator)"),
+            wire26: i.next().expect("Missing WireId for wire26, (FromIterator)"),
+            wire27: i.next().expect("Missing WireId for wire27, (FromIterator)"),
+            wire28: i.next().expect("Missing WireId for wire28, (FromIterator)"),
+            wire29: i.next().expect("Missing WireId for wire29, (FromIterator)"),
+            wire30: i.next().expect("Missing WireId for wire30, (FromIterator)"),
+            wire31: i.next().expect("Missing WireId for wire31, (FromIterator)"),
+            wire32: i.next().expect("Missing WireId for wire32, (FromIterator)"),
+            wire33: i.next().expect("Missing WireId for wire33, (FromIterator)"),
+            wire34: i.next().expect("Missing WireId for wire34, (FromIterator)"),
+            wire35: i.next().expect("Missing WireId for wire35, (FromIterator)"),
+            wire36: i.next().expect("Missing WireId for wire36, (FromIterator)"),
+            wire37: i.next().expect("Missing WireId for wire37, (FromIterator)"),
+            wire38: i.next().expect("Missing WireId for wire38, (FromIterator)"),
+            wire39: i.next().expect("Missing WireId for wire39, (FromIterator)"),
+            wire40: i.next().expect("Missing WireId for wire40, (FromIterator)"),
+            wire41: i.next().expect("Missing WireId for wire41, (FromIterator)"),
+            wire42: i.next().expect("Missing WireId for wire42, (FromIterator)"),
+            wire43: i.next().expect("Missing WireId for wire43, (FromIterator)"),
+            wire44: i.next().expect("Missing WireId for wire44, (FromIterator)"),
+            wire45: i.next().expect("Missing WireId for wire45, (FromIterator)"),
+            wire46: i.next().expect("Missing WireId for wire46, (FromIterator)"),
+            wire47: i.next().expect("Missing WireId for wire47, (FromIterator)"),
+            wire48: i.next().expect("Missing WireId for wire48, (FromIterator)"),
+            wire49: i.next().expect("Missing WireId for wire49, (FromIterator)"),
+            wire50: i.next().expect("Missing WireId for wire50, (FromIterator)"),
+            wire51: i.next().expect("Missing WireId for wire51, (FromIterator)"),
+            wire52: i.next().expect("Missing WireId for wire52, (FromIterator)"),
+            wire53: i.next().expect("Missing WireId for wire53, (FromIterator)"),
+            wire54: i.next().expect("Missing WireId for wire54, (FromIterator)"),
+            wire55: i.next().expect("Missing WireId for wire55, (FromIterator)"),
+            wire56: i.next().expect("Missing WireId for wire56, (FromIterator)"),
+            wire57: i.next().expect("Missing WireId for wire57, (FromIterator)"),
+            wire58: i.next().expect("Missing WireId for wire58, (FromIterator)"),
+            wire59: i.next().expect("Missing WireId for wire59, (FromIterator)"),
+            wire60: i.next().expect("Missing WireId for wire60, (FromIterator)"),
+            wire61: i.next().expect("Missing WireId for wire61, (FromIterator)"),
+            wire62: i.next().expect("Missing WireId for wire62, (FromIterator)"),
+            wire63: i.next().expect("Missing WireId for wire63, (FromIterator)"),
+            wire64: i.next().expect("Missing WireId for wire64, (FromIterator)"),
+        }
+    }
+}
+
+impl IntoIterator for Word64 {
+    type Item = WireId;
+    type IntoIter = Word64Iterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Word64Iterator {
+            curr: 1,
+            word64: Word64::default(),
+        }
+    }
+}
+
+pub struct Word64Iterator {
+    curr: u8,
+    word64: Word64,
+}
+
+impl Iterator for Word64Iterator {
+    type Item = WireId;
+
+    fn next(&mut self) -> Option<WireId> {
+        let current = self.curr;
+        self.curr = self.curr + 1;
+        match current {
+            1 => Some(self.word64.wire1),
+            2 => Some(self.word64.wire2),
+            3 => Some(self.word64.wire3),
+            4 => Some(self.word64.wire4),
+            5 => Some(self.word64.wire5),
+            6 => Some(self.word64.wire6),
+            7 => Some(self.word64.wire7),
+            8 => Some(self.word64.wire8),
+            9 => Some(self.word64.wire9),
+            10 => Some(self.word64.wire10),
+            11 => Some(self.word64.wire11),
+            12 => Some(self.word64.wire12),
+            13 => Some(self.word64.wire13),
+            14 => Some(self.word64.wire14),
+            15 => Some(self.word64.wire15),
+            16 => Some(self.word64.wire16),
+            17 => Some(self.word64.wire17),
+            18 => Some(self.word64.wire18),
+            19 => Some(self.word64.wire19),
+            20 => Some(self.word64.wire20),
+            21 => Some(self.word64.wire21),
+            22 => Some(self.word64.wire22),
+            23 => Some(self.word64.wire23),
+            24 => Some(self.word64.wire24),
+            25 => Some(self.word64.wire25),
+            26 => Some(self.word64.wire26),
+            27 => Some(self.word64.wire27),
+            28 => Some(self.word64.wire28),
+            29 => Some(self.word64.wire29),
+            30 => Some(self.word64.wire30),
+            31 => Some(self.word64.wire31),
+            32 => Some(self.word64.wire32),
+            33 => Some(self.word64.wire33),
+            34 => Some(self.word64.wire34),
+            35 => Some(self.word64.wire35),
+            36 => Some(self.word64.wire36),
+            37 => Some(self.word64.wire37),
+            38 => Some(self.word64.wire38),
+            39 => Some(self.word64.wire39),
+            40 => Some(self.word64.wire40),
+            41 => Some(self.word64.wire41),
+            42 => Some(self.word64.wire42),
+            43 => Some(self.word64.wire43),
+            44 => Some(self.word64.wire44),
+            45 => Some(self.word64.wire45),
+            46 => Some(self.word64.wire46),
+            47 => Some(self.word64.wire47),
+            48 => Some(self.word64.wire48),
+            49 => Some(self.word64.wire49),
+            50 => Some(self.word64.wire50),
+            51 => Some(self.word64.wire51),
+            52 => Some(self.word64.wire52),
+            53 => Some(self.word64.wire53),
+            54 => Some(self.word64.wire54),
+            55 => Some(self.word64.wire55),
+            56 => Some(self.word64.wire56),
+            57 => Some(self.word64.wire57),
+            58 => Some(self.word64.wire58),
+            59 => Some(self.word64.wire59),
+            60 => Some(self.word64.wire60),
+            61 => Some(self.word64.wire61),
+            62 => Some(self.word64.wire62),
+            63 => Some(self.word64.wire63),
+            64 => Some(self.word64.wire64),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubCircuitId(usize);
@@ -216,6 +455,247 @@ where
         WireId(0)
     }
 
+    /// Creates a new u64 "number", but this is not the right way to think about
+    /// it. Really it a conduit that accepts a u64 number as input where the
+    /// wire numbers correspond to the bits of the u64 number. You can almost
+    /// think of it as a type for circuits since it constrains the input of
+    /// circuit builders. However, circuits at this level have no type, so there
+    /// is nothing to prevent you from inputing numbers other than 0 or 1 in the
+    /// wire inputs.
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let u64_input = circuit.new_u64();
+    ///
+    /// // First lets give it a zero to check if it does what we think.
+    /// // As binary 1998456 is: 0001 1110 0111 1110 0111 1000
+    /// circuit.set_u64(&u64_input, 1998456);
+    ///
+    /// assert_eq!(circuit.evaluate(u64_input.wire1), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.wire2), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.wire3), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.wire4), Z251::from(1));
+    ///
+    /// assert_eq!(circuit.evaluate(u64_input.wire5), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.wire6), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.wire7), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.wire8), Z251::from(0));
+    ///
+    /// // ...
+    /// ```
+    pub fn new_u64(&mut self) -> Word64 {
+        Word64::default()
+            .into_iter()
+            .map(|_| self.new_wire())
+            .collect()
+        // Word64 {
+        //     wire64: self.new_wire(),
+        //     wire63: self.new_wire(),
+        //     wire62: self.new_wire(),
+        //     wire61: self.new_wire(),
+        //     wire60: self.new_wire(),
+        //     wire59: self.new_wire(),
+        //     wire58: self.new_wire(),
+        //     wire57: self.new_wire(),
+        //     wire56: self.new_wire(),
+        //     wire55: self.new_wire(),
+        //     wire54: self.new_wire(),
+        //     wire53: self.new_wire(),
+        //     wire52: self.new_wire(),
+        //     wire51: self.new_wire(),
+        //     wire50: self.new_wire(),
+        //     wire49: self.new_wire(),
+        //     wire48: self.new_wire(),
+        //     wire47: self.new_wire(),
+        //     wire46: self.new_wire(),
+        //     wire45: self.new_wire(),
+        //     wire44: self.new_wire(),
+        //     wire43: self.new_wire(),
+        //     wire42: self.new_wire(),
+        //     wire41: self.new_wire(),
+        //     wire40: self.new_wire(),
+        //     wire39: self.new_wire(),
+        //     wire38: self.new_wire(),
+        //     wire37: self.new_wire(),
+        //     wire36: self.new_wire(),
+        //     wire35: self.new_wire(),
+        //     wire34: self.new_wire(),
+        //     wire33: self.new_wire(),
+        //     wire32: self.new_wire(),
+        //     wire31: self.new_wire(),
+        //     wire30: self.new_wire(),
+        //     wire29: self.new_wire(),
+        //     wire28: self.new_wire(),
+        //     wire27: self.new_wire(),
+        //     wire26: self.new_wire(),
+        //     wire25: self.new_wire(),
+        //     wire24: self.new_wire(),
+        //     wire23: self.new_wire(),
+        //     wire22: self.new_wire(),
+        //     wire21: self.new_wire(),
+        //     wire20: self.new_wire(),
+        //     wire19: self.new_wire(),
+        //     wire18: self.new_wire(),
+        //     wire17: self.new_wire(),
+        //     wire16: self.new_wire(),
+        //     wire15: self.new_wire(),
+        //     wire14: self.new_wire(),
+        //     wire13: self.new_wire(),
+        //     wire12: self.new_wire(),
+        //     wire11: self.new_wire(),
+        //     wire10: self.new_wire(),
+        //     wire9: self.new_wire(),
+        //     wire8: self.new_wire(),
+        //     wire7: self.new_wire(),
+        //     wire6: self.new_wire(),
+        //     wire5: self.new_wire(),
+        //     wire4: self.new_wire(),
+        //     wire3: self.new_wire(),
+        //     wire2: self.new_wire(),
+        //     wire1: self.new_wire(),
+        // }
+    }
+
+    /// set the values for a `Word64` from a u64.
+    ///
+    /// See `new_u64` for example
+    pub fn set_u64(&mut self, u64_wires: &Word64, input: u64) {
+        let mut n = input;
+        self.set_value(u64_wires.wire1, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire2, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire3, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire4, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire5, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire6, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire7, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire8, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire9, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire10, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire11, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire12, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire13, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire14, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire15, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire16, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire17, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire18, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire19, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire20, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire21, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire22, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire23, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire24, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire25, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire26, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire27, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire28, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire29, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire30, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire31, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire32, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire33, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire34, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire35, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire36, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire37, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire38, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire39, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire40, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire41, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire42, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire43, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire44, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire45, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire46, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire47, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire48, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire49, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire50, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire51, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire52, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire53, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire54, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire55, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire56, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire57, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire58, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire59, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire60, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire61, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire62, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire63, T::from((n % 2) as usize));
+        n = n >> 1;
+        self.set_value(u64_wires.wire64, T::from((n % 2) as usize));
+    }
+
     pub fn new_wire(&mut self) -> WireId {
         let next_wire_id = self.next_wire_id;
         self.next_wire_id.0 += 1;
@@ -368,6 +848,7 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_not(&mut self, input: WireId) -> WireId {
         let lhs_inputs = vec![(T::one(), self.unity_wire())];
         let rhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), input)];
@@ -375,6 +856,7 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_inputs = vec![(T::one(), lhs)];
         let rhs_inputs = vec![(T::one(), rhs)];
@@ -382,6 +864,7 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_or(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let lhs_and_rhs = self.new_and(lhs, rhs);
         let one = T::one();
@@ -391,6 +874,7 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_xor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
         let one = T::one();
         let lhs_inputs = vec![(one, lhs), (-one, rhs)];
@@ -399,6 +883,7 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that all inputs in array are either 0 or 1
     pub fn fan_in<F>(&mut self, inputs: &[WireId], mut gate: F) -> WireId
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
@@ -412,6 +897,11 @@ where
             .fold(inputs[0], |acc, wire| gate(self, acc, *wire))
     }
 
+    // pub fn shift_left(&mut self, input &[WireId]) -> &[WireId] {
+
+    // }
+
+    /// Requires that all left and right inputs in array are either 0 or 1
     pub fn bitwise_op<F>(&mut self, left: &[WireId], right: &[WireId], mut gate: F) -> Vec<WireId>
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
@@ -423,4 +913,9 @@ where
             .map(|(&l, &r)| gate(self, l, r))
             .collect()
     }
+
+    // /// I assume the input on each wire is a u8
+    // pub fn keccak512_72(&mut self, input: &[WireId; 72]) -> &[WireId; 64] {
+    //     unimplemented!();
+    // }
 }

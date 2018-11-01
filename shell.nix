@@ -58,7 +58,6 @@ in
     name = "rust-env";
     buildInputs = [
       # nixpkgs.latest.rustChannels.beta.rust
-      # nixpkgs.latest.rustChannels.beta.cargo
       (nixpkgs.rustChannelOf { date = "2018-10-24"; channel = "beta"; }).rust
 
       rustfmt ctags rustracer rustPlatform.rustcSrc carnix 

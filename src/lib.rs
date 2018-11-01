@@ -181,7 +181,8 @@ mod tests {
         ));
     }
 
-    fn to_bits(mut n: u8) -> [u8; 8] {
+    fn to_bits(num: u8) -> [u8; 8] {
+        let mut n = num;
         let mut bits: [u8; 8] = [0; 8];
 
         for i in 0..8 {
