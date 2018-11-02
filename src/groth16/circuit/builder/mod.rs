@@ -567,10 +567,6 @@ where
             .fold(inputs[0], |acc, wire| gate(self, acc, *wire))
     }
 
-    // pub fn shift_left(&mut self, input &[WireId]) -> &[WireId] {
-
-    // }
-
     /// Requires that all left and right inputs in array are either 0 or 1
     pub fn bitwise_op<F>(&mut self, left: &[WireId], right: &[WireId], mut gate: F) -> Vec<WireId>
     where
@@ -583,10 +579,34 @@ where
             .map(|(&l, &r)| gate(self, l, r))
             .collect()
     }
+
     /// 1088bits end with 1...0...1
     /// thus input is now 17 u64 which is 1024 bits and the last u64 is 0x8000000000000001
     /// 1600 total size, 25 u64 internal 5 x 5 matrix
     pub fn keccak512_72(&mut self, input: &[WireId; 72]) -> &[WireId; 64] {
         unimplemented!();
+
+    pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
+        let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
+
+        while literal != 0 {
+            let wire = match literal % 2 {
+                0 => self.zero_wire(),
+                1 => self.unity_wire(),
+                _ => unreachable!(),
+            };
+
+            bits.push(wire);
+            literal >>= 1;
+        }
+
+        bits
+    }
+
+    // TODO: Use a slice instead of a Vec for the argument type.
+    pub fn rotate_wires(mut wires: Vec<WireId>, n: usize) -> Vec<WireId> {
+        let mut tail = wires.split_off(n);
+        tail.append(&mut wires);
+        tail
     }
 }
