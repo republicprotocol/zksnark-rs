@@ -120,6 +120,9 @@
     html_playground_url = "https://play.rust-lang.org/"
 )]
 
+#[macro_use]
+extern crate itertools;
+
 mod encryption;
 pub mod field;
 pub mod groth16;
