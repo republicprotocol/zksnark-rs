@@ -4,7 +4,7 @@ opt-level = 3
 [package]
 name = "zksnark"
 version = "0.0.1"
-authors = ["ross"]
+authors = ["ross", "pfalzgraf"]
 
 [dependencies]
 itertools = "0.6.0"

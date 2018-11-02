@@ -1,11 +1,11 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
-use std::iter::FromIterator;
-use std::ops::Deref;
-extern crate itertools;
 
 #[cfg(test)]
 mod tests;
+
+pub mod word64;
+use self::word64::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -26,100 +26,6 @@ pub struct SubCircuitConnections<T> {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 pub struct WireId(usize);
-
-/// The idea here is to have each `WireId` have an input of either 0 or 1 and
-/// then group those wires together to form a single `u64` number where `wire1`
-/// corresponds to the first bit (also called the right most bit) of the `u64`,
-/// then `wire2` the second bit and so on.  
-///
-pub struct Word64([WireId; 64]);
-
-impl Deref for Word64 {
-    type Target = [WireId; 64];
-
-    fn deref(&self) -> &[WireId; 64] {
-        &self.0
-    }
-}
-
-impl FromIterator<WireId> for Word64 {
-    fn from_iter<I: IntoIterator<Item = WireId>>(iter: I) -> Self {
-        let mut arr: [WireId; 64] = [WireId::default(); 64];
-        (0..64)
-            .zip(iter.into_iter())
-            .for_each(|(i, num)| arr[i] = num);
-        Word64(arr)
-    }
-}
-
-/// It is a 5 by 5 matrix used as the internal state of Keccak hash
-/// function or other matrix need by the Keccak hash function.
-pub struct KeccakMatrix<T>([[T; 5]; 5]);
-
-impl<T> Deref for KeccakMatrix<T> {
-    type Target = [[T; 5]; 5];
-
-    fn deref(&self) -> &[[T; 5]; 5] {
-        &self.0
-    }
-}
-
-/// Fills the matrix from left to right then top to bottom.
-///
-/// (0..24)
-///
-/// 0  | 1  | 2  | 3  | 4
-/// 5  | 6  | 7  | 8  | 9
-/// 10 | 11 | 12 | 13 | 14
-/// 15 | 16 | 17 | 18 | 19
-/// 20 | 21 | 22 | 23 | 24
-impl<T> FromIterator<T> for KeccakMatrix<T>
-where
-    T: Default + Copy,
-{
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut arr = [[T::default(); 5]; 5];
-        iproduct!(0..5, 0..5)
-            .zip(iter.into_iter())
-            .for_each(|((x, y), num)| arr[x][y] = num);
-        KeccakMatrix(arr)
-    }
-}
-
-const rotation_offset: KeccakMatrix<u64> = KeccakMatrix([
-    [0, 36, 3, 18, 41],
-    [1, 44, 10, 45, 2],
-    [62, 6, 43, 15, 61],
-    [28, 55, 25, 21, 56],
-    [27, 20, 39, 8, 14],
-]);
-
-const round_constants: [u64; 24] = [
-    0x0000000000000001,
-    0x0000000000008082,
-    0x800000000000808A,
-    0x8000000080008000,
-    0x000000000000808B,
-    0x0000000080000001,
-    0x8000000080008081,
-    0x8000000000008009,
-    0x000000000000008A,
-    0x0000000000000088,
-    0x0000000080008009,
-    0x000000008000000A,
-    0x000000008000808B,
-    0x800000000000008B,
-    0x8000000000008089,
-    0x8000000000008003,
-    0x8000000000008002,
-    0x8000000000000080,
-    0x000000000000800A,
-    0x800000008000000A,
-    0x8000000080008081,
-    0x8000000000008080,
-    0x0000000080000001,
-    0x8000000080008008,
-];
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubCircuitId(usize);
@@ -331,7 +237,6 @@ where
     ///
     /// let u64_input = circuit.new_u64();
     ///
-    /// // First lets give it a zero to check if it does what we think.
     /// // As binary 1998456 is: 0001 1110 0111 1110 0111 1000
     /// circuit.set_u64(&u64_input, 1998456);
     ///
@@ -580,33 +485,80 @@ where
             .collect()
     }
 
-    /// 1088bits end with 1...0...1
-    /// thus input is now 17 u64 which is 1024 bits and the last u64 is 0x8000000000000001
-    /// 1600 total size, 25 u64 internal 5 x 5 matrix
-    pub fn keccak512_72(&mut self, input: &[WireId; 72]) -> &[WireId; 64] {
-        unimplemented!();
-
-    pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
-        let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
-
-        while literal != 0 {
-            let wire = match literal % 2 {
-                0 => self.zero_wire(),
-                1 => self.unity_wire(),
-                _ => unreachable!(),
-            };
-
-            bits.push(wire);
-            literal >>= 1;
+    /// inputs must have at least one Word64 in array
+    pub fn u64_fan_in<F>(&mut self, inputs: &[Word64], mut gate: F) -> Word64
+    where
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+    {
+        if inputs.len() < 1 {
+            panic!("cannot u64_fan_in with fewer than one input");
+        } else {
+            inputs.iter().skip(1).fold(inputs[0], |acc, next| {
+                acc.iter()
+                    .zip(next.iter())
+                    .map(|(&l, &r)| gate(self, l, r))
+                    .collect()
+            })
         }
-
-        bits
     }
 
-    // TODO: Use a slice instead of a Vec for the argument type.
+    /// # θ step
+    /// C[x] = A[x,0] xor A[x,1] xor A[x,2] xor A[x,3] xor A[x,4],   for x in 0…4
+    /// D[x] = C[x-1] xor rot(C[x+1],1),                             for x in 0…4
+    /// A[x,y] = A[x,y] xor D[x],                           for (x,y) in (0…4,0…4)
+    ///
+    /// TODO use enumerate instead of zip for indices
+    ///
+    fn step0(&mut self, a: KeccakMatrix<Word64>) -> KeccakMatrix<Word64> {
+        let mut c: [Word64; 5] = [Word64::default(); 5];
+        (0..5).for_each(|x| {
+            c[x] = self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
+        });
+
+        let mut d: [Word64; 5] = [Word64::default(); 5];
+        c.iter()
+            .cycle()
+            .skip(4)
+            .take(5)
+            .zip(c.iter().cycle().skip(1).take(5))
+            .zip(0..5)
+            .for_each(|((&c1, &c2), x)| {
+                d[x] = self.u64_fan_in(&[c1, u64_rot_left(c2, 1)], Circuit::new_xor)
+            });
+
+        iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
+            .collect()
+    }
+
+    /// 1088bits end with 1...0...1 thus input is now 17 u64 which is 1024 bits
+    /// and the last u64 is 0x8000000000000001
+    /// 1600 total size, 25 u64 internal 5 x 5 matrix
+    pub fn keccak(&mut self, input: [&Word64; 17]) -> Word64 {
+        unimplemented!();
+    }
+
+    /// TODO: Use a slice instead of a Vec for the argument type.
     pub fn rotate_wires(mut wires: Vec<WireId>, n: usize) -> Vec<WireId> {
         let mut tail = wires.split_off(n);
         tail.append(&mut wires);
         tail
     }
+
+    // pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
+    //     let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
+
+    //     while literal != 0 {
+    //         let wire = match literal % 2 {
+    //             0 => self.zero_wire(),
+    //             1 => self.unity_wire(),
+    //             _ => unreachable!(),
+    //         };
+
+    //         bits.push(wire);
+    //         literal >>= 1;
+    //     }
+
+    //     bits
+    // }
 }
