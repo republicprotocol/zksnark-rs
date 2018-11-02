@@ -116,8 +116,7 @@
 #![doc(
     html_logo_url = "https://www.rust-lang.org/logos/rust-logo-128x128-blk.png",
     html_favicon_url = "https://www.rust-lang.org/favicon.ico",
-    html_root_url = "https://docs.rs/rand/0.5.4",
-    html_playground_url = "https://play.rust-lang.org/"
+    html_root_url = "https://docs.rs/rand/0.5.4"
 )]
 
 mod encryption;
@@ -246,10 +245,9 @@ mod tests {
         let y = circuit.new_wire();
         let y_checker = circuit.new_bit_checker(y);
         let or = circuit.new_or(x, y);
-        let mut instance =
-            CircuitInstance::new(circuit, vec![x_checker, y_checker, or], vec![x, y], |w| {
-                FrLocal::from(w.inner_id() + 1)
-            });
+        let mut instance = CircuitInstance::new(circuit, vec![x_checker, y_checker, or], vec![x, y], |w| {
+            FrLocal::from(w.inner_id() + 1)
+        });
 
         let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
         let assignments = vec![FrLocal::from(0), FrLocal::from(1)];
