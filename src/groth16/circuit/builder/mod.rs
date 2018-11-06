@@ -67,10 +67,6 @@ where
         }
     }
 
-    /// Note: `Woud64` depends on this staying 0; since usize::default() also returns 0, I can
-    /// initialize all `WireId` in `Word64` to usize::default() as a sane fall-back for
-    /// `FromIterator` if the inputs are too few.
-    ///
     fn zero_wire(&self) -> WireId {
         WireId(0)
     }
@@ -93,22 +89,18 @@ where
     ///
     /// let u64_input = circuit.new_u64();
     ///
-    /// // As binary 1998456 is:
-    /// //      0000 0000 0000 0000
-    /// //      0000 0000 0000 0000
-    /// //      0000 0000 0001 1110
-    /// //      0111 1110 0111 1000
+    /// // As binary 1998456 is: 0001 1110 0111 1110 0111 1000
     /// circuit.set_u64(&u64_input, 1998456);
     ///
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input[0]), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input[1]), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input[2]), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input[3]), Z251::from(1));
     ///
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input[4]), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input[5]), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input[6]), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input[7]), Z251::from(0));
     ///
     /// // ...
     /// ```
@@ -119,9 +111,9 @@ where
     /// set the values for a `Word64` from a u64.
     ///
     /// See `new_u64` for example
-    pub fn set_u64(&mut self, u64_wires: Word64, input: u64) {
+    pub fn set_u64(&mut self, u64_wires: &Word64, input: u64) {
         let mut n = input;
-        u64_wires.for_each(|wire_id| {
+        u64_wires.iter().for_each(|&wire_id| {
             if n % 2 == 0 {
                 self.set_value(wire_id, T::zero());
             } else {
@@ -364,8 +356,11 @@ where
         if inputs.len() < 1 {
             panic!("cannot u64_fan_in with fewer than one input");
         } else {
-            inputs.iter().skip(1).fold(inputs[0], |acc, &next| {
-                acc.zip(next).map(|(l, r)| gate(self, l, r)).collect()
+            inputs.iter().skip(1).fold(inputs[0], |acc, next| {
+                acc.iter()
+                    .zip(next.iter())
+                    .map(|(&l, &r)| gate(self, l, r))
+                    .collect()
             })
         }
     }
@@ -377,10 +372,10 @@ where
     ///
     /// TODO use enumerate instead of zip for indices
     ///
-    fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+    fn step0(&mut self, a: KeccakMatrix<Word64>) -> KeccakMatrix<Word64> {
         let mut c: [Word64; 5] = [Word64::default(); 5];
         (0..5).for_each(|x| {
-            c[x] = self.u64_fan_in([a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
+            c[x] = self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
         });
 
         let mut d: [Word64; 5] = [Word64::default(); 5];
@@ -391,7 +386,7 @@ where
             .zip(c.iter().cycle().skip(1).take(5))
             .zip(0..5)
             .for_each(|((&c1, &c2), x)| {
-                d[x] = self.u64_fan_in(&[c1, left_rotate(c2, 1)], Circuit::new_xor)
+                d[x] = self.u64_fan_in(&[c1, u64_rot_left(c2, 1)], Circuit::new_xor)
             });
 
         iproduct!(0..5, 0..5)
