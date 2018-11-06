@@ -60,13 +60,10 @@ impl Iterator for Word64 {
     type Item = WireId;
 
     fn next(&mut self) -> Option<WireId> {
-        if 0 < self.cursor && self.cursor < 64 {
+        if self.cursor < 64 {
             let current = self.cursor;
             self.cursor -= 1;
             Some(self.inner[current])
-        } else if self.cursor == 0 {
-            self.cursor = usize::max_value();
-            Some(self.inner[0])
         } else {
             None
         }
@@ -197,7 +194,7 @@ impl FromIterator<KeccakRow> for KeccakMatrix {
 /// TODO: Write tests!
 ///
 pub fn left_rotate(input: Word64, by: usize) -> Word64 {
-    input.cycle().skip(64 - by).take(64).collect()
+    input.cycle().skip(by).take(64).collect()
 }
 
 /// Rotates a Word64's bits by moving bit a position `i` into position `i-by`
@@ -246,67 +243,3 @@ const round_constants: [u64; 24] = [
     0x0000000080000001,
     0x8000000080008008,
 ];
-
-#[cfg(test)]
-mod tests {
-    use super::super::super::super::super::field::z251::Z251;
-    use super::*;
-
-    #[test]
-    fn test_left_rotate() {
-        // Create an empty circuit
-        let mut circuit = Circuit::<Z251>::new();
-
-        let u64_placeholder = circuit.new_u64();
-        let mut placeholder_copy = left_rotate(u64_placeholder.clone(), 1);
-
-        // As binary it is is:
-        //      1000 0000 0000 0000
-        //      0000 0000 0000 0000
-        //      0000 0000 0000 0000
-        //      0000 0000 0000 0010
-        circuit.set_u64(u64_placeholder, 0x8000000000000002);
-
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(1)
-        );
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(0)
-        );
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(1)
-        );
-    }
-
-    #[test]
-    fn test_right_rotate() {
-        // Create an empty circuit
-        let mut circuit = Circuit::<Z251>::new();
-
-        let u64_placeholder = circuit.new_u64();
-        let mut placeholder_copy = right_rotate(u64_placeholder.clone(), 4);
-
-        // As binary it is is:
-        //      0000 0000 0000 0000
-        //      0000 0000 0000 0000
-        //      0000 0000 0000 0000
-        //      0000 0000 0001 0000
-        circuit.set_u64(u64_placeholder, 0x0000000000000010);
-
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(1)
-        );
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(0)
-        );
-        assert_eq!(
-            circuit.evaluate(placeholder_copy.next().unwrap()),
-            Z251::from(0)
-        );
-    }
-}

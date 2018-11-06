@@ -186,16 +186,16 @@ fn bitwise_op_test() {
     });
 }
 
-// #[test]
-// fn KeccakMatrix_fromIterator_test() {
-//     let state: KeccakMatrix<u64> = (0..25).collect();
-//     assert_eq!(state[0][0], 0);
-//     assert_eq!(state[0][1], 1);
-//     assert_eq!(state[0][2], 2);
+#[test]
+fn KeccakMatrix_fromIterator_test() {
+    let state: KeccakMatrix<u64> = (0..25).collect();
+    assert_eq!(state[0][0], 0);
+    assert_eq!(state[0][1], 1);
+    assert_eq!(state[0][2], 2);
 
-//     assert_eq!(state[1][0], 5);
-//     assert_eq!(state[1][1], 6);
-//     assert_eq!(state[1][2], 7);
+    assert_eq!(state[1][0], 5);
+    assert_eq!(state[1][1], 6);
+    assert_eq!(state[1][2], 7);
 
-//     assert_eq!(state[4][4], 24);
-// }
+    assert_eq!(state[4][4], 24);
+}

@@ -91,25 +91,24 @@ where
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
     ///
-    /// let u64_placeholder = circuit.new_u64();
-    /// let mut placeholder_copy = u64_placeholder.clone();
+    /// let u64_input = circuit.new_u64();
     ///
     /// // As binary 1998456 is:
     /// //      0000 0000 0000 0000
     /// //      0000 0000 0000 0000
     /// //      0000 0000 0001 1110
     /// //      0111 1110 0111 1000
-    /// circuit.set_u64(u64_placeholder, 1998456);
+    /// circuit.set_u64(&u64_input, 1998456);
     ///
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(0));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
     ///
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(1));
-    /// assert_eq!(circuit.evaluate(placeholder_copy.next().unwrap()), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(u64_input.next()), Z251::from(0));
     ///
     /// // ...
     /// ```
@@ -378,27 +377,27 @@ where
     ///
     /// TODO use enumerate instead of zip for indices
     ///
-    // fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
-    //     let mut c: [Word64; 5] = [Word64::default(); 5];
-    //     (0..5).for_each(|x| {
-    //         c[x] = self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
-    //     });
+    fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+        let mut c: [Word64; 5] = [Word64::default(); 5];
+        (0..5).for_each(|x| {
+            c[x] = self.u64_fan_in([a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
+        });
 
-    //     let mut d: [Word64; 5] = [Word64::default(); 5];
-    //     c.iter()
-    //         .cycle()
-    //         .skip(4)
-    //         .take(5)
-    //         .zip(c.iter().cycle().skip(1).take(5))
-    //         .zip(0..5)
-    //         .for_each(|((&c1, &c2), x)| {
-    //             d[x] = self.u64_fan_in(&[c1, left_rotate(c2, 1)], Circuit::new_xor)
-    //         });
+        let mut d: [Word64; 5] = [Word64::default(); 5];
+        c.iter()
+            .cycle()
+            .skip(4)
+            .take(5)
+            .zip(c.iter().cycle().skip(1).take(5))
+            .zip(0..5)
+            .for_each(|((&c1, &c2), x)| {
+                d[x] = self.u64_fan_in(&[c1, left_rotate(c2, 1)], Circuit::new_xor)
+            });
 
-    //     iproduct!(0..5, 0..5)
-    //         .map(|(x, y)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
-    //         .collect()
-    // }
+        iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
+            .collect()
+    }
 
     /// 1088bits end with 1...0...1 thus input is now 17 u64 which is 1024 bits
     /// and the last u64 is 0x8000000000000001
