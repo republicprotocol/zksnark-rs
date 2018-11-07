@@ -372,7 +372,7 @@ where
     ///
     /// TODO use enumerate instead of zip for indices
     ///
-    fn step0(&mut self, a: KeccakMatrix<Word64>) -> KeccakMatrix<Word64> {
+    fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
         let mut c: [Word64; 5] = [Word64::default(); 5];
         (0..5).for_each(|x| {
             c[x] = self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
@@ -386,7 +386,7 @@ where
             .zip(c.iter().cycle().skip(1).take(5))
             .zip(0..5)
             .for_each(|((&c1, &c2), x)| {
-                d[x] = self.u64_fan_in(&[c1, u64_rot_left(c2, 1)], Circuit::new_xor)
+                d[x] = self.u64_fan_in(&[c1, left_rotate(c2, 1)], Circuit::new_xor)
             });
 
         iproduct!(0..5, 0..5)
