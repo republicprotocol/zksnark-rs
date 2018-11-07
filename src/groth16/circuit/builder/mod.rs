@@ -1,5 +1,6 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
+use std::fmt;
 
 #[cfg(test)]
 mod tests;
@@ -24,8 +25,14 @@ pub struct SubCircuitConnections<T> {
     output: WireId,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Default)]
 pub struct WireId(usize);
+
+impl fmt::Debug for WireId {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}", self.0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct SubCircuitId(usize);
@@ -67,6 +74,9 @@ where
         }
     }
 
+    /// The `Default` instances for `WireId`, `Word64`, `KeccakMatrix`,
+    /// `KeccakRow` all depend on this being 0. In other words the default is to
+    /// create `zero_wire` to fill in any blanks by creating `WireId(0)`.
     fn zero_wire(&self) -> WireId {
         WireId(0)
     }
@@ -386,7 +396,7 @@ where
             .zip(c.iter().cycle().skip(1).take(5))
             .zip(0..5)
             .for_each(|((&c1, &c2), x)| {
-                d[x] = self.u64_fan_in(&[c1, left_rotate(c2, 1)], Circuit::new_xor)
+                d[x] = self.u64_fan_in(&[c1, left_rotate(&c2, 1)], Circuit::new_xor)
             });
 
         iproduct!(0..5, 0..5)

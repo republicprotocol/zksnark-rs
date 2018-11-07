@@ -1,35 +1,72 @@
 use super::*;
+use std::fmt;
 use std::iter::FromIterator;
 use std::mem;
 use std::ops::{Deref, DerefMut};
-use std::ptr;
 
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 
-/// The idea here is to have each `WireId` have an input of either 0 or 1 and
-/// then group those wires together to form a single `u64` number where `wire1`
-/// corresponds to the first bit (also called the right most bit) of the `u64`,
-/// then `wire2` the second bit and so on.  
+/// (For Internal Use Only!) u64 equivalent for circuits.
 ///
-/// TODO turn Word64 into a struct and implement iterator for it, there is no
-/// point in ever having access to the entire array.
+/// ## Usage Details:
+///
+/// IMPORTANT: Only input either 0 or 1 as inputs to `Word64` wires, or just use
+/// the provided constructor in `Circuit`!
+///
+/// `Word64` is really just a placeholder for a u64. It does not store a u64
+/// number, but can be assigned a u64 number before evaluation. Still this only
+/// associates the bits of a u64 number with the `WireId`s in the `Word64`.
+///
+/// ### Iterator and FromIterator
+///
+/// Iterator: You get the bits starting from the least significant bit (the
+/// right most) which you can think of as the first wire. This is so you can
+/// conceptualize the array as literally being the bits of a u64 number read
+/// just like you would expect. When working with `Word64` when you access the
+/// values, `{let word64: Word64; word64[0] == word64.iter().next().unwrap()}`,
+/// will give you the least significant bit first.
+///
+/// NOTE: The bit are actually inserted into the array backwards, but you don't
+/// need to think about that. The debug reverses the array's order before
+/// printing as well.
+///
+/// FromIterator: bits input into from right to left; least significant first to
+/// most significant bit. Effectively creating a `Word64` the same way you would
+/// write it on paper.
+///
+/// NOTE: if you don't give enough bits or too many bits you will get a runtime
+/// panic! (this is so you realize you have made a grave mistake).
+///
+/// ## Example
+///
+/// For the sake of clarity, lets assign a value to the `Word64` while
+/// explaining how to interpret the wire values:
+///
+/// Example: 0000 0000 0000 0000  is 0xD1 (209) so the value of the left most
+///          0000 0000 0000 0000        WireId would be 0 and the right most
+///          0000 0000 0000 0000        value would be 1 or if you are
+///          0000 0000 0000 0000        consuming the Word64 as an iterator
+///          0000 0000 1101 0001        then the first value you would get
+///                                     is 1.
 #[derive(Clone, Copy)]
 pub struct Word64([WireId; 64]);
 
-/// Rotates a Word64's bits by moving bit a position `i` into position `i+n`
-/// module the lane size.
-///
-pub fn left_rotate(input: Word64, by: usize) -> Word64 {
-    input.iter().cycle().skip(by).collect()
+impl PartialEq for Word64 {
+    fn eq(&self, other: &Word64) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .fold(true, |acc, (l, r)| acc && l == r)
+    }
 }
 
-/// Rotates a Word64's bits by moving bit a position `i` into position `i-n`
-/// module the lane size.
-///
-pub fn right_rotate(input: Word64, by: usize) -> Word64 {
-    input.iter().cycle().skip(64 - by).collect()
+impl Eq for Word64 {}
+
+impl fmt::Debug for Word64 {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_list().entries(self.iter().rev()).finish()
+    }
 }
 
 impl Default for Word64 {
@@ -52,6 +89,11 @@ impl DerefMut for Word64 {
     }
 }
 
+// impl IntoIterator for Word64 {
+//     type Item = WireId;
+//     type IntoIter = ::std::
+// }
+
 impl FromIterator<WireId> for Word64 {
     fn from_iter<I: IntoIterator<Item = WireId>>(iter: I) -> Self {
         let mut arr: Word64;
@@ -60,10 +102,10 @@ impl FromIterator<WireId> for Word64 {
             (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
                 Both(i, num) => arr[i] = num,
                 Left(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
+                    panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
                 }
                 Right(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
+                    panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
                 }
             });
         }
@@ -77,10 +119,60 @@ impl<'a> FromIterator<&'a WireId> for Word64 {
     }
 }
 
-/// It is a 5 by 5 matrix used as the internal state of Keccak hash
-/// function or other matrix need by the Keccak hash function.
+/// Rotates a Word64's bits by moving bit a position `i` into position `i+by`
+/// modulo the lane size. The least significant bit is where i = 0 and the most
+/// significant bit is where i = 63.
+///
+/// Example of left rotation: (u64 truncated to u8)
+///     start:   0100 0101
+///     becomes: 1000 1010
+///
+/// TODO: Write more tests!
+///
+pub fn left_rotate(input: &Word64, by: usize) -> Word64 {
+    input.iter().cycle().skip(64 - (by % 64)).take(64).collect()
+}
+
+/// Rotates a Word64's bits by moving bit a position `i` into position `i-by`
+/// modulo the lane size.
+///
+/// Example of left rotation: (u64 truncated to u8)
+///     start:   0100 0101
+///     becomes: 1010 0010
+///
+/// TODO: Write more tests!
+///
+pub fn right_rotate(input: &Word64, by: usize) -> Word64 {
+    input.iter().cycle().skip(by % 64).take(64).collect()
+}
+
+/// (For Internal Use Only!) In Keccak all internal arrays are of length 5
+/// including the row size of the internal Keccack matrix, so this type
+/// serves both purposes.
+///
+/// `Iterator` works as expected, starting with the first element in the row
+///
+/// `FromIterator` fills from left to right, like you would expect. It panics if
+/// you either give it too many `Word64` or too few; must be equal to 5.
+///
 #[derive(Clone, Copy)]
 pub struct KeccakRow([Word64; 5]);
+
+impl PartialEq for KeccakRow {
+    fn eq(&self, other: &KeccakRow) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .fold(true, |acc, (l, r)| acc && l == r)
+    }
+}
+
+impl Eq for KeccakRow {}
+
+impl fmt::Debug for KeccakRow {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_list().entries(self.iter()).finish()
+    }
+}
 
 impl Default for KeccakRow {
     fn default() -> KeccakRow {
@@ -120,10 +212,10 @@ impl FromIterator<Word64> for KeccakRow {
             (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
                 Both(i, num) => arr[i] = num,
                 Left(_) => {
-                    panic!("FromIterator: KeccakRow cannot be constructed from more than 5 Word64")
+                    panic!("FromIterator: KeccakRow cannot be constructed from less than 5 Word64")
                 }
                 Right(_) => {
-                    panic!("FromIterator: KeccakRow cannot be constructed from less than 5 Word64")
+                    panic!("FromIterator: KeccakRow cannot be constructed from more than 5 Word64")
                 }
             });
         }
@@ -131,10 +223,33 @@ impl FromIterator<Word64> for KeccakRow {
     }
 }
 
-/// It is a 5 by 5 matrix used as the internal state of Keccak hash
-/// function or other matrix need by the Keccak hash function.
+/// (For Internal Use Only!) It is a 5 by 5 matrix used as the internal state of
+/// Keccak hash function and other constants.
+///
+/// `Iterator` works as expected, starting with the first row in the matrix.
+/// (Yes it gives you back a KeccakRow that you can call `.iter()` on.)
+///
+/// `FromIterator` fills from top to bottom, like you would expect. It panics if
+/// you either give it too many `KeccakRow` or too few; must be equal to 5.
+///
 #[derive(Clone, Copy)]
 pub struct KeccakMatrix([KeccakRow; 5]);
+
+impl PartialEq for KeccakMatrix {
+    fn eq(&self, other: &KeccakMatrix) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .fold(true, |acc, (l, r)| acc && l == r)
+    }
+}
+
+impl Eq for KeccakMatrix {}
+
+impl fmt::Debug for KeccakMatrix {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_list().entries(self.iter()).finish()
+    }
+}
 
 impl Default for KeccakMatrix {
     fn default() -> KeccakMatrix {
@@ -184,10 +299,10 @@ impl FromIterator<KeccakRow> for KeccakMatrix {
             (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
                 Both(i, num) => arr[i] = num,
                 Left(_) => panic!(
-                    "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
+                    "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
                 ),
                 Right(_) => panic!(
-                    "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
+                    "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
                 ),
             });
         }
@@ -229,3 +344,99 @@ const round_constants: [u64; 24] = [
     0x0000000080000001,
     0x8000000080008008,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    extern crate quickcheck;
+    use self::quickcheck::quickcheck;
+
+    // quickcheck! {
+    //     fn rotate_inverse_prop(rotate_by: usize) -> bool {
+    //         let word64: Word64 = (0..64).map(WireId).collect();
+    //         left_rotate(&word64, rotate_by) == right_rotate(&word64, rotate_by)
+    //     }
+    // }
+
+    #[test]
+    fn rotate() {
+        let test: [usize; 5] = [0, 1, 2, 3, 4];
+        assert_eq!(
+            test.iter()
+                .cycle()
+                .skip(1)
+                .take(5)
+                .cloned()
+                .collect::<Vec<usize>>(),
+            (0..5).collect::<Vec<usize>>()
+        );
+    }
+
+    /// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`
+    /// because of the recurse definitions of `FromIterator`
+    #[test]
+    fn keccakmatrix_iterators() {
+        let state: KeccakMatrix = (0..1600).map(WireId).collect();
+        assert_eq!(state[0][0][0], WireId(0));
+        assert_eq!(state[0][0][1], WireId(1));
+        assert_eq!(state[2][3][23], WireId(855));
+        assert_eq!(state[4][4][62], WireId(1598));
+        assert_eq!(state[4][4][63], WireId(1599));
+
+        let mut iter = state.into_iter();
+
+        assert_eq!(
+            iter.next().unwrap()[0],
+            (0..64).map(|x| WireId(x)).collect()
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
+    )]
+    fn keccakmatrix_overflow_fromiterator() {
+        let _state: KeccakMatrix = (0..1920).map(|x| WireId(x)).collect();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
+    )]
+    fn keccakmatrix_underflow_fromiterator() {
+        let _state: KeccakMatrix = (0..1280).map(|x| WireId(x)).collect();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: KeccakRow cannot be constructed from more than 5 Word64"
+    )]
+    fn keccakrow_overflow_fromiterator() {
+        let _state: KeccakRow = (0..384).map(|x| WireId(x)).collect();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: KeccakRow cannot be constructed from less than 5 Word64"
+    )]
+    fn keccakrow_underflow_fromiterator() {
+        let _state: KeccakRow = (0..256).map(|x| WireId(x)).collect();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: Word64 cannot be constructed from more than 64 WireId"
+    )]
+    fn word64_overflow_fromiterator() {
+        let _state: Word64 = (0..70).map(|x| WireId(x)).collect();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "FromIterator: Word64 cannot be constructed from less than 64 WireId"
+    )]
+    fn word64_underflow_fromiterator() {
+        let _state: Word64 = (0..5).map(|x| WireId(x)).collect();
+    }
+}

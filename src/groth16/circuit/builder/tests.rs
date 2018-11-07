@@ -185,27 +185,3 @@ fn bitwise_op_test() {
         );
     });
 }
-
-/// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`
-/// because of the recurse definitions of `FromIterator`
-#[test]
-fn KeccakMatrix_FromIterators() {
-    let state: KeccakMatrix = (0..1600).map(|x| WireId(x)).collect();
-    assert_eq!(state[0][0][0], WireId(0));
-    assert_eq!(state[0][0][1], WireId(1));
-    assert_eq!(state[2][3][23], WireId(855));
-    assert_eq!(state[4][4][62], WireId(1598));
-    assert_eq!(state[4][4][63], WireId(1599));
-}
-
-#[test]
-#[should_panic]
-fn KeccakMatrix_underflow_fromIterator_test() {
-    let state: KeccakMatrix = (0..1542).map(|x| WireId(x)).collect();
-}
-
-#[test]
-#[should_panic]
-fn KeccakMatrix_overflow_fromIterator_test() {
-    let state: KeccakMatrix = (0..1789).map(|x| WireId(x)).collect();
-}
