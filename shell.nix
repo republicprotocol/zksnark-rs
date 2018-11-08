@@ -61,6 +61,12 @@ in
       (nixpkgs.rustChannelOf { date = "2018-10-24"; channel = "beta"; }).rust
 
       rustfmt ctags rustracer rustPlatform.rustcSrc carnix 
+
+      vscode
+
+      liburcu openssl gnome3.gcr krb5 icu zlib
+      gnome3.gnome-keyring gnome3.libsecret desktop-file-utils xorg.xprop
+
     ];
 
     # Set Environment Variables
