@@ -1,7 +1,6 @@
 use super::*;
 use std::fmt;
 use std::iter::FromIterator;
-use std::mem;
 use std::ops::{Index, IndexMut};
 use std::slice::{Iter, IterMut};
 
@@ -96,10 +95,10 @@ impl Word64 {
         self.0.iter_mut()
     }
     pub fn rotate_left_mut(&mut self, mid: usize) {
-        self.0.rotate_left(mid % 65)
+        self.0.rotate_left(mid % 64)
     }
     pub fn rotate_right_mut(&mut self, mid: usize) {
-        self.0.rotate_right(mid % 65)
+        self.0.rotate_right(mid % 64)
     }
     /// Rotates a Word64's bits by moving bit a position `i` into position `i+by`
     /// modulo the lane size. The least significant bit is where i = 0 and the most
@@ -109,10 +108,8 @@ impl Word64 {
     ///     start:   0100 0101
     ///     becomes: 1000 1010
     ///
-    /// TODO: Write more tests!
-    ///
     pub fn rotate_left(&self, by: usize) -> Word64 {
-        self.iter().cycle().skip(by % 65).take(64).collect()
+        self.iter().cycle().skip(by % 64).take(64).collect()
     }
 
     /// Rotates a Word64's bits by moving bit a position `i` into position `i-by`
@@ -122,10 +119,8 @@ impl Word64 {
     ///     start:   0100 0101
     ///     becomes: 1010 0010
     ///
-    /// TODO: Write more tests!
-    ///
     pub fn rotate_right(&self, by: usize) -> Word64 {
-        self.iter().cycle().skip(64 - (by % 65)).take(64).collect()
+        self.iter().cycle().skip(64 - (by % 64)).take(64).collect()
     }
 }
 
@@ -149,38 +144,32 @@ impl<'a> IntoIterator for &'a mut Word64 {
 
 impl FromIterator<WireId> for Word64 {
     fn from_iter<I: IntoIterator<Item = WireId>>(iter: I) -> Self {
-        let mut arr: Word64;
-        unsafe {
-            arr = mem::uninitialized();
-            (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
-                Both(i, num) => arr[i] = num,
-                Left(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
-                }
-                Right(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
-                }
-            });
-        }
+        let mut arr: Word64 = Word64::default();
+        (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
+            Both(i, num) => arr[i] = num,
+            Left(_) => {
+                panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
+            }
+            Right(_) => {
+                panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
+            }
+        });
         arr
     }
 }
 
 impl<'a> FromIterator<&'a WireId> for Word64 {
     fn from_iter<I: IntoIterator<Item = &'a WireId>>(iter: I) -> Self {
-        let mut arr: Word64;
-        unsafe {
-            arr = mem::uninitialized();
-            (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
-                Both(i, &num) => arr[i] = num,
-                Left(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
-                }
-                Right(_) => {
-                    panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
-                }
-            });
-        }
+        let mut arr: Word64 = Word64::default();
+        (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
+            Both(i, &num) => arr[i] = num,
+            Left(_) => {
+                panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
+            }
+            Right(_) => {
+                panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
+            }
+        });
         arr
     }
 }
@@ -219,17 +208,25 @@ impl Default for KeccakRow {
     }
 }
 
-impl Index<usize> for KeccakRow {
+impl Index<isize> for KeccakRow {
     type Output = Word64;
 
-    fn index(&self, i: usize) -> &Word64 {
-        self.0.index(i)
+    fn index(&self, i: isize) -> &Word64 {
+        let mut i = i % 5;
+        if i < 0 {
+            i = i + 5;
+        }
+        self.0.index(i as usize)
     }
 }
 
-impl IndexMut<usize> for KeccakRow {
-    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut Word64 {
-        self.0.index_mut(i)
+impl IndexMut<isize> for KeccakRow {
+    fn index_mut<'a>(&'a mut self, i: isize) -> &'a mut Word64 {
+        let mut i = i % 5;
+        if i < 0 {
+            i = i + 5;
+        }
+        self.0.index_mut(i as usize)
     }
 }
 
@@ -272,19 +269,16 @@ impl FromIterator<WireId> for KeccakRow {
 
 impl FromIterator<Word64> for KeccakRow {
     fn from_iter<I: IntoIterator<Item = Word64>>(iter: I) -> Self {
-        let mut arr: KeccakRow;
-        unsafe {
-            arr = mem::uninitialized();
-            (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
-                Both(i, num) => arr[i] = num,
-                Left(_) => {
-                    panic!("FromIterator: KeccakRow cannot be constructed from less than 5 Word64")
-                }
-                Right(_) => {
-                    panic!("FromIterator: KeccakRow cannot be constructed from more than 5 Word64")
-                }
-            });
-        }
+        let mut arr: KeccakRow = KeccakRow::default();
+        (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
+            Both(i, num) => arr[i] = num,
+            Left(_) => {
+                panic!("FromIterator: KeccakRow cannot be constructed from less than 5 Word64")
+            }
+            Right(_) => {
+                panic!("FromIterator: KeccakRow cannot be constructed from more than 5 Word64")
+            }
+        });
         arr
     }
 }
@@ -323,17 +317,25 @@ impl Default for KeccakMatrix {
     }
 }
 
-impl Index<usize> for KeccakMatrix {
+impl Index<isize> for KeccakMatrix {
     type Output = KeccakRow;
 
-    fn index(&self, i: usize) -> &KeccakRow {
-        self.0.index(i)
+    fn index(&self, i: isize) -> &KeccakRow {
+        let mut i = i % 5;
+        if i < 0 {
+            i = i + 5;
+        }
+        self.0.index(i as usize)
     }
 }
 
-impl IndexMut<usize> for KeccakMatrix {
-    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut KeccakRow {
-        self.0.index_mut(i)
+impl IndexMut<isize> for KeccakMatrix {
+    fn index_mut<'a>(&'a mut self, i: isize) -> &'a mut KeccakRow {
+        let mut i = i % 5;
+        if i < 0 {
+            i = i + 5;
+        }
+        self.0.index_mut(i as usize)
     }
 }
 
@@ -386,32 +388,21 @@ impl FromIterator<Word64> for KeccakMatrix {
 
 impl FromIterator<KeccakRow> for KeccakMatrix {
     fn from_iter<I: IntoIterator<Item = KeccakRow>>(iter: I) -> Self {
-        let mut arr: KeccakMatrix;
-        unsafe {
-            arr = mem::uninitialized();
-            (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
-                Both(i, num) => arr[i] = num,
-                Left(_) => panic!(
-                    "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
-                ),
-                Right(_) => panic!(
-                    "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
-                ),
-            });
-        }
+        let mut arr: KeccakMatrix = KeccakMatrix::default();
+        (0..5).zip_longest(iter.into_iter()).for_each(|x| match x {
+            Both(i, num) => arr[i] = num,
+            Left(_) => panic!(
+                "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
+            ),
+            Right(_) => panic!(
+                "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
+            ),
+        });
         arr
     }
 }
 
-// const rotation_offset: KeccakMatrix<u64> = KeccakMatrix([
-//     [0, 36, 3, 18, 41],
-//     [1, 44, 10, 45, 2],
-//     [62, 6, 43, 15, 61],
-//     [28, 55, 25, 21, 56],
-//     [27, 20, 39, 8, 14],
-// ]);
-
-const round_constants: [u64; 24] = [
+pub const ROUND_CONSTANTS: [u64; 24] = [
     0x0000000000000001,
     0x0000000000008082,
     0x800000000000808A,
@@ -467,6 +458,12 @@ mod tests {
             let mut mut_w = w.clone();
             mut_w.rotate_right_mut(rotate_by);
             mut_w == w.rotate_right(rotate_by)
+        }
+        fn rotate_mod(by: usize) -> bool {
+            let word64: Word64 = (0..64).map(WireId).collect();
+            word64.rotate_left(by + 64) == word64.rotate_left(by)
+                &&
+            word64.rotate_right(by + 64) == word64.rotate_right(by)
         }
     }
 

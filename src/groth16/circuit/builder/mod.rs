@@ -97,10 +97,10 @@ where
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
     ///
-    /// let u64_input = circuit.new_u64();
+    /// let u64_input = circuit.new_word64();
     ///
     /// // As binary 1998456 is: 0001 1110 0111 1110 0111 1000
-    /// circuit.set_u64(&u64_input, 1998456);
+    /// circuit.set_word64(&u64_input, 1998456);
     ///
     /// assert_eq!(circuit.evaluate(u64_input[0]), Z251::from(0));
     /// assert_eq!(circuit.evaluate(u64_input[1]), Z251::from(0));
@@ -114,14 +114,22 @@ where
     ///
     /// // ...
     /// ```
-    pub fn new_u64(&mut self) -> Word64 {
+    pub fn new_word64(&mut self) -> Word64 {
         (0..64).map(|_| self.new_wire()).collect()
+    }
+
+    fn new_keccakrow(&mut self) -> KeccakRow {
+        (0..5).map(|_| self.new_word64()).collect()
+    }
+
+    fn new_keccakmatrix(&mut self) -> KeccakMatrix {
+        (0..5).map(|_| self.new_keccakrow()).collect()
     }
 
     /// set the values for a `Word64` from a u64.
     ///
     /// See `new_u64` for example
-    pub fn set_u64(&mut self, u64_wires: &Word64, input: u64) {
+    pub fn set_word64(&mut self, u64_wires: &Word64, input: u64) {
         let mut n = input;
         u64_wires.iter().for_each(|&wire_id| {
             if n % 2 == 0 {
@@ -131,6 +139,19 @@ where
             }
             n = n >> 1;
         });
+    }
+
+    fn set_keccakrow(&mut self, row: &KeccakRow, input: [u64; 5]) {
+        row.iter()
+            .zip(input.iter())
+            .for_each(|(word, &num)| self.set_word64(word, num));
+    }
+
+    fn set_keccakmatrix(&mut self, matrix: &KeccakMatrix, input: [[u64; 5]; 5]) {
+        matrix
+            .iter()
+            .zip(input.iter())
+            .for_each(|(word, &row)| self.set_keccakrow(word, row));
     }
 
     pub fn unity_wire(&self) -> WireId {
@@ -359,7 +380,11 @@ where
     }
 
     /// inputs must have at least one Word64 in array
-    pub fn u64_fan_in<F>(&mut self, inputs: &[Word64], mut gate: F) -> Word64
+    ///
+    /// NOTE: I wish Rust would let me define this in terms of `fan_in`, but for
+    /// some reason you cannot pass FnMut to inner functions.
+    ///
+    fn u64_fan_in<F>(&mut self, inputs: &[Word64], mut gate: F) -> Word64
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
@@ -375,25 +400,39 @@ where
         }
     }
 
+    fn u64_bitwise_op<F>(&mut self, left: &Word64, right: &Word64, mut gate: F) -> Word64
+    where
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+    {
+        left.iter()
+            .zip(right.iter())
+            .map(|(&l, &r)| gate(self, l, r))
+            .collect()
+    }
+
+    fn u64_unary_op<F>(&mut self, input: &Word64, mut gate: F) -> Word64
+    where
+        F: FnMut(&mut Self, WireId) -> WireId,
+    {
+        input.iter().map(|&i| gate(self, i)).collect()
+    }
+
     /// # θ step
     /// C[x] = A[x,0] xor A[x,1] xor A[x,2] xor A[x,3] xor A[x,4],   for x in 0…4
     /// D[x] = C[x-1] xor rot(C[x+1],1),                             for x in 0…4
     /// A[x,y] = A[x,y] xor D[x],                           for (x,y) in (0…4,0…4)
     ///
-    /// TODO use enumerate instead of zip for indices
-    ///
-    fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+    fn theta(&mut self, a: KeccakMatrix) -> KeccakMatrix {
         let c: KeccakRow = (0..5)
-            .map(|x| self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor))
-            .collect();
+            .map(|x| {
+                self.u64_fan_in(
+                    &[a[x][0], a[x][1], a[x][2], a[x][3], a[x][4]],
+                    Circuit::new_xor,
+                )
+            }).collect();
 
-        let d: KeccakRow = c
-            .iter()
-            .cycle()
-            .skip(4)
-            .take(5)
-            .zip(c.iter().cycle().skip(1).take(5))
-            .map(|(&c1, &c2)| self.u64_fan_in(&[c1, c2.rotate_left(1)], Circuit::new_xor))
+        let d: KeccakRow = (0..5)
+            .map(|x: isize| self.u64_fan_in(&[c[x - 1], c[x + 1].rotate_left(1)], Circuit::new_xor))
             .collect();
 
         iproduct!(0..5, 0..5)
@@ -401,10 +440,95 @@ where
             .collect()
     }
 
+    /// # ρ and π steps
+    /// B[y,2*x+3*y] = rot(A[x,y], r[x,y]),                 for (x,y) in (0…4,0…4)
+    ///
+    /// TODO: what is ρ called
+    ///
+    /// # χ step
+    /// A[x,y] = B[x,y] xor ((not B[x+1,y]) and B[x+2,y]),  for (x,y) in (0…4,0…4)
+    ///
+    /// TODO: What is χ called
+    ///
+    /// NOTE: I combined these two steps since the output of step2 is
+    /// the input of step3 unlike the usual input of the internal matrix A.
+    ///
+    fn pi_step3(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+        let r: KeccakMatrix = self.rotation_offsets();
+        let b: KeccakMatrix = iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_fan_in(&[a[x][y], r[x][y]], Circuit::new_xor))
+            .collect();
+
+        let not_b: KeccakMatrix = iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_unary_op(&b[x + 1][y], Circuit::new_not))
+            .collect();
+
+        let and_not_b: KeccakMatrix = iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_fan_in(&[not_b[x][y], b[x + 2][y]], Circuit::new_and))
+            .collect();
+
+        iproduct!(0..5, 0..5)
+            .map(|(x, y)| self.u64_fan_in(&[b[x][y], and_not_b[x][y]], Circuit::new_xor))
+            .collect()
+    }
+
+    /// # ι step
+    /// A[0,0] = A[0,0] xor RC
+    ///
+    /// RC is RC[i] for i in 0..n-1 where n should be 24. In other words it
+    /// changes with each iteration of the permutation
+    ///
+    fn last_step(&mut self, a: KeccakMatrix, rc: u64) -> KeccakMatrix {
+        let rc_num = self.new_word64();
+        self.set_word64(&rc_num, rc);
+
+        let mut a = a;
+        a[0][0] = self.u64_bitwise_op(&a[0][0], &rc_num, Circuit::new_xor);
+        a
+    }
+
+    /// const rotation_offset: KeccakMatrix<u64> = KeccakMatrix([
+    ///     [0, 36, 3, 18, 41],
+    ///     [1, 44, 10, 45, 2],
+    ///     [62, 6, 43, 15, 61],
+    ///     [28, 55, 25, 21, 56],
+    ///     [27, 20, 39, 8, 14],
+    /// ]);
+    ///
+    fn rotation_offsets(&mut self) -> KeccakMatrix {
+        const OFFSET: [[u64; 5]; 5] = [
+            [0, 36, 3, 18, 41],
+            [1, 44, 10, 45, 2],
+            [62, 6, 43, 15, 61],
+            [28, 55, 25, 21, 56],
+            [27, 20, 39, 8, 14],
+        ];
+        let matrix: KeccakMatrix = self.new_keccakmatrix();
+        self.set_keccakmatrix(&matrix, OFFSET);
+        matrix
+    }
+
+    fn round(&mut self, a: KeccakMatrix, rc: u64) -> KeccakMatrix {
+        let theta = self.theta(a);
+        let pi = self.pi_step3(theta);
+        self.last_step(pi, rc)
+    }
+
+    ///
+    /// Keccak-f[b](A) {
+    ///  for i in 0…n-1
+    ///    A = Round[b](A, RC[i])
+    ///  return A
+    /// }
+    fn keccak_f(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+        (0..25).fold(a, |acc, n| self.round(acc, ROUND_CONSTANTS[n]))
+    }
+
     /// 1088bits end with 1...0...1 thus input is now 17 u64 which is 1024 bits
     /// and the last u64 is 0x8000000000000001
     /// 1600 total size, 25 u64 internal 5 x 5 matrix
-    pub fn keccak(&mut self, input: [&Word64; 17]) -> Word64 {
+    ///
+    pub fn keccak(&mut self, hash: [u64; 17]) -> [u64; 0] {
         unimplemented!();
     }
 
