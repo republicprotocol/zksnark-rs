@@ -2,6 +2,9 @@ use super::super::super::Z251;
 use super::*;
 use std::ops::{BitAnd, BitOr, BitXor};
 
+extern crate quickcheck;
+use self::quickcheck::quickcheck;
+
 #[test]
 fn bit_checker_test() {
     let mut circuit = Circuit::<Z251>::new();
@@ -184,4 +187,13 @@ fn bitwise_op_test() {
             l ^ r
         );
     });
+}
+
+quickcheck! {
+    // fn step0_prop(inputs: [u64; 25]) -> bool {
+    //     let mut word64: Word64 = (0..64).map(WireId).collect();
+    //     word64.rotate_right_mut(rotate_by);
+    //     word64.rotate_left_mut(rotate_by);
+    //     word64 == (0..64).map(WireId).collect()
+    // }
 }

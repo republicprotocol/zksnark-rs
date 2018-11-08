@@ -2,7 +2,8 @@ use super::*;
 use std::fmt;
 use std::iter::FromIterator;
 use std::mem;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Index, IndexMut};
+use std::slice::{Iter, IterMut};
 
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
@@ -55,9 +56,7 @@ pub struct Word64([WireId; 64]);
 
 impl PartialEq for Word64 {
     fn eq(&self, other: &Word64) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .fold(true, |acc, (l, r)| acc && l == r)
+        self.0[..] == other.0[..]
     }
 }
 
@@ -75,24 +74,78 @@ impl Default for Word64 {
     }
 }
 
-impl Deref for Word64 {
-    type Target = [WireId; 64];
+impl Index<usize> for Word64 {
+    type Output = WireId;
 
-    fn deref(&self) -> &[WireId; 64] {
-        &self.0
+    fn index(&self, i: usize) -> &WireId {
+        self.0.index(i)
     }
 }
 
-impl DerefMut for Word64 {
-    fn deref_mut(&mut self) -> &mut [WireId; 64] {
-        &mut self.0
+impl IndexMut<usize> for Word64 {
+    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut WireId {
+        self.0.index_mut(i)
     }
 }
 
-// impl IntoIterator for Word64 {
-//     type Item = WireId;
-//     type IntoIter = ::std::
-// }
+impl Word64 {
+    pub fn iter(&self) -> Iter<WireId> {
+        self.0.iter()
+    }
+    pub fn iter_mut(&mut self) -> IterMut<WireId> {
+        self.0.iter_mut()
+    }
+    pub fn rotate_left_mut(&mut self, mid: usize) {
+        self.0.rotate_left(mid % 65)
+    }
+    pub fn rotate_right_mut(&mut self, mid: usize) {
+        self.0.rotate_right(mid % 65)
+    }
+    /// Rotates a Word64's bits by moving bit a position `i` into position `i+by`
+    /// modulo the lane size. The least significant bit is where i = 0 and the most
+    /// significant bit is where i = 63.
+    ///
+    /// Example of left rotation: (u64 truncated to u8)
+    ///     start:   0100 0101
+    ///     becomes: 1000 1010
+    ///
+    /// TODO: Write more tests!
+    ///
+    pub fn rotate_left(&self, by: usize) -> Word64 {
+        self.iter().cycle().skip(by % 65).take(64).collect()
+    }
+
+    /// Rotates a Word64's bits by moving bit a position `i` into position `i-by`
+    /// modulo the lane size.
+    ///
+    /// Example of left rotation: (u64 truncated to u8)
+    ///     start:   0100 0101
+    ///     becomes: 1010 0010
+    ///
+    /// TODO: Write more tests!
+    ///
+    pub fn rotate_right(&self, by: usize) -> Word64 {
+        self.iter().cycle().skip(64 - (by % 65)).take(64).collect()
+    }
+}
+
+impl<'a> IntoIterator for &'a Word64 {
+    type Item = &'a WireId;
+    type IntoIter = Iter<'a, WireId>;
+
+    fn into_iter(self) -> Iter<'a, WireId> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Word64 {
+    type Item = &'a mut WireId;
+    type IntoIter = IterMut<'a, WireId>;
+
+    fn into_iter(self) -> IterMut<'a, WireId> {
+        self.0.iter_mut()
+    }
+}
 
 impl FromIterator<WireId> for Word64 {
     fn from_iter<I: IntoIterator<Item = WireId>>(iter: I) -> Self {
@@ -115,35 +168,21 @@ impl FromIterator<WireId> for Word64 {
 
 impl<'a> FromIterator<&'a WireId> for Word64 {
     fn from_iter<I: IntoIterator<Item = &'a WireId>>(iter: I) -> Self {
-        iter.into_iter().collect()
+        let mut arr: Word64;
+        unsafe {
+            arr = mem::uninitialized();
+            (0..64).zip_longest(iter.into_iter()).for_each(|x| match x {
+                Both(i, &num) => arr[i] = num,
+                Left(_) => {
+                    panic!("FromIterator: Word64 cannot be constructed from less than 64 WireId")
+                }
+                Right(_) => {
+                    panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
+                }
+            });
+        }
+        arr
     }
-}
-
-/// Rotates a Word64's bits by moving bit a position `i` into position `i+by`
-/// modulo the lane size. The least significant bit is where i = 0 and the most
-/// significant bit is where i = 63.
-///
-/// Example of left rotation: (u64 truncated to u8)
-///     start:   0100 0101
-///     becomes: 1000 1010
-///
-/// TODO: Write more tests!
-///
-pub fn left_rotate(input: &Word64, by: usize) -> Word64 {
-    input.iter().cycle().skip(64 - (by % 64)).take(64).collect()
-}
-
-/// Rotates a Word64's bits by moving bit a position `i` into position `i-by`
-/// modulo the lane size.
-///
-/// Example of left rotation: (u64 truncated to u8)
-///     start:   0100 0101
-///     becomes: 1010 0010
-///
-/// TODO: Write more tests!
-///
-pub fn right_rotate(input: &Word64, by: usize) -> Word64 {
-    input.iter().cycle().skip(by % 64).take(64).collect()
 }
 
 /// (For Internal Use Only!) In Keccak all internal arrays are of length 5
@@ -180,17 +219,44 @@ impl Default for KeccakRow {
     }
 }
 
-impl Deref for KeccakRow {
-    type Target = [Word64; 5];
+impl Index<usize> for KeccakRow {
+    type Output = Word64;
 
-    fn deref(&self) -> &[Word64; 5] {
-        &self.0
+    fn index(&self, i: usize) -> &Word64 {
+        self.0.index(i)
     }
 }
 
-impl DerefMut for KeccakRow {
-    fn deref_mut(&mut self) -> &mut [Word64; 5] {
-        &mut self.0
+impl IndexMut<usize> for KeccakRow {
+    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut Word64 {
+        self.0.index_mut(i)
+    }
+}
+
+impl KeccakRow {
+    pub fn iter(&self) -> Iter<Word64> {
+        self.0.iter()
+    }
+    pub fn iter_mut(&mut self) -> IterMut<Word64> {
+        self.0.iter_mut()
+    }
+}
+
+impl<'a> IntoIterator for &'a KeccakRow {
+    type Item = &'a Word64;
+    type IntoIter = Iter<'a, Word64>;
+
+    fn into_iter(self) -> Iter<'a, Word64> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut KeccakRow {
+    type Item = &'a mut Word64;
+    type IntoIter = IterMut<'a, Word64>;
+
+    fn into_iter(self) -> IterMut<'a, Word64> {
+        self.0.iter_mut()
     }
 }
 
@@ -257,17 +323,44 @@ impl Default for KeccakMatrix {
     }
 }
 
-impl Deref for KeccakMatrix {
-    type Target = [KeccakRow; 5];
+impl Index<usize> for KeccakMatrix {
+    type Output = KeccakRow;
 
-    fn deref(&self) -> &[KeccakRow; 5] {
-        &self.0
+    fn index(&self, i: usize) -> &KeccakRow {
+        self.0.index(i)
     }
 }
 
-impl DerefMut for KeccakMatrix {
-    fn deref_mut(&mut self) -> &mut [KeccakRow; 5] {
-        &mut self.0
+impl IndexMut<usize> for KeccakMatrix {
+    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut KeccakRow {
+        self.0.index_mut(i)
+    }
+}
+
+impl KeccakMatrix {
+    pub fn iter(&self) -> Iter<KeccakRow> {
+        self.0.iter()
+    }
+    pub fn iter_mut(&mut self) -> IterMut<KeccakRow> {
+        self.0.iter_mut()
+    }
+}
+
+impl<'a> IntoIterator for &'a KeccakMatrix {
+    type Item = &'a KeccakRow;
+    type IntoIter = Iter<'a, KeccakRow>;
+
+    fn into_iter(self) -> Iter<'a, KeccakRow> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut KeccakMatrix {
+    type Item = &'a mut KeccakRow;
+    type IntoIter = IterMut<'a, KeccakRow>;
+
+    fn into_iter(self) -> IterMut<'a, KeccakRow> {
+        self.0.iter_mut()
     }
 }
 
@@ -352,25 +445,29 @@ mod tests {
     extern crate quickcheck;
     use self::quickcheck::quickcheck;
 
-    // quickcheck! {
-    //     fn rotate_inverse_prop(rotate_by: usize) -> bool {
-    //         let word64: Word64 = (0..64).map(WireId).collect();
-    //         left_rotate(&word64, rotate_by) == right_rotate(&word64, rotate_by)
-    //     }
-    // }
-
-    #[test]
-    fn rotate() {
-        let test: [usize; 5] = [0, 1, 2, 3, 4];
-        assert_eq!(
-            test.iter()
-                .cycle()
-                .skip(1)
-                .take(5)
-                .cloned()
-                .collect::<Vec<usize>>(),
-            (0..5).collect::<Vec<usize>>()
-        );
+    quickcheck! {
+        fn rotate_mut_inverse_prop(rotate_by: usize) -> bool {
+            let mut word64: Word64 = (0..64).map(WireId).collect();
+            word64.rotate_right_mut(rotate_by);
+            word64.rotate_left_mut(rotate_by);
+            word64 == (0..64).map(WireId).collect()
+        }
+        fn rotate_inverse_prop(rotate_by: usize) -> bool {
+            let word64: Word64 = (0..64).map(WireId).collect();
+            word64 == word64.rotate_left(rotate_by).rotate_right(rotate_by)
+        }
+        fn rotate_left_prop(rotate_by: usize) -> bool {
+            let w: Word64 = (0..64).map(WireId).collect();
+            let mut mut_w = w.clone();
+            mut_w.rotate_left_mut(rotate_by);
+            mut_w == w.rotate_left(rotate_by)
+        }
+        fn rotate_right_prop(rotate_by: usize) -> bool {
+            let w: Word64 = (0..64).map(WireId).collect();
+            let mut mut_w = w.clone();
+            mut_w.rotate_right_mut(rotate_by);
+            mut_w == w.rotate_right(rotate_by)
+        }
     }
 
     /// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`

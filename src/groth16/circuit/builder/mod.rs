@@ -383,21 +383,18 @@ where
     /// TODO use enumerate instead of zip for indices
     ///
     fn step0(&mut self, a: KeccakMatrix) -> KeccakMatrix {
-        let mut c: [Word64; 5] = [Word64::default(); 5];
-        (0..5).for_each(|x| {
-            c[x] = self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor)
-        });
+        let c: KeccakRow = (0..5)
+            .map(|x| self.u64_fan_in(&[a[x][0], a[x][2], a[x][3], a[x][4]], Circuit::new_xor))
+            .collect();
 
-        let mut d: [Word64; 5] = [Word64::default(); 5];
-        c.iter()
+        let d: KeccakRow = c
+            .iter()
             .cycle()
             .skip(4)
             .take(5)
             .zip(c.iter().cycle().skip(1).take(5))
-            .zip(0..5)
-            .for_each(|((&c1, &c2), x)| {
-                d[x] = self.u64_fan_in(&[c1, left_rotate(&c2, 1)], Circuit::new_xor)
-            });
+            .map(|(&c1, &c2)| self.u64_fan_in(&[c1, c2.rotate_left(1)], Circuit::new_xor))
+            .collect();
 
         iproduct!(0..5, 0..5)
             .map(|(x, y)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
@@ -418,20 +415,20 @@ where
         tail
     }
 
-    // pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
-    //     let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
+    pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
+        let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
 
-    //     while literal != 0 {
-    //         let wire = match literal % 2 {
-    //             0 => self.zero_wire(),
-    //             1 => self.unity_wire(),
-    //             _ => unreachable!(),
-    //         };
+        while literal != 0 {
+            let wire = match literal % 2 {
+                0 => self.zero_wire(),
+                1 => self.unity_wire(),
+                _ => unreachable!(),
+            };
 
-    //         bits.push(wire);
-    //         literal >>= 1;
-    //     }
+            bits.push(wire);
+            literal >>= 1;
+        }
 
-    //     bits
-    // }
+        bits
+    }
 }
