@@ -291,6 +291,24 @@ where
             })
     }
 
+    fn evaluate_word64(&mut self, word: Word64) -> [T; 64] {
+        let mut arr: [T; 64] = [T::zero(); 64];
+        (0..64).for_each(|i| arr[i] = self.evaluate(word[i]));
+        arr
+    }
+
+    fn evaluate_keccakrow(&mut self, row: KeccakRow) -> [[T; 64]; 5] {
+        let mut arr: [[T; 64]; 5] = [[T::zero(); 64]; 5];
+        (0..5).for_each(|i| arr[i] = self.evaluate_word64(row[i as isize]));
+        arr
+    }
+
+    fn evaluate_keccakmatrix(&mut self, matrix: KeccakMatrix) -> [[[T; 64]; 5]; 5] {
+        let mut arr: [[[T; 64]; 5]; 5] = [[[T::zero(); 64]; 5]; 5];
+        (0..5).for_each(|i| arr[i] = self.evaluate_keccakrow(matrix[i as isize]));
+        arr
+    }
+
     /// Clears all of the stored circuit wire values (except for the zero and
     /// unity wires) so that the same circuit can be reused for different
     /// inputs.
@@ -424,7 +442,7 @@ where
     ///
     fn theta(&mut self, a: KeccakMatrix) -> KeccakMatrix {
         let c: KeccakRow = (0..5)
-            .map(|x| {
+            .map(|x: isize| {
                 self.u64_fan_in(
                     &[a[x][0], a[x][1], a[x][2], a[x][3], a[x][4]],
                     Circuit::new_xor,
@@ -436,7 +454,7 @@ where
             .collect();
 
         iproduct!(0..5, 0..5)
-            .map(|(x, y)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
+            .map(|(x, y): (isize, isize)| self.u64_fan_in(&[a[x][y], d[x]], Circuit::new_xor))
             .collect()
     }
 
@@ -456,20 +474,22 @@ where
     fn pi_step3(&mut self, a: KeccakMatrix) -> KeccakMatrix {
         let r: KeccakMatrix = self.rotation_offsets();
         let b: KeccakMatrix = iproduct!(0..5, 0..5)
-            .map(|(x, y)| self.u64_fan_in(&[a[x][y], r[x][y]], Circuit::new_xor))
+            .map(|(x, y): (isize, isize)| self.u64_fan_in(&[a[x][y], r[x][y]], Circuit::new_xor))
             .collect();
 
         let not_b: KeccakMatrix = iproduct!(0..5, 0..5)
-            .map(|(x, y)| self.u64_unary_op(&b[x + 1][y], Circuit::new_not))
+            .map(|(x, y): (isize, isize)| self.u64_unary_op(&b[x + 1][y], Circuit::new_not))
             .collect();
 
         let and_not_b: KeccakMatrix = iproduct!(0..5, 0..5)
-            .map(|(x, y)| self.u64_fan_in(&[not_b[x][y], b[x + 2][y]], Circuit::new_and))
-            .collect();
+            .map(|(x, y): (isize, isize)| {
+                self.u64_fan_in(&[not_b[x][y], b[x + 2][y]], Circuit::new_and)
+            }).collect();
 
         iproduct!(0..5, 0..5)
-            .map(|(x, y)| self.u64_fan_in(&[b[x][y], and_not_b[x][y]], Circuit::new_xor))
-            .collect()
+            .map(|(x, y): (isize, isize)| {
+                self.u64_fan_in(&[b[x][y], and_not_b[x][y]], Circuit::new_xor)
+            }).collect()
     }
 
     /// # ι step
@@ -514,21 +534,21 @@ where
         self.last_step(pi, rc)
     }
 
-    ///
     /// Keccak-f[b](A) {
     ///  for i in 0…n-1
     ///    A = Round[b](A, RC[i])
     ///  return A
     /// }
+    ///
     fn keccak_f(&mut self, a: KeccakMatrix) -> KeccakMatrix {
-        (0..25).fold(a, |acc, n| self.round(acc, ROUND_CONSTANTS[n]))
+        (0..24).fold(a, |acc, n| self.round(acc, ROUND_CONSTANTS[n]))
     }
 
     /// 1088bits end with 1...0...1 thus input is now 17 u64 which is 1024 bits
     /// and the last u64 is 0x8000000000000001
     /// 1600 total size, 25 u64 internal 5 x 5 matrix
     ///
-    pub fn keccak(&mut self, hash: [u64; 17]) -> [u64; 0] {
+    pub fn keccak(&mut self, to_hash: [u64; 17]) -> [u64; 0] {
         unimplemented!();
     }
 
