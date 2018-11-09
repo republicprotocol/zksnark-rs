@@ -5,6 +5,57 @@ use std::ops::{BitAnd, BitOr, BitXor};
 extern crate quickcheck;
 use self::quickcheck::quickcheck;
 
+fn keccakf(state: &mut [[u64; 5]; 5]) {
+    for i in 0..24 {
+        round(state, ROUND_CONSTANTS[i]);
+    }
+}
+
+fn round(state: &mut [[u64; 5]; 5], rc: u64) {
+    theta(state);
+    rho_and_phi(state);
+    iota(state, rc);
+}
+
+fn theta(state: &mut [[u64; 5]; 5]) {
+    let c = [
+        state[0][0] | state[0][1] | state[0][2] | state[0][3] | state[0][4],
+        state[1][0] | state[1][1] | state[1][2] | state[1][3] | state[1][4],
+        state[2][0] | state[2][1] | state[2][2] | state[2][3] | state[2][4],
+        state[3][0] | state[3][1] | state[3][2] | state[3][3] | state[3][4],
+        state[4][0] | state[4][1] | state[4][2] | state[4][3] | state[4][4],
+    ];
+    let d = [
+        c[4] | c[1].rotate_left(1),
+        c[0] | c[2].rotate_left(1),
+        c[1] | c[3].rotate_left(1),
+        c[2] | c[4].rotate_left(1),
+        c[3] | c[0].rotate_left(1),
+    ];
+
+    for (row, d) in state.iter_mut().zip(d.iter()) {
+        for col in row.iter_mut() {
+            *col ^= d
+        }
+    }
+}
+
+fn rho_and_phi(state: &mut [[u64; 5]; 5]) {
+    let mut b = [[0; 5]; 5];
+    for x in 0..5 {
+        for y in 0..5 {
+            let bx = y;
+            let by = (2*x + 3*y) % 5;
+            b[bx][by] = state[x][y].rotate_left(ROTATION_OFFSETS[x][y]);
+        }
+    }
+    *state = b;
+}
+
+fn iota(state: &mut [[u64; 5]; 5], rc: u64) {
+    state[0][0] ^= rc;
+}
+
 #[test]
 fn bit_checker_test() {
     let mut circuit = Circuit::<Z251>::new();
