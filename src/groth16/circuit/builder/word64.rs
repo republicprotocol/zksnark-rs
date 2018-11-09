@@ -429,6 +429,14 @@ pub const ROUND_CONSTANTS: [u64; 24] = [
     0x8000000080008008,
 ];
 
+pub const ROTATION_OFFSETS: [[u32; 5]; 5] = [
+    [0, 36, 3, 41, 18],
+    [1, 44, 10, 45, 2],
+    [62, 6, 43, 15, 61],
+    [28, 55, 25, 31, 56],
+    [27, 20, 39, 8, 14],
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
