@@ -1,6 +1,7 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
 use std::fmt;
+use std::iter::repeat;
 
 #[cfg(test)]
 mod tests;
@@ -55,7 +56,6 @@ where
     wire_values: HashMap<WireId, Option<T>>,
 }
 
-/// Test
 impl<T> Circuit<T>
 where
     T: Copy + Field,
@@ -114,6 +114,7 @@ where
     ///
     /// // ...
     /// ```
+    /// TODO: make this private (needs tests and remove doc tests)
     pub fn new_word64(&mut self) -> Word64 {
         (0..64).map(|_| self.new_wire()).collect()
     }
@@ -125,10 +126,14 @@ where
     fn new_keccakmatrix(&mut self) -> KeccakMatrix {
         (0..5).map(|_| self.new_keccakrow()).collect()
     }
+    fn new_bitstream(&mut self, size: usize) -> Vec<WireId> {
+        repeat(()).take(size).map(|_| self.new_wire()).collect()
+    }
 
     /// set the values for a `Word64` from a u64.
     ///
     /// See `new_u64` for example
+    /// TODO: make this private (needs tests and remove doc tests)
     pub fn set_word64(&mut self, u64_wires: &Word64, input: u64) {
         let mut n = input;
         u64_wires.iter().for_each(|&wire_id| {
@@ -153,6 +158,8 @@ where
             .zip(input.iter())
             .for_each(|(word, &row)| self.set_keccakrow(word, row));
     }
+
+    // fn set_bitstream(&mut self, bit_stream: &Vec<WireId>, &Vec<
 
     pub fn unity_wire(&self) -> WireId {
         WireId(1)
@@ -540,16 +547,82 @@ where
     ///  return A
     /// }
     ///
-    fn keccak_f(&mut self, a: KeccakMatrix) -> KeccakMatrix {
+    /// - The number of bits `b` is 1600 (there are 1600 wires in the KeccakMatrix)
+    /// - the rate `r` + capacity `c` must be equal to 1600
+    /// - the width `w` is 64
+    /// - the number of rounds `n` is thus 24
+    ///
+    fn keccak_f1600(&mut self, a: KeccakMatrix) -> KeccakMatrix {
         (0..24).fold(a, |acc, n| self.round(acc, ROUND_CONSTANTS[n]))
     }
 
-    /// 1088bits end with 1...0...1 thus input is now 17 u64 which is 1024 bits
-    /// and the last u64 is 0x8000000000000001
-    /// 1600 total size, 25 u64 internal 5 x 5 matrix
+    /// This is the more general version of keccak that only specifies the
+    /// permutation input bits and eventually will handle padding as well. For
+    /// reference these variables are implicitly set:
+    /// - rate `r` + capacity `r` = 1600
+    /// - width `w` is 64
+    /// - rounds `n` is 24
+    /// - bits `b` is 1600
     ///
-    pub fn keccak(&mut self, to_hash: [u64; 17]) -> [u64; 0] {
-        unimplemented!();
+    /// TODO: implement padding so you don't have to panic if you get input that
+    /// is not exactly a single block length
+    ///
+    /// Since we do not handle padding now I assume the input is the correct
+    /// block length
+    ///
+    /// `for (x,y) such that x+5*y < r/w`
+    /// Where `x` and `y` are integers between 0 and 4 inclusive.
+    ///
+    /// Since `w` is always 64 for us that means when `r` is 1088 then the block
+    /// length is 17 (the number of pairs) * 64 `w` which is 1088 bits.
+    ///
+    /// ## Pseudo-code
+    ///
+    /// # Absorbing phase
+    /// for each block Pi in P
+    ///   S[x,y] = S[x,y] xor Pi[x+5*y],          for (x,y) such that x+5*y < r/w
+    ///   S = Keccak-f[r+c](S)
+    ///
+    /// # Squeezing phase
+    /// Z = empty string
+    /// while output is requested
+    ///   Z = Z || S[x,y],                        for (x,y) such that x+5*y < r/w
+    ///   S = Keccak-f[r+c](S)
+    ///
+    /// return Z
+    ///
+    /// TODO: Make input and output actual bit streams, maybe make bit_stream a
+    /// reference
+    fn keccak(&mut self, bit_stream: Vec<Word64>, r: usize) -> Vec<Word64> {
+        if r % 64 != 0 {
+            panic!("keccak: your rate is not a multiple of 64");
+        }
+
+        // S[x, y] = 0
+        let mut s: KeccakMatrix = repeat(self.zero_wire()).take(1600).collect();
+
+        //   S[x,y] = S[x,y] xor Pi[x+5*y],          for (x,y) such that x+5*y < r/w
+        //   S = Keccak-f[r+c](S)
+        iproduct!(0..5, 0..5)
+            .filter(|(x, y)| x + 5 * y < (r as isize) / 64)
+            .enumerate()
+            .for_each(|(i, (x, y))| s[x][y] = bit_stream[i]);
+        s = self.keccak_f1600(s);
+
+        //   Z = Z || S[x,y],                        for (x,y) such that x+5*y < r/w
+        iproduct!(0..5, 0..5)
+            .filter(|(x, y)| x + 5 * y < (r as isize) / 64)
+            .map(|(x, y)| s[x][y])
+            .take(4) // FIXME
+            .collect()
+    }
+
+    /// TODO: Make input a bit stream and maybe make it a reference
+    pub fn sha3_256(&mut self, bit_stream: Vec<Word64>) -> [Word64; 4] {
+        let hash = self.keccak(bit_stream, 1088);
+        let mut tmp = [Word64::default(); 4];
+        hash.iter().enumerate().for_each(|(i, &word)| tmp[i] = word);
+        tmp
     }
 
     /// TODO: Use a slice instead of a Vec for the argument type.

@@ -1,6 +1,7 @@
 use super::super::super::Z251;
 use super::*;
 use field::FieldIdentity;
+use std::iter::repeat;
 use std::ops::{BitAnd, BitOr, BitXor};
 
 extern crate quickcheck;
@@ -190,6 +191,7 @@ fn bitwise_op_test() {
     });
 }
 
+/// I guessed the [0][0][0] value was zero
 #[test]
 fn keccak_f_basic() {
     let mut circuit = Circuit::<Z251>::new();
@@ -203,8 +205,39 @@ fn keccak_f_basic() {
     ];
     let matrix: KeccakMatrix = circuit.new_keccakmatrix();
     circuit.set_keccakmatrix(&matrix, data);
-    let output: KeccakMatrix = circuit.keccak_f(matrix);
+    let output: KeccakMatrix = circuit.keccak_f1600(matrix);
     assert_eq!(circuit.evaluate_keccakmatrix(output)[0][0][0], Z251::zero());
+}
+
+fn sha3_256_basic() {
+    let mut circuit = Circuit::<Z251>::new();
+
+    let input: Vec<Word64> = vec![
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+        circuit.new_word64(),
+    ];
+    input
+        .iter()
+        .enumerate()
+        .for_each(|(i, word)| circuit.set_word64(word, (i as u64)));
+    let output = circuit.sha3_256(input);
+    assert_eq!(circuit.evaluate_word64(output[0])[0], Z251::zero());
+    // FIXME: after you write a bit_stream evaluate function
 }
 
 quickcheck! {
