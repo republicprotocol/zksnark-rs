@@ -194,55 +194,6 @@ fn bitwise_op_test() {
     });
 }
 
-// /// I guessed the [0][0][0] value was zero
-// #[test]
-// fn keccak_f_basic() {
-//     let mut circuit = Circuit::<Z251>::new();
-
-//     let data: [[u64; 5]; 5] = [
-//         [0, 1, 2, 3, 4],
-//         [5, 6, 7, 8, 9],
-//         [10, 11, 12, 13, 14],
-//         [15, 16, 17, 18, 19],
-//         [20, 21, 22, 23, 24],
-//     ];
-//     let matrix: KeccakMatrix = circuit.new_keccakmatrix();
-//     circuit.set_keccakmatrix(&matrix, data);
-//     let output: KeccakMatrix = circuit.keccak_f1600(matrix);
-//     assert_eq!(circuit.evaluate_keccakmatrix(output)[0][0][0], Z251::zero());
-// }
-
-// fn sha3_256_basic() {
-//     let mut circuit = Circuit::<Z251>::new();
-
-//     let input: Vec<Word64> = vec![
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//         circuit.new_word64(),
-//     ];
-//     input
-//         .iter()
-//         .enumerate()
-//         .for_each(|(i, word)| circuit.set_word64(word, (i as u64)));
-//     let output = circuit.sha3_256(input);
-//     assert_eq!(circuit.evaluate_word64(output[0])[0], Z251::zero());
-//     // FIXME: after you write a bit_stream evaluate function
-// }
-
 #[test]
 fn word64_set_eval() {
     let mut circuit = Circuit::<Z251>::new();
@@ -252,7 +203,7 @@ fn word64_set_eval() {
 }
 
 #[test]
-fn set_word8_is_bit_little_endian() {
+fn set_word8_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
     let u8_input = circuit.new_word8();
     circuit.set_word8(&u8_input, 0b0000_0100);
@@ -268,13 +219,10 @@ fn set_word8_is_bit_little_endian() {
 }
 
 #[test]
-fn set_word64_is_little_endian() {
+fn set_word64_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
-    let o = circuit.new_word8();
-    let k = circuit.new_word8();
-    circuit.set_word8(&o, 0b0100_1111); // becomes 1111 0010
-    circuit.set_word8(&k, 0b0100_1011); // becomes 1101 0010
-    let w64: Word64 = [o, k].iter().collect();
+    let w64 = circuit.new_word64();
+    circuit.set_word64(&w64, 0b0100_1011_0100_1111);
     assert_eq!(circuit.evaluate(w64[0][0]), Z251::one());
     assert_eq!(circuit.evaluate(w64[0][1]), Z251::one());
     assert_eq!(circuit.evaluate(w64[0][2]), Z251::one());
@@ -332,95 +280,99 @@ fn iproduct_macro_single_test() {
     );
 }
 
-fn theta_part_single_test() {
-    let mut input: [u64; 25] = [0; 25];
-    let mut tiny: &mut [u64; 25] = &mut [0; 25];
-    vec![0, 9, 54, 21].iter().zip(0..25).for_each(|(&num, i)| {
-        input[i] = num;
-        tiny[i] = num;
+#[test]
+fn keccak_f1600_theta_rotate_test() {
+    let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
+    let mut tiny_keccak_array: [u64; 5] = [0; 5];
+
+    let circuit_input: &mut [u64; 25] = &mut [0; 25];
+    let mut array: [Word64; 5] = [Word64::default(); 5];
+
+    let rand = [0, 9546, 6264, 57, 0, 0, 0, 99, 1];
+    rand.iter().zip(0..25).for_each(|(&num, i)| {
+        tiny_keccak_input[i] = num;
+        circuit_input[i] = num;
     });
 
-    let mut array: [u64; 5] = [0; 5];
+    let mut circuit = Circuit::<Z251>::new();
+    let a = &mut circuit.new_keccakmatrix();
+    circuit.set_keccakmatrix(a, circuit_input);
 
-    // Theta
-    for x in 0..5 {
-        for y_count in 0..5 {
-            let y = y_count * 5;
-            array[x] ^= tiny[x + y];
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    a[y + x] = circuit.u64_bitwise_op(&array[(x + 4) % 5],
+                    &rotate_word64_left(array[(x + 1) % 5], 1), Circuit::new_xor); }
+            }
         }
     }
 
-    let mut circuit = Circuit::<Z251>::new();
-    let a = circuit.new_keccakmatrix();
-    circuit.set_keccakmatrix(&a, input);
+    theta_rotate_part(tiny_keccak_input, tiny_keccak_array);
 
-    let mut c: KeccakRow = (0..5)
-        .map(|x: isize| {
-            circuit.u64_fan_in(
-                [a[x][0], a[x][1], a[x][2], a[x][3], a[x][4]].iter(),
-                Circuit::new_xor,
-            )
-        }).collect();
-
-    // NOTE: its rotate_right because Word64 is stored as bit little endian.
-    (0..5).for_each(|x: isize| {
-        c[x] = circuit.u64_fan_in(
-            [c[x - 1], c[x + 1].rotate_right(1)].iter(),
-            Circuit::new_xor,
-        )
-    });
-
-    assert_eq!(circuit.evaluate_keccakrow(&c), array);
+    assert_eq!(circuit.evaluate_keccakmatrix(a), *tiny_keccak_input);
 }
 
 #[test]
-fn theta_single_test() {
-    let mut input: [u64; 25] = [0; 25];
-    let mut a: &mut [u64; 25] = &mut [0; 25];
-    vec![0, 1].iter().zip(0..25).for_each(|(&num, i)| {
-        input[i] = num;
-        a[i] = num;
+fn keccak_f1600_theta_test() {
+    let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
+    let circuit_input: &mut [u64; 25] = &mut [0; 25];
+    let rand = [0, 9546, 6264, 57, 0, 0, 0, 99, 1];
+    rand.iter().zip(0..25).for_each(|(&num, i)| {
+        tiny_keccak_input[i] = num;
+        circuit_input[i] = num;
     });
 
-    let mut array: [u64; 5] = [0; 5];
+    let mut circuit = Circuit::<Z251>::new();
+    let a = &mut circuit.new_keccakmatrix();
+    circuit.set_keccakmatrix(a, circuit_input);
+
+    let mut array: [Word64; 5] = [Word64::default(); 5];
 
     // Theta
-    for x in 0..5 {
-        for y_count in 0..5 {
-            let y = y_count * 5;
-            array[x] ^= a[x + y];
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    array[x] = circuit.u64_bitwise_op(&array[x], &a[x + y], Circuit::new_xor);
+                }
+            }
         }
     }
 
-    for x in 0..5 {
-        for y_count in 0..5 {
-            let y = y_count * 5;
-            a[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    a[y + x] = circuit.u64_bitwise_op(&array[(x + 4) % 5],
+                    &rotate_word64_left(array[(x + 1) % 5], 1), Circuit::new_xor); }
+            }
         }
     }
 
-    let mut circuit = Circuit::<Z251>::new();
-    let mut matrix = circuit.new_keccakmatrix();
-    circuit.set_keccakmatrix(&matrix, input);
-    circuit.theta(&mut matrix);
+    theta(tiny_keccak_input);
 
-    assert_eq!(circuit.evaluate_keccakmatrix(&matrix), *a);
+    assert_eq!(circuit.evaluate_keccakmatrix(a), *tiny_keccak_input);
 }
 
 #[test]
 fn keccak_f1600_single_test() {
-    let mut input: [u64; 25] = [0; 25];
-    let mut tiny_keccak: &mut [u64; 25] = &mut [0; 25];
+    let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
+    // rand.iter().zip(0..25).for_each(|(&num, i)| tiny_keccak_input[i] = num );
 
     let mut circuit = Circuit::<Z251>::new();
 
-    keccakf(tiny_keccak);
+    let matrix = &mut circuit.new_keccakmatrix();
+    circuit.set_keccakmatrix(matrix, tiny_keccak_input);
 
-    let mut matrix = &mut circuit.new_keccakmatrix();
-    circuit.set_keccakmatrix(&matrix, input);
+    circuit.keccakf_1600(matrix);
 
-    circuit.keccak_f1600(matrix);
-    assert_eq!(circuit.evaluate_keccakmatrix(matrix), *tiny_keccak);
+    keccakf(tiny_keccak_input);
+
+    assert_eq!(circuit.evaluate_keccakmatrix(matrix), *tiny_keccak_input);
 }
 
 fn u64_fan_in_single_test() {
@@ -428,10 +380,14 @@ fn u64_fan_in_single_test() {
 
     let mut circuit = Circuit::<Z251>::new();
 
-    let row = circuit.new_keccakrow();
-    circuit.set_keccakrow(&row, input);
+    let mut elems: [Word64; 5] = [Word64::default(); 5];
+    input.iter().enumerate().for_each(|(i, &num)| {
+        let wrd64 = circuit.new_word64();
+        circuit.set_word64(&wrd64, num);
+        elems[i] = wrd64;
+    });
 
-    let complete_circuit = circuit.u64_fan_in(row.iter(), Circuit::new_xor);
+    let complete_circuit = circuit.u64_fan_in(elems.iter(), Circuit::new_xor);
 
     assert_eq!(
         circuit.evaluate_word64(&complete_circuit),
@@ -440,65 +396,44 @@ fn u64_fan_in_single_test() {
 }
 
 quickcheck! {
-    fn u64_fan_in_prop(rand: Vec<u64>) -> bool {
-        let mut input: [u64; 5] = [0; 5];
-        rand.iter().zip(0..5).for_each(|(&num, i)| input[i] = num);
+    /// check if tiny_keccak's permutation function is the same as the circuit's
+    /// implementation.
+    fn keccak_f1600_equiv_prop(rand: Vec<u64>) -> bool {
+        let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
+        rand.iter().zip(0..25).for_each(|(&num, i)| tiny_keccak_input[i] = num );
 
         let mut circuit = Circuit::<Z251>::new();
 
-        let row = circuit.new_keccakrow();
-        circuit.set_keccakrow(&row, input);
+        let matrix = &mut circuit.new_keccakmatrix();
+        circuit.set_keccakmatrix(matrix, tiny_keccak_input);
+
+        circuit.keccakf_1600(matrix);
+
+        keccakf(tiny_keccak_input);
+
+        circuit.evaluate_keccakmatrix(matrix) == *tiny_keccak_input
+    }
+
+    /// Check that the circuit builder for u64_fan_in has the semantics of
+    /// taking `[a, b, c, d, ... z]` into `a xor b xor c xor d ... xor z`.
+    fn u64_fan_in_prop(rand: Vec<u64>) -> bool {
+        let mut input: [u64; 25] = [0; 25];
+        rand.iter().zip(0..25).for_each(|(&num, i)| input[i] = num);
+
+        let mut circuit = Circuit::<Z251>::new();
+
+        let row = circuit.new_keccakmatrix();
+        circuit.set_keccakmatrix(&row, &input);
 
         let complete_circuit = circuit.u64_fan_in(row.iter(), Circuit::new_xor);
 
         circuit.evaluate_word64(&complete_circuit) == input.iter().skip(1).fold(input[0], |acc, x| acc ^ x)
     }
-    fn keccak_f1600_equiv_prop(rand: Vec<u64>) -> bool {
-        let mut input: [u64; 25] = [0; 25];
-        let mut tiny_keccak: &mut [u64; 25] = &mut [0; 25];
-        rand.iter().zip(0..25).for_each(|(&num, i)| {input[i] = num; tiny_keccak[i] = num;});
 
-        let mut circuit = Circuit::<Z251>::new();
-
-        keccakf(tiny_keccak);
-        let a_copy = *tiny_keccak;
-
-        let mut matrix = &mut circuit.new_keccakmatrix();
-        circuit.set_keccakmatrix(&matrix, input);
-
-        circuit.keccak_f1600(matrix);
-        circuit.evaluate_keccakmatrix(matrix) == a_copy
-    }
-    fn theta_prop(rand: Vec<u64>) -> bool {
-        let mut input: [u64; 25] = [0; 25];
-        let mut a: &mut [u64; 25] = &mut [0; 25];
-        rand.iter().zip(0..25).for_each(|(&num, i)| {input[i] = num; a[i] = num;});
-
-        let mut array: [u64; 5] = [0; 5];
-
-        // Theta
-        for x in 0..5 {
-            for y_count in 0..5 {
-                let y = y_count * 5;
-                array[x] ^= a[x + y];
-            }
-        }
-
-        for x in 0..5 {
-            for y_count in 0..5 {
-                let y = y_count * 5;
-                a[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
-            }
-        }
-        let a_copy = *a;
-
-        let mut circuit = Circuit::<Z251>::new();
-        let mut matrix = &mut circuit.new_keccakmatrix();
-        circuit.set_keccakmatrix(&matrix, input);
-
-        circuit.theta(matrix);
-        circuit.evaluate_keccakmatrix(&matrix) == a_copy
-    }
+    /// I wanted to check that creating a new KeccakMatrix, setting it from an
+    /// array and then evaluating that KeccakMatrix would result in the same
+    /// array. Its somewhat a sanity check and to make sure the setting /
+    /// evaluating are not messing up the overall result.
     fn set_keccackmatrix_prop(rand: Vec<u64>) -> bool {
         let mut input: [u64; 25] =
             [   15, 468, 45, 647, 567, 4, 95, 267, 48, 465
@@ -506,17 +441,25 @@ quickcheck! {
             , 5, 7, 786, 564, 9999];
         rand.iter().zip(0..25).for_each(|(&num, i)| input[i] = num);
         let mut circuit = Circuit::<Z251>::new();
-        let matrix = circuit.new_keccakmatrix();
-        circuit.set_keccakmatrix(&matrix, input);
+        let matrix = &mut circuit.new_keccakmatrix();
+        circuit.set_keccakmatrix(matrix, &input);
 
-        circuit.evaluate_keccakmatrix(&matrix) == input
+        circuit.evaluate_keccakmatrix(matrix) == input
     }
+
+    /// Like a smaller version of KeccakMatrix, just need to make sure the new,
+    /// set, evaluate of Word8 does not change the value of the initial u8
+    /// number.
     fn word8_prop(num: u8) -> bool {
         let mut circuit = Circuit::<Z251>::new();
         let u8_input = circuit.new_word8();
         circuit.set_word8(&u8_input, num);
         circuit.evaluate_word8(&u8_input) == num
     }
+
+    /// Like a smaller version of KeccakMatrix, just need to make sure the new,
+    /// set, evaluate of Word64 does not change the value of the initial u64
+    /// number.
     fn word64_prop(num: u64) -> bool {
         let mut circuit = Circuit::<Z251>::new();
         let u64_input = circuit.new_word64();
@@ -524,3 +467,100 @@ quickcheck! {
         circuit.evaluate_word64(&u64_input) == num
     }
 }
+
+fn theta_rotate_part(a: &mut [u64; 25], mut array: [u64; 5]) {
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    a[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
+                }
+            }
+        }
+    }
+}
+
+fn theta(a: &mut [u64; 25]) {
+    let mut array: [u64; 5] = [0; 5];
+
+    // Theta
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    array[x] ^= a[x + y];
+                }
+            }
+        }
+    }
+
+    unroll! {
+        for x in 0..5 {
+            unroll! {
+                for y_count in 0..5 {
+                    let y = y_count * 5;
+                    a[y + x] ^= array[(x + 4) % 5] ^ array[(x + 1) % 5].rotate_left(1);
+                }
+            }
+        }
+    }
+}
+
+//  # θ step
+//  C[x] = A[x,0] xor A[x,1] xor A[x,2] xor A[x,3] xor A[x,4],   for x in 0…4
+//  D[x] = C[x-1] xor rot(C[x+1],1),                             for x in 0…4
+//  A[x,y] = A[x,y] xor D[x],                           for (x,y) in (0…4,0…4)
+// fn theta(a: &mut [[u64; 5]; 5]) {
+//     let mut c: [u64; 5] = [0; 5];
+//     (0..5).for_each(|x| c[x] = a[x][0] ^ a[x][1] ^ a[x][2] ^ a[x][3] ^ a[x][4]);
+
+//     let mut d: [u64; 5] = [0; 5];
+//     (0..5).for_each(|x| d[x] = c[(x + 4) % 5] ^ c[(x + 1) % 5].rotate_left(1));
+
+//     iproduct!(0..5, 0..5).for_each(|(x, y)| a[x][y] = a[x][y] ^ d[x]);
+// }
+
+// # ρ and π steps
+// B[y,2*x+3*y] = rot(A[x,y], r[x,y]),                 for (x,y) in (0…4,0…4)
+//
+// # χ step
+// A[x,y] = B[x,y] xor ((not B[x+1,y]) and B[x+2,y]),  for (x,y) in (0…4,0…4)
+//
+// fn rho_pi_chi(a: &mut [[u64; 5]; 5]) {
+//     let mut b: [[u64; 5]; 5] = [[0; 5]; 5];
+//     iproduct!(0..5, 0..5)
+//         .for_each(|(x, y)| b[y][(2 * x + 3 * y) % 5] = a[x][y].rotate_left(R[x][y]));
+
+//     iproduct!(0..5, 0..5)
+//         .for_each(|(x, y)| a[x][y] = b[x][y] ^ (!(b[(x + 1) % 5][y]) & b[(x + 2) % 5][y]));
+// }
+
+// fn last_step(a: &mut [[u64; 5]; 5], rc: u64) {
+//     a[0][0] = a[0][0] ^ rc;
+// }
+
+// fn round(a: &mut [[u64; 5]; 5], rc: u64) {
+//     theta(a);
+//     pi_step3(a);
+//     last_step(a, rc);
+// }
+
+// fn keccak_f1600(a: &mut [[u64; 5]; 5]) {
+//     (0..24).for_each(|n| round(a, ROUND_CONSTANTS[n]))
+// }
+
+// fn flatten(a: &[[u64; 5]; 5]) -> [u64; 25] {
+//     let mut arr: [u64; 25] = [0; 25];
+
+//     iproduct!(0..5, 0..5).for_each(|(x, y)| arr[(x * 5) + y] = a[x][y]);
+//     arr
+// }
+
+// fn to_matrix(a: &[u64; 25]) -> [[u64; 5]; 5] {
+//     let mut matrix = [[0; 5]; 5];
+
+//     iproduct!(0..5, 0..5).for_each(|(x, y)| matrix[x][y] = a[(x * 5) + y]);
+//     matrix
+// }
