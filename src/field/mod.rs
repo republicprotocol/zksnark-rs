@@ -456,7 +456,7 @@ mod tests {
                 if *c == Z251::zero() && degree != 0 {
                     degree -= 1;
                 } else {
-                    return (degree == poly.degree());
+                    return degree == poly.degree();
                 }
             }
 
