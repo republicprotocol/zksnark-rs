@@ -1,8 +1,4 @@
 use super::*;
-use std::fmt;
-use std::iter::FromIterator;
-use std::ops::{Index, IndexMut};
-use std::slice::{Iter, IterMut};
 
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
@@ -219,10 +215,11 @@ mod tests {
         }
     }
 
+    #[test]
     fn rotate_single_test() {
         let a_wrd64: Word64 = to_word64((0..64).map(WireId));
-        let b_wrd64: Word64 = to_word64((64..65).chain(1..63).map(WireId));
-        assert_eq!(b_wrd64, rotate_word64_right(a_wrd64, 1));
+        let b_wrd64: Word64 = to_word64((63..64).chain(0..63).map(WireId));
+        assert_eq!(b_wrd64, rotate_word64_left(a_wrd64, 1));
     }
 
     // #[test]

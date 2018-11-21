@@ -3,9 +3,6 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::repeat;
 
-extern crate itertools;
-use itertools::Itertools;
-
 #[cfg(test)]
 mod tests;
 
@@ -507,19 +504,20 @@ where
                     unroll! {
                         for y_count in 0..5 {
                             let y = y_count * 5;
-                            a[y + x] = self.u64_bitwise_op(&array[(x + 4) % 5],
-                            &rotate_word64_left(array[(x + 1) % 5], 1), Circuit::new_xor); }
+                            a[y + x] = self.u64_fan_in([a[y + x], array[(x + 4) % 5],
+                                rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                        }
                     }
                 }
             }
 
             // Rho and pi
-            let mut last = a[1];
+            let mut _last = a[1];
             unroll! {
                 for x in 0..24 {
                     array[0] = a[PI[x]];
-                    a[PI[x]] = rotate_word64_left(last, RHO[x]);
-                    last = array[0];
+                    a[PI[x]] = rotate_word64_left(_last, RHO[x]);
+                    _last = array[0];
                 }
             }
 

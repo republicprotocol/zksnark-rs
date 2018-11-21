@@ -1,8 +1,6 @@
 use super::super::super::Z251;
 use super::*;
 use field::FieldIdentity;
-use std::iter::repeat;
-use std::ops::{BitAnd, BitOr, BitXor};
 
 extern crate quickcheck;
 use self::quickcheck::quickcheck;
@@ -283,10 +281,10 @@ fn iproduct_macro_single_test() {
 #[test]
 fn keccak_f1600_theta_rotate_test() {
     let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
-    let mut tiny_keccak_array: [u64; 5] = [0; 5];
+    let tiny_keccak_array: [u64; 5] = [0; 5];
 
     let circuit_input: &mut [u64; 25] = &mut [0; 25];
-    let mut array: [Word64; 5] = [Word64::default(); 5];
+    let array: [Word64; 5] = [Word64::default(); 5];
 
     let rand = [0, 9546, 6264, 57, 0, 0, 0, 99, 1];
     rand.iter().zip(0..25).for_each(|(&num, i)| {
@@ -303,8 +301,9 @@ fn keccak_f1600_theta_rotate_test() {
             unroll! {
                 for y_count in 0..5 {
                     let y = y_count * 5;
-                    a[y + x] = circuit.u64_bitwise_op(&array[(x + 4) % 5],
-                    &rotate_word64_left(array[(x + 1) % 5], 1), Circuit::new_xor); }
+                    a[y + x] = circuit.u64_fan_in([a[y + x], array[(x + 4) % 5],
+                    rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                }
             }
         }
     }
@@ -318,7 +317,9 @@ fn keccak_f1600_theta_rotate_test() {
 fn keccak_f1600_theta_test() {
     let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
     let circuit_input: &mut [u64; 25] = &mut [0; 25];
-    let rand = [0, 9546, 6264, 57, 0, 0, 0, 99, 1];
+    let rand = [
+        0, 9546, 6264, 57, 0, 0, 86798, 99, 1, 987978, 4568798, 555, 22222, 0,
+    ];
     rand.iter().zip(0..25).for_each(|(&num, i)| {
         tiny_keccak_input[i] = num;
         circuit_input[i] = num;
@@ -347,8 +348,9 @@ fn keccak_f1600_theta_test() {
             unroll! {
                 for y_count in 0..5 {
                     let y = y_count * 5;
-                    a[y + x] = circuit.u64_bitwise_op(&array[(x + 4) % 5],
-                    &rotate_word64_left(array[(x + 1) % 5], 1), Circuit::new_xor); }
+                    a[y + x] = circuit.u64_fan_in([a[y + x], array[(x + 4) % 5],
+                    rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                }
             }
         }
     }
@@ -375,8 +377,9 @@ fn keccak_f1600_single_test() {
     assert_eq!(circuit.evaluate_keccakmatrix(matrix), *tiny_keccak_input);
 }
 
+#[test]
 fn u64_fan_in_single_test() {
-    let mut input: [u64; 5] = [1, 0, 35, 5, 6];
+    let input: [u64; 5] = [1, 0, 35, 5, 6];
 
     let mut circuit = Circuit::<Z251>::new();
 
@@ -395,12 +398,14 @@ fn u64_fan_in_single_test() {
     );
 }
 
-quickcheck! {
-    /// check if tiny_keccak's permutation function is the same as the circuit's
-    /// implementation.
-    fn keccak_f1600_equiv_prop(rand: Vec<u64>) -> bool {
+#[test]
+#[ignore]
+fn keccakf_1600_equiv_prop() {
+    fn prop(rand: Vec<u64>) -> bool {
         let tiny_keccak_input: &mut [u64; 25] = &mut [0; 25];
-        rand.iter().zip(0..25).for_each(|(&num, i)| tiny_keccak_input[i] = num );
+        rand.iter()
+            .zip(0..25)
+            .for_each(|(&num, i)| tiny_keccak_input[i] = num);
 
         let mut circuit = Circuit::<Z251>::new();
 
@@ -413,10 +418,15 @@ quickcheck! {
 
         circuit.evaluate_keccakmatrix(matrix) == *tiny_keccak_input
     }
+    quickcheck(prop as fn(Vec<u64>) -> bool);
+}
 
-    /// Check that the circuit builder for u64_fan_in has the semantics of
-    /// taking `[a, b, c, d, ... z]` into `a xor b xor c xor d ... xor z`.
-    fn u64_fan_in_prop(rand: Vec<u64>) -> bool {
+/// Check that the circuit builder for u64_fan_in has the semantics of
+/// taking `[a, b, c, d, ... z]` into `a xor b xor c xor d ... xor z`.
+#[test]
+#[ignore]
+fn u64_fan_in_prop() {
+    fn prop(rand: Vec<u64>) -> bool {
         let mut input: [u64; 25] = [0; 25];
         rand.iter().zip(0..25).for_each(|(&num, i)| input[i] = num);
 
@@ -427,8 +437,46 @@ quickcheck! {
 
         let complete_circuit = circuit.u64_fan_in(row.iter(), Circuit::new_xor);
 
-        circuit.evaluate_word64(&complete_circuit) == input.iter().skip(1).fold(input[0], |acc, x| acc ^ x)
+        circuit.evaluate_word64(&complete_circuit)
+            == input.iter().skip(1).fold(input[0], |acc, x| acc ^ x)
     }
+    quickcheck(prop as fn(Vec<u64>) -> bool);
+}
+
+quickcheck! {
+
+    /// check if tiny_keccak's permutation function is the same as the circuit's
+    /// implementation.
+
+    fn rotate_and_u64_bitwise_op(left: u64, right: u64) -> bool {
+        let mut circuit = Circuit::<Z251>::new();
+
+        let left_word = circuit.new_word64();
+        let right_word = circuit.new_word64();
+        circuit.set_word64(&left_word, left);
+        circuit.set_word64(&right_word, right);
+
+        let complete_circuit = circuit.u64_bitwise_op(&left_word,
+                    &rotate_word64_left(right_word, 1), Circuit::new_xor);
+
+        circuit.evaluate_word64(&complete_circuit) == left ^ right.rotate_left(1)
+    }
+
+    /// Checks that xor of Word64 is done correctly
+    fn u64_bitwise_op_prop(left: u64, right: u64) -> bool {
+        let mut circuit = Circuit::<Z251>::new();
+
+        let left_word = circuit.new_word64();
+        let right_word = circuit.new_word64();
+        circuit.set_word64(&left_word, left);
+        circuit.set_word64(&right_word, right);
+
+        let complete_circuit = circuit.u64_bitwise_op(&left_word, &right_word, Circuit::new_xor);
+
+        circuit.evaluate_word64(&complete_circuit) == left ^ right
+
+    }
+
 
     /// I wanted to check that creating a new KeccakMatrix, setting it from an
     /// array and then evaluating that KeccakMatrix would result in the same
@@ -468,7 +516,7 @@ quickcheck! {
     }
 }
 
-fn theta_rotate_part(a: &mut [u64; 25], mut array: [u64; 5]) {
+fn theta_rotate_part(a: &mut [u64; 25], array: [u64; 5]) {
     unroll! {
         for x in 0..5 {
             unroll! {
