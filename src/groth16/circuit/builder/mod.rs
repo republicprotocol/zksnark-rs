@@ -6,8 +6,8 @@ use std::iter::repeat;
 #[cfg(test)]
 mod tests;
 
-pub mod word64;
-use self::word64::*;
+pub mod keccak_types;
+use self::keccak_types::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
