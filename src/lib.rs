@@ -106,8 +106,7 @@
 //!
 //! let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 //!
-//! assert!(groth16::verify(
-//!     &qap,
+//! assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
 //!     (sigmag1, sigmag2),
 //!     &vec![FrLocal::from(2), FrLocal::from(34)],
 //!     proof
@@ -147,6 +146,10 @@ mod tests {
     use super::field::z251::Z251;
     use super::groth16::Random;
     use super::*;
+    use groth16::fr::{G1Local, G2Local};
+
+    extern crate tiny_keccak;
+    use self::tiny_keccak::keccak256;
 
     #[test]
     fn simple_circuit_test() {
@@ -167,8 +170,7 @@ mod tests {
 
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-        assert!(groth16::verify(
-            &qap,
+        assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
             (sigmag1, sigmag2),
             &vec![FrLocal::from(2), FrLocal::from(34)],
             proof
@@ -178,8 +180,7 @@ mod tests {
 
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-        assert!(!groth16::verify(
-            &qap,
+        assert!(!groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
             (sigmag1, sigmag2),
             &vec![FrLocal::from(2), FrLocal::from(25)],
             proof
@@ -228,7 +229,11 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
+                assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                    (sigmag1, sigmag2),
+                    &inputs,
+                    proof
+                ));
             } else {
                 let mut inputs = vec![Z251::from(0)];
                 inputs.append(
@@ -238,7 +243,11 @@ mod tests {
                         .collect::<Vec<_>>(),
                 );
 
-                assert!(groth16::verify(&qap, (sigmag1, sigmag2), &inputs, proof));
+                assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                    (sigmag1, sigmag2),
+                    &inputs,
+                    proof
+                ));
             }
         }
     }
@@ -264,8 +273,7 @@ mod tests {
         let (sigmag1, sigmag2) = groth16::setup(&qap);
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-        assert!(groth16::verify(
-            &qap,
+        assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
             (sigmag1, sigmag2),
             &[FrLocal::from(0), FrLocal::from(0), FrLocal::from(1)],
             proof
