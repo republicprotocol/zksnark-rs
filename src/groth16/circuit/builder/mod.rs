@@ -3,11 +3,14 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::repeat;
 
+extern crate itertools;
+use itertools::Itertools;
+
 #[cfg(test)]
 mod tests;
 
-pub mod keccak_types;
-use self::keccak_types::*;
+pub mod types;
+use self::types::*;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -60,6 +63,7 @@ impl<T> Circuit<T>
 where
     T: Copy + Field,
 {
+    /// TODO: something might be wrong with setting the zero wire. @Ross
     pub fn new() -> Self {
         let mut wire_values = HashMap::new();
         wire_values.insert(WireId(0), Some(T::zero()));
@@ -79,6 +83,13 @@ where
     /// create `zero_wire` to fill in any blanks by creating `WireId(0)`.
     fn zero_wire(&self) -> WireId {
         WireId(0)
+    }
+
+    pub fn new_wire(&mut self) -> WireId {
+        let next_wire_id = self.next_wire_id;
+        self.next_wire_id.0 += 1;
+        self.wire_values.insert(next_wire_id, None);
+        next_wire_id
     }
 
     /// Creates a new u8 "number", but this is not the right way to think about
@@ -139,14 +150,59 @@ where
         wrd64
     }
 
-    pub fn new_keccakmatrix(&mut self) -> [Word64; 25] {
-        let mut arr: [Word64; 25] = [Word64::default(); 25];
-        (0..25).for_each(|x| arr[x] = self.new_word64());
-        arr
+    // pub fn new_bitstream(&mut self) -> impl Iterator<Item = WireId> {
+    //     repeat_with(|| self.new_wire())
+    // }
+
+    // pub fn set_new_bitstream(&mut self, input: &[Binary]) -> impl Iterator<Item = WireId> {
+    //     repeat_with(|| self.new_wire()).zip(input.iter()).map(|(w, b)| )
+    // }
+
+    /// NOTE: this is only used internally to implement Keccak
+    fn initial_keccakmatrix(&mut self) -> [Word64; 25] {
+        [Word64::default(); 25]
     }
 
-    fn new_bitstream(&mut self, size: usize) -> Vec<WireId> {
-        repeat(()).take(size).map(|_| self.new_wire()).collect()
+    // NOTE: this is only used for testing internal components
+    // It creates a new keccak matrix with placeholders instead of
+    // a default
+    fn new_keccakmatrix(&mut self) -> [Word64; 25] {
+        let mut matrix: [Word64; 25] = [Word64::default(); 25];
+        (0..25).for_each(|x| matrix[x] = self.new_word64());
+        matrix
+    }
+
+    // NOTE: this is only used for testing internal components
+    // It sets the wireId's in the keccak matrix to the provided
+    // values
+    fn set_keccakmatrix(&mut self, matrix_wires: &[Word64; 25], input: &[u64; 25]) {
+        matrix_wires
+            .iter()
+            .zip(input.iter())
+            .for_each(|(wrd64, num)| self.set_word64(&wrd64, *num));
+    }
+
+    pub fn const_word8(&mut self, input: u8) -> Word8 {
+        let mut n = input;
+        let mut wrd8: Word8 = Word8::default();
+        (0..8).for_each(|i| {
+            if n % 2 == 0 {
+                wrd8[i] = self.zero_wire();
+            } else {
+                wrd8[i] = self.unity_wire();
+            }
+            n = n >> 1;
+        });
+        wrd8
+    }
+
+    pub fn const_word64(&mut self, input: u64) -> Word64 {
+        let mut wrd64: Word64 = Word64::default();
+        to_ne_u8(input)
+            .iter()
+            .enumerate()
+            .for_each(|(i, &num)| wrd64[i] = self.const_word8(num));
+        wrd64
     }
 
     /// set the values for a `Word8` from a u8.
@@ -176,22 +232,50 @@ where
             .for_each(|(word, &num)| self.set_word8(word, num));
     }
 
-    pub fn set_keccakmatrix(&mut self, matrix: &[Word64; 25], input: &[u64; 25]) {
-        matrix
-            .iter()
-            .zip(input.iter())
-            .for_each(|(wrd64, &num)| self.set_word64(wrd64, num));
+    /// This is a convenience function to both create a new Word8
+    /// placeholder and set it with an input.
+    pub fn set_new_word8(&mut self, input: u8) -> Word8 {
+        let x = self.new_word8();
+        self.set_word8(&x, input);
+        x
+    }
+
+    /// This is a convenience function to both create a new Word64
+    /// placeholder and set it with an input.
+    pub fn set_new_word64(&mut self, input: u64) -> Word64 {
+        let x = self.new_word64();
+        self.set_word64(&x, input);
+        x
+    }
+
+    /// Create a vector of pre-set inputs for a circuit.
+    ///
+    /// //```
+    /// //use zksnark::field::z251::Z251;
+    /// //use zksnark::field::*;
+    /// //use zksnark::groth16::circuit::*;
+    ///
+    /// //// Create an empty circuit
+    /// //let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// //let external_input: [u8; 7] = [9, 24, 45, 250, 99, 0, 7];
+    /// //let circuit_input: Vec<Word8> = circuit.set_new_word8_stream(external_input.iter());
+    ///
+    /// //assert_eq!(circuit.evaluate_word8_stream(circuit_input.iter()), external_input.iter().collect());
+    /// //```
+    ///
+    pub fn set_new_word8_stream<'a>(
+        &mut self,
+        input: impl Iterator<Item = &'a u8>,
+        output: &'a mut [Word8],
+    ) {
+        input
+            .zip(0..output.len())
+            .for_each(|(num, i)| output[i] = self.set_new_word8(*num));
     }
 
     pub fn unity_wire(&self) -> WireId {
         WireId(1)
-    }
-
-    pub fn new_wire(&mut self) -> WireId {
-        let next_wire_id = self.next_wire_id;
-        self.next_wire_id.0 += 1;
-        self.wire_values.insert(next_wire_id, None);
-        next_wire_id
     }
 
     pub fn num_wires(&self) -> usize {
@@ -342,7 +426,22 @@ where
         from_ne_u64(arr)
     }
 
-    pub fn evaluate_keccakmatrix(&mut self, matrix: &[Word64; 25]) -> [u64; 25] {
+    pub fn evaluate_word64_stream(&mut self, stream: impl Iterator<Item = Word64>) -> Vec<u64> {
+        stream.map(|wrd64| self.evaluate_word64(&wrd64)).collect()
+    }
+
+    pub fn evaluate_word8_stream<'a>(
+        &mut self,
+        stream: impl Iterator<Item = &'a Word8>,
+        output: &'a mut [u8],
+    ) {
+        stream
+            .zip(0..output.len())
+            .for_each(|(wrd8, i)| output[i] = self.evaluate_word8(&wrd8));
+    }
+
+    // NOTE: only used internally as a convenience for testing
+    fn evaluate_keccakmatrix(&mut self, matrix: &[Word64; 25]) -> [u64; 25] {
         let mut arr: [u64; 25] = [0; 25];
         (0..25).for_each(|x| arr[x] = self.evaluate_word64(&matrix[x]));
         arr
@@ -441,7 +540,11 @@ where
     /// NOTE: I wish Rust would let me define this in terms of `fan_in`, but for
     /// some reason you cannot pass FnMut to inner functions.
     ///
-    fn u64_fan_in<'a, F>(&mut self, inputs: impl Iterator<Item = &'a Word64>, mut gate: F) -> Word64
+    pub fn u64_fan_in<'a, F>(
+        &mut self,
+        inputs: impl Iterator<Item = &'a Word64>,
+        mut gate: F,
+    ) -> Word64
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
@@ -457,7 +560,7 @@ where
         wrd64
     }
 
-    fn u64_bitwise_op<F>(&mut self, left: &Word64, right: &Word64, mut gate: F) -> Word64
+    pub fn u64_bitwise_op<F>(&mut self, left: &Word64, right: &Word64, mut gate: F) -> Word64
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
@@ -470,7 +573,19 @@ where
         wrd64
     }
 
-    fn u64_unary_op<F>(&mut self, input: &Word64, mut gate: F) -> Word64
+    pub fn u8_bitwise_op<F>(&mut self, left: &Word8, right: &Word8, mut gate: F) -> Word8
+    where
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+    {
+        let mut wrd8 = Word8::default();
+        left.iter()
+            .zip(right.iter())
+            .enumerate()
+            .for_each(|(i, (&l, &r))| wrd8[i] = gate(self, l, r));
+        wrd8
+    }
+
+    pub fn u64_unary_op<F>(&mut self, input: &Word64, mut gate: F) -> Word64
     where
         F: FnMut(&mut Self, WireId) -> WireId,
     {
@@ -544,222 +659,106 @@ where
             };
 
             // Iota
-            let rc_num = self.new_word64();
-            self.set_word64(&rc_num, RC[i]);
+            let rc_num = self.const_word64(RC[i]);
             a[0] = self.u64_bitwise_op(&a[0], &rc_num, Circuit::new_xor);
         }
     }
 
-    /// # θ step
-    /// C[x] = A[x,0] xor A[x,1] xor A[x,2] xor A[x,3] xor A[x,4],   for x in 0…4
-    /// D[x] = C[x-1] xor rot(C[x+1],1),                             for x in 0…4
-    /// A[x,y] = A[x,y] xor D[x],                           for (x,y) in (0…4,0…4)
-    ///
-    // fn theta(&mut self, a: &mut KeccakMatrix) {
-    //     let mut c: KeccakRow = (0..5)
-    //         .map(|x| {
-    //             self.u64_fan_in(
-    //                 [a[x][0], a[x][1], a[x][2], a[x][3], a[x][4]].iter(),
-    //                 Circuit::new_xor,
-    //             )
-    //         }).collect();
+    fn squeeze(&mut self, keccak: &mut KeccakInternal, output: &mut [Word8]) {
+        let mut op = 0;
+        let mut l = output.len();
+        while l >= keccak.rate {
+            setout(&keccak.a_bytes(), &mut output[op..], keccak.rate);
+            self.keccakf_1600(&mut keccak.a);
+            op += keccak.rate;
+            l -= keccak.rate;
+        }
 
-    //     (0..5).for_each(|x| {
-    //         c[x] = self.u64_fan_in(
-    //             [c[(x + 4) % 5], c[(x + 1) % 5].rotate_left(1)].iter(),
-    //             Circuit::new_xor,
-    //         )
-    //     });
+        setout(&keccak.a_bytes(), &mut output[op..], l);
+    }
 
-    //     iproduct!(0..5, 0..5)
-    //         .for_each(|(x, y)| a[x][y] = self.u64_fan_in([a[x][y], c[x]].iter(), Circuit::new_xor));
-    // }
+    fn absorb(&mut self, keccak: &mut KeccakInternal, input: &[Word8]) {
+        let mut ip = 0;
+        let mut l = input.len();
+        let mut rate = keccak.rate - keccak.offset;
+        let mut offset = keccak.offset;
+        while l >= rate {
+            self.xorin(keccak, &input[ip..], None);
+            self.keccakf_1600(&mut keccak.a);
+            ip += rate;
+            l -= rate;
+            rate = keccak.rate;
+            offset = 0;
+        }
 
-    /// # ρ and π steps
-    /// B[y,2*x+3*y] = rot(A[x,y], r[x,y]),                 for (x,y) in (0…4,0…4)
-    ///
-    /// TODO: what is ρ called
-    ///
-    /// # χ step
-    /// A[x,y] = B[x,y] xor ((not B[x+1,y]) and B[x+2,y]),  for (x,y) in (0…4,0…4)
-    ///
-    /// TODO: What is χ called
-    ///
-    /// NOTE: I combined these two steps since the output of step2 is
-    /// the input of step3 unlike the usual input of the internal matrix A.
-    ///
-    // fn pi_step3(&mut self, a: &mut KeccakMatrix) {
-    //     let mut b: KeccakMatrix = KeccakMatrix::default();
+        self.xorin(keccak, &input[ip..], Some(l));
+        keccak.offset = offset + l;
+    }
 
-    //     iproduct!(0..5, 0..5)
-    //         .for_each(|(x, y)| b[y][(2 * x + 3 * y) % 5] = a[x][y].rotate_left(R[x][y]));
+    pub fn xorin(&mut self, keccak: &mut KeccakInternal, src: &[Word8], limit: Option<usize>) {
+        let l = match limit {
+            None => keccak.rate,
+            Some(l) => l,
+        };
+        keccak
+            .a
+            .iter_mut()
+            .flat_map(|wrd64| wrd64.iter_mut())
+            .skip(keccak.offset) // Start slice from here
+            .take(l - keccak.offset) // End slice at position l
+            .zip(src.iter())
+            .for_each(|(keccak_wrd8, src_wrd8): (&mut Word8, &Word8)| {
+                *keccak_wrd8 = self.u8_bitwise_op(keccak_wrd8, src_wrd8, Circuit::new_xor)
+            });
+    }
 
-    //     let not_b: KeccakMatrix = iproduct!(0..5, 0..5)
-    //         .map(|(x, y)| self.u64_unary_op(&b[(x + 1) % 5][y], Circuit::new_not))
-    //         .collect();
+    /// This padding idea is also taken from tiny_keccak where
+    /// effectively no padding is done before the absorb phase, but is
+    /// xor'ed into the internal matrix after absorbing all input.
+    ///
+    /// NOTE: this is contrary to the way keccak is explained in its
+    /// documentation, but is identical in result.
+    ///
+    fn pad(&mut self, keccak: &mut KeccakInternal) {
+        let offset = keccak.offset;
+        let rate = keccak.rate;
+        let delim = self.const_word8(keccak.delim);
 
-    //     let and_not_b: KeccakMatrix = iproduct!(0..5, 0..5)
-    //         .map(|(x, y)| {
-    //             self.u64_fan_in([not_b[x][y], b[(x + 2) % 5][y]].iter(), Circuit::new_and)
-    //         }).collect();
+        let tail = self.const_word8(0x80);
 
-    //     iproduct!(0..5, 0..5).for_each(|(x, y)| {
-    //         a[x][y] = self.u64_fan_in([b[x][y], and_not_b[x][y]].iter(), Circuit::new_xor)
-    //     });
-    // }
+        // Offset is out of 200 (25 * 8) which is the number of u8 in
+        // the keccak matrix. Here I am selecting the `Word8` at
+        // `offest` by first finding which `Word64` and then which
+        // `Word8` in that `Word64`.
+        //
+        keccak.a[offset / 8][offset % 8] =
+            self.u8_bitwise_op(&keccak.a[offset / 8][offset % 8], &delim, Circuit::new_xor);
 
-    /// # ι step
-    /// A[0,0] = A[0,0] xor RC
-    ///
-    /// RC is RC[i] for i in 0..n-1 where n should be 24. In other words it
-    /// changes with each iteration of the permutation
-    ///
-    // fn last_step(&mut self, a: &mut KeccakMatrix, rc: u64) {
-    //     let rc_num = self.new_word64();
-    //     self.set_word64(&rc_num, rc);
+        keccak.a[(rate - 1) / 8][(rate - 1) % 8] = self.u8_bitwise_op(
+            &keccak.a[(rate - 1) / 8][(rate - 1) % 8],
+            &tail,
+            Circuit::new_xor,
+        );
+    }
 
-    //     a[0][0] = self.u64_bitwise_op(&a[0][0], &rc_num, Circuit::new_xor);
-    // }
+    fn finalize(&mut self, keccak: &mut KeccakInternal, output: &mut [Word8]) {
+        self.pad(keccak);
+        self.keccakf_1600(&mut keccak.a);
+        self.squeeze(keccak, output);
+    }
 
-    // fn round(&mut self, a: &mut KeccakMatrix, rc: u64) {
-    //     self.theta(a);
-    //     self.pi_step3(a);
-    //     self.last_step(a, rc)
-    // }
-
-    /// Keccak-f[b](A) {
-    ///  for i in 0…n-1
-    ///    A = Round[b](A, RC[i])
-    ///  return A
-    /// }
-    ///
-    /// - The number of bits `b` is 1600 (there are 1600 wires in the KeccakMatrix)
-    /// - the rate `r` + capacity `c` must be equal to 1600
-    /// - the width `w` is 64
-    /// - the number of rounds `n` is thus 24
-    ///
-    // fn keccak_f1600(&mut self, a: &mut KeccakMatrix) {
-    //     (0..24).for_each(|n| self.round(a, ROUND_CONSTANTS[n]))
-    // }
-
-    /// Gives back output as long as you want.
-    ///
-    ///
-    /// This is the more general version of keccak that only specifies the
-    /// permutation input bits and eventually will handle padding as well. For
-    /// reference these variables are implicitly set:
-    /// - rate `r` + capacity `r` = 1600
-    /// - width `w` is 64
-    /// - rounds `n` is 24
-    /// - bits `b` is 1600
-    ///
-    /// TODO: implement padding so you don't have to panic if you get input that
-    /// is not exactly a single block length
-    ///
-    /// Since we do not handle padding now I assume the input is the correct
-    /// block length
-    ///
-    /// `for (x,y) such that x+5*y < r/w`
-    /// Where `x` and `y` are integers between 0 and 4 inclusive.
-    ///
-    /// Since `w` is always 64 for us that means when `r` is 1088 then the block
-    /// length is 17 (the number of pairs) * 64 `w` which is 1088 bits.
-    ///
-    /// ## Pseudo-code
-    ///
-    /// # Absorbing phase
-    /// for each block Pi in P
-    ///   S[x,y] = S[x,y] xor Pi[x+5*y],          for (x,y) such that x+5*y < r/w
-    ///   S = Keccak-f[r+c](S)
-    ///
-    /// # Squeezing phase
-    /// Z = empty string
-    /// while output is requested
-    ///   Z = Z || S[x,y],                        for (x,y) such that x+5*y < r/w
-    ///   S = Keccak-f[r+c](S)
-    ///
-    /// return Z
-    ///
-    /// ## Block size
-    ///
-    /// I have this here since I found this the most confusing part of keccak.
-    /// The Block size is the rate `r`! So, if the rate is 1088 then there are
-    /// 1088 bits in the block size. However, the internal state is made up of
-    /// u64 numbers, not bits, so you interpret those 1088 bits as an array of
-    /// u64 numbers. So, the block size is 17 u64 in this case. (r % 8) is the
-    /// number of `Word8`s.
-    ///
-    /// NOTE: I assume that input is already padded
-    ///
-    //fn keccak(
-    //    &mut self,
-    //    input: impl iterator<item = word8>,
-    //    r: usize,
-    //    output_bit_size: usize,
-    //) -> vec<wireid> {
-    //    assert!(r % 64 == 0);
-    //    assert!(r < 1600);
-
-    //    // s[x, y] = 0
-    //    let s: &mut keccakmatrix = &mut repeat(self.zero_wire()).take(1600).collect();;
-
-    //    // starts by turning the word8s into word64s then collects them into
-    //    // blocks based on the block size (unknown size at compile time).
-    //    //
-    //    // note: if you mess up the padding the collect word64 will fill the
-    //    // blanks with zeros.
-    //    //
-    //    // # absorbing phase
-    //    // for each block pi in p
-    //    //   s[x,y] = s[x,y] xor pi[x+5*y],          for (x,y) such that x+5*y < r/w
-    //    //   s = keccak-f[r+c](s)
-    //    input
-    //        .chunks(8)
-    //        .into_iter()
-    //        .map(|chunk| chunk.into_iter().collect::<word64>())
-    //        .chunks(r / 64)
-    //        .into_iter()
-    //        .map(|chunk| chunk.into_iter().collect::<vec<word64>>())
-    //        .for_each(|block| {
-    //            iproduct!(0..5, 0..5)
-    //                .filter(|(y, x)| x + 5 * y < r / 64)
-    //                .for_each(|(x, y)| s[x][y] = block[(x + 5 * y) as usize]);
-    //            self.keccak_f1600(s);
-    //        });
-
-    //    // # squeezing phase
-    //    // z = empty string
-    //    // while output is requested
-    //    //   z = z || s[x,y],                        for (x,y) such that x+5*y < r/w
-    //    //   s = keccak-f[r+c](s)
-
-    //    let mut z: vec<wireid> = vec::with_capacity(output_bit_size);
-
-    //    while z.len() < output_bit_size {
-    //        iproduct!(0..5, 0..5)
-    //            .filter(|(x, y)| x + 5 * y < r / 64)
-    //            .for_each(|(x, y)| {
-    //                flatten_word64(s[x][y]).iter().for_each(|&x| {
-    //                    if z.len() < output_bit_size {
-    //                        z.push(x)
-    //                    }
-    //                })
-    //            });
-    //        self.keccak_f1600(s);
-    //    }
-
-    //    //  return z
-    //    z
-    //}
-
-    /// TODO: Make input a bit stream and maybe make it a reference
-    // pub fn sha3_256(&mut self, bit_stream: Vec<Word64>) -> [Word64; 4] {
-    //     unimplemented!();
-    //     // let hash = self.keccak(bit_stream, 1088);
-    //     // let mut tmp = [Word64::default(); 4];
-    //     // hash.iter().enumerate().for_each(|(i, &word)| tmp[i] = word);
-    //     // tmp
-    // }
+    pub fn keccak256(&mut self, input: &[Word8]) -> [Word8; 32] {
+        let keccak = &mut KeccakInternal {
+            a: self.initial_keccakmatrix(),
+            offset: 0,
+            rate: (200 - (256 / 4)),
+            delim: 0x01,
+        };
+        self.absorb(keccak, input);
+        let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
+        self.finalize(keccak, output);
+        *output
+    }
 
     /// TODO: Use a slice instead of a Vec for the argument type.
     pub fn rotate_wires(mut wires: Vec<WireId>, n: usize) -> Vec<WireId> {

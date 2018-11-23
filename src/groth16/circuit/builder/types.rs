@@ -4,6 +4,25 @@ extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 
+pub struct KeccakInternal {
+    pub a: [Word64; 25],
+    pub offset: usize,
+    pub rate: usize,
+    pub delim: u8,
+}
+
+impl KeccakInternal {
+    pub fn a_bytes(&self) -> [Word8; 200] {
+        let mut arr: [Word8; 200] = [Word8::default(); 200];
+        self.a
+            .iter()
+            .flat_map(|wrd64| wrd64.iter())
+            .enumerate()
+            .for_each(|(i, &wrd8)| arr[i] = wrd8);
+        arr
+    }
+}
+
 /// ## Usage Details:
 ///
 /// IMPORTANT:
@@ -23,13 +42,17 @@ use itertools::Itertools;
 ///
 pub type Word8 = [WireId; 8];
 
+pub fn setout(src: &[Word8], dst: &mut [Word8], len: usize) {
+    dst[..len].copy_from_slice(&src[..len]);
+}
+
 /// NOTE: if you don't give enough bits the extra bits will be filled in with
 /// WireId::default() which is the zero wire. On the other hand if you have too
 /// many bits you will get a runtime panic! (this is so you realize you have
 /// made a grave mistake). The only way to get the panic that you have
 /// given too many bits is to collect a word8 directly.
 ///
-fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
+pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     let mut arr: Word8 = Word8::default();
     (0..8).zip_longest(input).for_each(|x| match x {
         Both(i, num) => arr[i] = num,
@@ -130,6 +153,25 @@ fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
         });
     arr
 }
+
+// pub enum Binary {
+//     One,
+//     Zero,
+// }
+
+// impl Binary {
+//     pub fn from_u64(num: u64) -> [Binary; 64] {
+//         let mut n = num;
+//         let mut output = [Zero; 64];
+//         (0..64).for_each(|i| {
+//             if n % 2 != 0 {
+//                 output[i] = One;
+//             }
+//             n = n >> 1;
+//         });
+//         output
+//     }
+// }
 
 pub const RC: [u64; 24] = [
     1u64,

@@ -61,6 +61,7 @@ in
       (nixpkgs.rustChannelOf { date = "2018-10-24"; channel = "beta"; }).rust
 
       rustfmt ctags rustracer rustPlatform.rustcSrc carnix 
+      rustup
 
       vscode
 
