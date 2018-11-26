@@ -9,8 +9,9 @@ use itertools::Itertools;
 #[cfg(test)]
 mod tests;
 
-pub mod types;
+mod types;
 use self::types::*;
+pub use self::types::{Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -542,22 +543,48 @@ where
     ///
     pub fn u64_fan_in<'a, F>(
         &mut self,
-        inputs: impl Iterator<Item = &'a Word64>,
+        mut inputs: impl Iterator<Item = &'a Word64>,
         mut gate: F,
     ) -> Word64
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
-        let mut wrd64 = Word64::default();
-        inputs.fold(wrd64, |acc, next| {
+        let base_case: Word64 = *inputs
+            .next()
+            .expect("u8_fan_in: input iterator must have at least one element");
+
+        let mut output = Word64::default();
+
+        inputs.fold(base_case, |acc, next| {
             acc.iter()
                 .zip(next.iter())
                 .flat_map(|(l, r)| l.iter().zip(r.iter()))
                 .zip(iproduct!(0..8, 0..8))
-                .for_each(|((&l, &r), (i, j))| wrd64[i][j] = gate(self, l, r));
-            wrd64
+                .for_each(|((&l, &r), (i, j))| output[i][j] = gate(self, l, r));
+            output
         });
-        wrd64
+        output
+    }
+
+    pub fn u8_fan_in<'a, F>(
+        &mut self,
+        mut inputs: impl Iterator<Item = &'a Word8>,
+        mut gate: F,
+    ) -> Word8
+    where
+        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+    {
+        let mut wrd8: Word8 = *inputs
+            .next()
+            .expect("u8_fan_in: input iterator must have at least one element");
+        inputs.fold(wrd8, |acc, next| {
+            acc.iter()
+                .zip(next.iter())
+                .enumerate()
+                .for_each(|(i, (&l, &r))| wrd8[i] = gate(self, l, r));
+            wrd8
+        });
+        wrd8
     }
 
     pub fn u64_bitwise_op<F>(&mut self, left: &Word64, right: &Word64, mut gate: F) -> Word64
@@ -596,6 +623,18 @@ where
             .zip(iproduct!(0..8, 0..8))
             .for_each(|(&x, (i, j))| wrd64[i][j] = gate(self, x));
         wrd64
+    }
+
+    pub fn u8_unary_op<F>(&mut self, input: &Word8, mut gate: F) -> Word8
+    where
+        F: FnMut(&mut Self, WireId) -> WireId,
+    {
+        let mut wrd8 = Word8::default();
+        input
+            .iter()
+            .enumerate()
+            .for_each(|(i, &x)| wrd8[i] = gate(self, x));
+        wrd8
     }
 
     fn keccakf_1600(&mut self, a: &mut [Word64; 25]) {
@@ -695,7 +734,7 @@ where
         keccak.offset = offset + l;
     }
 
-    pub fn xorin(&mut self, keccak: &mut KeccakInternal, src: &[Word8], limit: Option<usize>) {
+    fn xorin(&mut self, keccak: &mut KeccakInternal, src: &[Word8], limit: Option<usize>) {
         let l = match limit {
             None => keccak.rate,
             Some(l) => l,
@@ -747,6 +786,29 @@ where
         self.squeeze(keccak, output);
     }
 
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// let input: &mut [u8; BYTES] = &mut [
+    ///     150, 234, 20, 196, 120, 146, 1, 48, 157, 10, 170, 174, 183, 246, 34, 204, 110, 184, 31,
+    ///     155, 70, 130, 115, 205, 179, 165, 27, 165, 104, 31, 7, 16, 157, 242, 34, 232, 56, 161, 8,
+    ///     150, 228, 129, 153, 41, 144, 186, 190, 41, 16, 59, 242, 109, 102, 75, 12, 246,
+    /// ];
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    /// let circuit_input: &mut [Word8; BYTES] = &mut [Word8::default(); BYTES];
+    /// circuit.set_new_word8_stream(input.iter(), circuit_input);
+    /// let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
+    ///
+    ///
+    /// let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
+    /// circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
+    ///
+    /// assert_eq!(*eval_circuit_output, [0; 32]);
+    /// ```
+    ///
     pub fn keccak256(&mut self, input: &[Word8]) -> [Word8; 32] {
         let keccak = &mut KeccakInternal {
             a: self.initial_keccakmatrix(),
@@ -758,29 +820,5 @@ where
         let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
         self.finalize(keccak, output);
         *output
-    }
-
-    /// TODO: Use a slice instead of a Vec for the argument type.
-    pub fn rotate_wires(mut wires: Vec<WireId>, n: usize) -> Vec<WireId> {
-        let mut tail = wires.split_off(n);
-        tail.append(&mut wires);
-        tail
-    }
-
-    pub fn wires_from_literal(&self, mut literal: u128) -> Vec<WireId> {
-        let mut bits = Vec::with_capacity(128 - literal.leading_zeros() as usize);
-
-        while literal != 0 {
-            let wire = match literal % 2 {
-                0 => self.zero_wire(),
-                1 => self.unity_wire(),
-                _ => unreachable!(),
-            };
-
-            bits.push(wire);
-            literal >>= 1;
-        }
-
-        bits
     }
 }
