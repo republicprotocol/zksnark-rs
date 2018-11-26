@@ -791,6 +791,8 @@ where
     /// use zksnark::field::z251::Z251;
     /// use zksnark::groth16::circuit::*;
     ///
+    /// const BYTES: usize = 56;
+    ///
     /// let input: &mut [u8; BYTES] = &mut [
     ///     150, 234, 20, 196, 120, 146, 1, 48, 157, 10, 170, 174, 183, 246, 34, 204, 110, 184, 31,
     ///     155, 70, 130, 115, 205, 179, 165, 27, 165, 104, 31, 7, 16, 157, 242, 34, 232, 56, 161, 8,
@@ -806,7 +808,10 @@ where
     /// let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
     /// circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
     ///
-    /// assert_eq!(*eval_circuit_output, [0; 32]);
+    /// assert_eq!(*eval_circuit_output,
+    ///     [65, 231, 91, 68, 62, 80, 71, 123, 164, 102, 65, 50, 133
+    ///     , 1, 30, 28, 212, 25, 134, 124, 67, 29, 5, 47, 16, 36, 248
+    ///     , 235, 214, 168, 145, 209]);
     /// ```
     ///
     pub fn keccak256(&mut self, input: &[Word8]) -> [Word8; 32] {
