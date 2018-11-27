@@ -56,8 +56,8 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     let mut arr: Word8 = Word8::default();
     (0..8).zip_longest(input).for_each(|x| match x {
         Both(i, num) => arr[i] = num,
-        Left(i) => arr[i] = WireId::default(),
-        Right(_) => panic!("FromIterator: Word8 cannot be constructed from more than 8 WireId"),
+        Left(i) => arr[i] = panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
+        Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
     });
     arr
 }
@@ -137,7 +137,7 @@ pub fn rotate_word64_right(input: Word64, by: usize) -> Word64 {
 /// made a grave mistake). The only way to get the panic that you have
 /// given too many bits is to collect a word64 directly.
 ///
-fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
+pub fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
     let mut arr: Word64 = Word64::default();
     input
         .chunks(8)
@@ -146,10 +146,8 @@ fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
         .zip_longest(0..8)
         .for_each(|x| match x {
             Both(num, i) => arr[i] = num,
-            Right(i) => arr[i] = Word8::default(),
-            Left(_) => {
-                panic!("FromIterator: Word64 cannot be constructed from more than 64 WireId")
-            }
+            Right(i) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
+            Left(_) => panic!("to_word64: Word64 cannot be constructed from more than 64 WireId"),
         });
     arr
 }
