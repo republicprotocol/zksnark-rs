@@ -11,7 +11,7 @@ mod tests;
 
 mod types;
 use self::types::*;
-pub use self::types::{Word64, Word8};
+pub use self::types::{to_word64, to_word8, Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -86,6 +86,14 @@ where
         WireId(0)
     }
 
+    pub fn unity_wire(&self) -> WireId {
+        WireId(1)
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////// New Wire Functions /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
     pub fn new_wire(&mut self) -> WireId {
         let next_wire_id = self.next_wire_id;
         self.next_wire_id.0 += 1;
@@ -123,6 +131,14 @@ where
         wrd8
     }
 
+    pub fn new_word8_array<'a>(&mut self, output: &'a mut [Word8]) {
+        (0..output.len()).for_each(|i| output[i] = self.new_word8());
+    }
+
+    pub fn new_word8_vec(&mut self, size: usize) -> Vec<Word8> {
+        (0..size).map(|_| self.new_word8()).collect()
+    }
+
     /// Creates a new u64 "number", but this is not the right way to think about
     /// it. Really it a conduit that accepts a u64 number as input where the
     /// wire numbers correspond to the bits of the u64 number. You can almost
@@ -151,14 +167,6 @@ where
         wrd64
     }
 
-    // pub fn new_bitstream(&mut self) -> impl Iterator<Item = WireId> {
-    //     repeat_with(|| self.new_wire())
-    // }
-
-    // pub fn set_new_bitstream(&mut self, input: &[Binary]) -> impl Iterator<Item = WireId> {
-    //     repeat_with(|| self.new_wire()).zip(input.iter()).map(|(w, b)| )
-    // }
-
     /// NOTE: this is only used internally to implement Keccak
     fn initial_keccakmatrix(&mut self) -> [Word64; 25] {
         [Word64::default(); 25]
@@ -183,6 +191,10 @@ where
             .for_each(|(wrd64, num)| self.set_word64(&wrd64, *num));
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////// Const Word8 and Word64 /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
     pub fn const_word8(&mut self, input: u8) -> Word8 {
         let mut n = input;
         let mut wrd8: Word8 = Word8::default();
@@ -204,6 +216,14 @@ where
             .enumerate()
             .for_each(|(i, &num)| wrd64[i] = self.const_word8(num));
         wrd64
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////// Set Wire Functions ///////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
+    pub fn set_value(&mut self, wire: WireId, value: T) {
+        self.wire_values.insert(wire, Some(value));
     }
 
     /// set the values for a `Word8` from a u8.
@@ -233,6 +253,10 @@ where
             .for_each(|(word, &num)| self.set_word8(word, num));
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////// Set and create new Wire Functions ////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
     /// This is a convenience function to both create a new Word8
     /// placeholder and set it with an input.
     pub fn set_new_word8(&mut self, input: u8) -> Word8 {
@@ -249,23 +273,35 @@ where
         x
     }
 
-    /// Create a vector of pre-set inputs for a circuit.
+    /// This creates new `Word8`s, sets them with the `input` and
+    /// places them in the `output` array.
     ///
-    /// //```
-    /// //use zksnark::field::z251::Z251;
-    /// //use zksnark::field::*;
-    /// //use zksnark::groth16::circuit::*;
+    /// `output[0]` is set from `input.first()` and so on.
     ///
-    /// //// Create an empty circuit
-    /// //let mut circuit = Circuit::<Z251>::new();
+    /// If you give an iterator that has more than the size of the
+    /// `output` array it will be ignored.
     ///
-    /// //let external_input: [u8; 7] = [9, 24, 45, 250, 99, 0, 7];
-    /// //let circuit_input: Vec<Word8> = circuit.set_new_word8_stream(external_input.iter());
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    /// use zksnark::groth16::circuit::*;
     ///
-    /// //assert_eq!(circuit.evaluate_word8_stream(circuit_input.iter()), external_input.iter().collect());
-    /// //```
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
     ///
-    pub fn set_new_word8_stream<'a>(
+    /// let external_input: [u8; 7] = [9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input = &mut [Word8::default(); 7];
+    /// circuit.set_new_word8_array(external_input.iter()
+    ///                             , new_set_circuit_input);
+    ///
+    /// let evaluated_circuit = &mut [0; 7];
+    /// circuit.evaluate_word8_to_array(new_set_circuit_input.iter()
+    ///                              , evaluated_circuit);
+    ///
+    /// assert_eq!(*evaluated_circuit, external_input);
+    /// ```
+    ///
+    pub fn set_new_word8_array<'a>(
         &mut self,
         input: impl Iterator<Item = &'a u8>,
         output: &'a mut [Word8],
@@ -275,16 +311,47 @@ where
             .for_each(|(num, i)| output[i] = self.set_new_word8(*num));
     }
 
-    pub fn unity_wire(&self) -> WireId {
-        WireId(1)
+    /// This creates new `Word8`s, sets them with the `input` and
+    /// gives them back as a `Vec`
+    ///
+    /// `vec[0]` is set from `input.first()` and so on.
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let external_input = vec![9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input =
+    ///     circuit.set_new_word8_vec(external_input.iter());
+    ///
+    /// let evaluated_circuit =
+    ///     circuit.evaluate_word8_to_vec(new_set_circuit_input.iter());
+    ///
+    /// assert_eq!(evaluated_circuit, external_input);
+    /// ```
+    ///
+    pub fn set_new_word8_vec<'a>(&mut self, input: impl Iterator<Item = &'a u8>) -> Vec<Word8> {
+        input.map(|num| self.set_new_word8(*num)).collect()
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////// Flatten Wires ////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
+    pub fn flatten_word8<'a>(&mut self, input: impl Iterator<Item = &'a Word8>) -> Vec<WireId> {
+        input.flat_map(|x| x.iter()).cloned().collect()
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////// Wire Functions ////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
 
     pub fn num_wires(&self) -> usize {
         self.next_wire_id.0
-    }
-
-    pub fn set_value(&mut self, wire: WireId, value: T) {
-        self.wire_values.insert(wire, Some(value));
     }
 
     pub fn value(&self, wire: WireId) -> Option<T> {
@@ -358,6 +425,10 @@ where
         output_wire
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////// Evaluate Functions ///////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
     fn evaluate_sub_circuit(&mut self, sub_circuit: SubCircuitId) -> T {
         let SubCircuitConnections {
             left_inputs,
@@ -427,11 +498,14 @@ where
         from_ne_u64(arr)
     }
 
-    pub fn evaluate_word64_stream(&mut self, stream: impl Iterator<Item = Word64>) -> Vec<u64> {
-        stream.map(|wrd64| self.evaluate_word64(&wrd64)).collect()
+    pub fn evaluate_word8_to_vec<'a>(
+        &mut self,
+        stream: impl Iterator<Item = &'a Word8>,
+    ) -> Vec<u8> {
+        stream.map(|wrd8| self.evaluate_word8(wrd8)).collect()
     }
 
-    pub fn evaluate_word8_stream<'a>(
+    pub fn evaluate_word8_to_array<'a>(
         &mut self,
         stream: impl Iterator<Item = &'a Word8>,
         output: &'a mut [u8],
@@ -441,12 +515,24 @@ where
             .for_each(|(wrd8, i)| output[i] = self.evaluate_word8(&wrd8));
     }
 
+    pub fn evaluate_wire_ids_as_word8s(&mut self, stream: impl Iterator<Item = WireId>) -> Vec<u8> {
+        stream
+            .chunks(8)
+            .into_iter()
+            .map(|chunk| self.evaluate_word8(&to_word8(chunk)))
+            .collect()
+    }
+
     // NOTE: only used internally as a convenience for testing
     fn evaluate_keccakmatrix(&mut self, matrix: &[Word64; 25]) -> [u64; 25] {
         let mut arr: [u64; 25] = [0; 25];
         (0..25).for_each(|x| arr[x] = self.evaluate_word64(&matrix[x]));
         arr
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////// Reset  ///////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
 
     /// Clears all of the stored circuit wire values (except for the zero and
     /// unity wires) so that the same circuit can be reused for different
@@ -466,6 +552,10 @@ where
             *value = None;
         }
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    /////////////////////// Simple Binary Wire Functions ///////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
 
     pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
         let lhs_inputs = vec![(T::one(), input)];
@@ -535,6 +625,10 @@ where
             .map(|(&l, &r)| gate(self, l, r))
             .collect()
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //////////////////////// Word8/Word64 Binary Functions /////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
 
     /// inputs must have at least one Word64 in array
     ///
@@ -636,6 +730,10 @@ where
             .for_each(|(i, &x)| wrd8[i] = gate(self, x));
         wrd8
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////// Keccak Functions ////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
 
     fn keccakf_1600(&mut self, a: &mut [Word64; 25]) {
         for i in 0..24 {
@@ -744,7 +842,7 @@ where
             .iter_mut()
             .flat_map(|wrd64| wrd64.iter_mut())
             .skip(keccak.offset) // Start slice from here
-            .take(l - keccak.offset) // End slice at position l
+            .take(l) // End slice at position l
             .zip(src.iter())
             .for_each(|(keccak_wrd8, src_wrd8): (&mut Word8, &Word8)| {
                 *keccak_wrd8 = self.u8_bitwise_op(keccak_wrd8, src_wrd8, Circuit::new_xor)
@@ -801,12 +899,12 @@ where
     ///
     /// let mut circuit = Circuit::<Z251>::new();
     /// let circuit_input: &mut [Word8; BYTES] = &mut [Word8::default(); BYTES];
-    /// circuit.set_new_word8_stream(input.iter(), circuit_input);
+    /// circuit.set_new_word8_array(input.iter(), circuit_input);
     /// let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
     ///
     ///
     /// let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    /// circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
+    /// circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
     ///
     /// assert_eq!(*eval_circuit_output,
     ///     [65, 231, 91, 68, 62, 80, 71, 123, 164, 102, 65, 50, 133
@@ -822,6 +920,19 @@ where
             delim: 0x01,
         };
         self.absorb(keccak, input);
+        let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
+        self.finalize(keccak, output);
+        *output
+    }
+
+    pub fn keccak256_stream<'a>(&mut self, input: impl Iterator<Item = &'a Word8>) -> [Word8; 32] {
+        let keccak = &mut KeccakInternal {
+            a: self.initial_keccakmatrix(),
+            offset: 0,
+            rate: (200 - (256 / 4)),
+            delim: 0x01,
+        };
+        input.for_each(|&wrd8| self.absorb(keccak, &[wrd8]));
         let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
         self.finalize(keccak, output);
         *output

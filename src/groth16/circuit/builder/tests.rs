@@ -11,6 +11,7 @@ use self::tiny_keccak::keccak256;
 use self::tiny_keccak::keccakf;
 use self::tiny_keccak::Keccak;
 
+// TODO: Replace all instances of Z251 with FrLocal
 #[test]
 fn bit_checker_test() {
     let mut circuit = Circuit::<Z251>::new();
@@ -339,15 +340,15 @@ fn u64_fan_in_single_test() {
 }
 
 #[test]
-fn set_new_word8_stream_single() {
+fn set_new_word8_array() {
     let mut circuit = Circuit::<Z251>::new();
 
     let external_input: &mut [u8; 7] = &mut [9, 24, 45, 250, 99, 0, 7];
     let circuit_input: &mut [Word8; 7] = &mut [Word8::default(); 7];
-    circuit.set_new_word8_stream(external_input.iter(), circuit_input);
+    circuit.set_new_word8_array(external_input.iter(), circuit_input);
 
     let eval_circuit: &mut [u8; 7] = &mut [0; 7];
-    circuit.evaluate_word8_stream(circuit_input.iter(), eval_circuit);
+    circuit.evaluate_word8_to_array(circuit_input.iter(), eval_circuit);
 
     assert_eq!(eval_circuit, external_input);
 }
@@ -609,14 +610,13 @@ fn keccak_absorb_squeeze_single_test() {
 #[test]
 fn keccak_absorb_pad_squeeze_single_test() {
     let mut keccak = Keccak::new_keccak256();
-    const LEN: usize = 1067;
+    const LEN: usize = 137;
     let input: [u8; LEN] = [79; LEN];
     keccak.absorb(&input);
     let mut keccak_output: [u8; 32] = [0; 32];
     keccak.pad();
     keccak.squeeze(&mut keccak_output);
 
-    let mut circuit_output: [Word8; 32] = [Word8::default(); 32];
     let mut circuit = Circuit::<Z251>::new();
     let matrix = &mut circuit.new_keccakmatrix();
     circuit.set_keccakmatrix(matrix, &[0; 25]);
@@ -635,9 +635,11 @@ fn keccak_absorb_pad_squeeze_single_test() {
 
     circuit.absorb(circuit_keccak_struct, &circuit_input);
     circuit.pad(circuit_keccak_struct);
+    let mut circuit_output: [Word8; 32] = [Word8::default(); 32];
     circuit.squeeze(circuit_keccak_struct, &mut circuit_output);
 
     let mut circuit_converted_output: [u8; 32] = [0; 32];
+
     circuit_output
         .iter()
         .enumerate()
@@ -691,11 +693,11 @@ fn keccak256_equiv_fixed_size_single() {
 
     let mut circuit = Circuit::<Z251>::new();
     let circuit_input: &mut [Word8; LEN] = &mut [Word8::default(); LEN];
-    circuit.set_new_word8_stream(input.iter(), circuit_input);
+    circuit.set_new_word8_array(input.iter(), circuit_input);
 
     let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
     let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
+    circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
 
     assert_eq!(*eval_circuit_output, tiny_output);
 }
@@ -718,13 +720,13 @@ fn keccak256_metrics() {
     let build = Instant::now();
     let mut circuit = Circuit::<Z251>::new();
     let circuit_input: &mut [Word8; BYTES] = &mut [Word8::default(); BYTES];
-    circuit.set_new_word8_stream(input.iter(), circuit_input);
+    circuit.set_new_word8_array(input.iter(), circuit_input);
     let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
     let build_time = build.elapsed().subsec_micros();
 
     let eval = Instant::now();
     let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
+    circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
     let eval_time = eval.elapsed().subsec_micros();
 
     println!(
@@ -734,6 +736,36 @@ fn keccak256_metrics() {
 }
 
 //////////////////////////////////// Quickcheck Tests //////////////////////////////
+#[test]
+#[ignore]
+fn keccak256_stream_equiv_prop() {
+    fn prop(rand: Vec<u8>, rand_offset: usize) -> bool {
+        const LEN: usize = 79;
+
+        let input: &mut [u8; LEN] = &mut [0; LEN];
+        rand.iter()
+            .zip(0..input.len())
+            .for_each(|(&num, i)| input[(i * (rand_offset + 1)) % input.len()] = num);
+
+        let mut circuit_stream = Circuit::<Z251>::new();
+        let keccak_stream_input: Vec<Word8> = circuit_stream.set_new_word8_vec(input.iter());
+        let keccak_stream_circuit: [Word8; 32] =
+            circuit_stream.keccak256_stream(keccak_stream_input.iter());
+        let keccak_stream_result: Vec<u8> =
+            circuit_stream.evaluate_word8_to_vec(keccak_stream_circuit.iter());
+
+        let mut circuit = Circuit::<Z251>::new();
+        let circuit_input: &mut [Word8; LEN] = &mut [Word8::default(); LEN];
+        circuit.set_new_word8_array(input.iter(), circuit_input);
+
+        let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
+        let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
+        circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+
+        eval_circuit_output.iter().cloned().collect::<Vec<u8>>() == keccak_stream_result
+    }
+    quickcheck(prop as fn(Vec<u8>, usize) -> bool);
+}
 
 /// check if tiny_keccak's keccak256 is the same as the circuit's
 /// implementation.
@@ -752,11 +784,11 @@ fn keccak256_equiv_fixed_size_prop() {
 
         let mut circuit = Circuit::<Z251>::new();
         let circuit_input: &mut [Word8; LEN] = &mut [Word8::default(); LEN];
-        circuit.set_new_word8_stream(input.iter(), circuit_input);
+        circuit.set_new_word8_array(input.iter(), circuit_input);
 
         let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
         let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-        circuit.evaluate_word8_stream(circuit_output.iter(), eval_circuit_output);
+        circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
 
         *eval_circuit_output == tiny_output
     }
