@@ -56,7 +56,7 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     let mut arr: Word8 = Word8::default();
     (0..8).zip_longest(input).for_each(|x| match x {
         Both(i, num) => arr[i] = num,
-        Left(i) => arr[i] = panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
+        Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
         Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
     });
     arr
