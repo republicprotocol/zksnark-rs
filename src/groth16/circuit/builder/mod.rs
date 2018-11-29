@@ -1,7 +1,6 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
 use std::fmt;
-use std::iter::repeat;
 
 extern crate itertools;
 use itertools::Itertools;
@@ -60,9 +59,29 @@ where
     wire_values: HashMap<WireId, Option<T>>,
 }
 
+/// This is used internally in circuit bulider.
+struct KeccakInternal {
+    a: [Word64; 25],
+    offset: usize,
+    rate: usize,
+    delim: u8,
+}
+
+impl KeccakInternal {
+    fn a_bytes(&self) -> [Word8; 200] {
+        let mut arr: [Word8; 200] = [Word8::default(); 200];
+        self.a
+            .iter()
+            .flat_map(|wrd64| wrd64.iter())
+            .enumerate()
+            .for_each(|(i, &wrd8)| arr[i] = wrd8);
+        arr
+    }
+}
+
 impl<T> Circuit<T>
 where
-    T: Copy + Field,
+    T: Field,
 {
     /// TODO: something might be wrong with setting the zero wire. @Ross
     pub fn new() -> Self {
@@ -342,8 +361,8 @@ where
     ///////////////////////////////// Flatten Wires ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn flatten_word8<'a>(&mut self, input: impl Iterator<Item = &'a Word8>) -> Vec<WireId> {
-        input.flat_map(|x| x.iter()).cloned().collect()
+    pub fn bit_check(&mut self, input: impl IntoIterator<Item = WireId>) -> Vec<WireId> {
+        input.into_iter().map(|x| self.new_bit_checker(x)).collect()
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -660,6 +679,7 @@ where
         output
     }
 
+    /// Requires that all left and right inputs in array are either 0 or 1
     pub fn u8_fan_in<'a, F>(
         &mut self,
         mut inputs: impl Iterator<Item = &'a Word8>,
@@ -730,6 +750,14 @@ where
             .for_each(|(i, &x)| wrd8[i] = gate(self, x));
         wrd8
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////// Comparison Functions /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////
+
+    // fn new_4_bit_compare(&mut self, lhs: [WireId; 4], rhs: [WireId; 4], cmp: [WireId; 3]) -> [WireId; 3] {
+
+    // }
 
     ////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Keccak Functions ////////////////////////////////
@@ -929,14 +957,19 @@ where
         *output
     }
 
-    pub fn keccak256_stream<'a>(&mut self, input: impl Iterator<Item = &'a Word8>) -> [Word8; 32] {
+    pub fn keccak256_stream<'a>(
+        &mut self,
+        input: impl IntoIterator<Item = &'a Word8>,
+    ) -> [Word8; 32] {
         let keccak = &mut KeccakInternal {
             a: self.initial_keccakmatrix(),
             offset: 0,
             rate: (200 - (256 / 4)),
             delim: 0x01,
         };
-        input.for_each(|&wrd8| self.absorb(keccak, &[wrd8]));
+        input
+            .into_iter()
+            .for_each(|&wrd8| self.absorb(keccak, &[wrd8]));
         let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
         self.finalize(keccak, output);
         *output

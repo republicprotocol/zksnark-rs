@@ -4,25 +4,6 @@ extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 
-pub struct KeccakInternal {
-    pub a: [Word64; 25],
-    pub offset: usize,
-    pub rate: usize,
-    pub delim: u8,
-}
-
-impl KeccakInternal {
-    pub fn a_bytes(&self) -> [Word8; 200] {
-        let mut arr: [Word8; 200] = [Word8::default(); 200];
-        self.a
-            .iter()
-            .flat_map(|wrd64| wrd64.iter())
-            .enumerate()
-            .for_each(|(i, &wrd8)| arr[i] = wrd8);
-        arr
-    }
-}
-
 /// ## Usage Details:
 ///
 /// IMPORTANT:
@@ -31,14 +12,6 @@ impl KeccakInternal {
 ///     - Word8 is stored in the array as if it was little-endian: For example
 ///       lets say you input the number 0x4B (ends in: 0100 1011) into the Word8
 ///       placeholder then it would be stored as: [1,1,0,1,0,0,1,0]
-///
-/// ### Iterator and FromIterator
-///
-/// Iterator: You get the bits starting from the least significant bit, which
-/// you can think of as the first wire on the left.
-///
-/// FromIterator: bits input into from right to left; least significant first to
-/// most significant bit.
 ///
 pub type Word8 = [WireId; 8];
 
@@ -58,6 +31,13 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     arr
 }
 
+// TODO: when you get the time refactor this to work just on
+// references. The reason you don't now is the way this function
+// interacts with to_word8 and the way you are using to_word8
+pub fn flatten_word8<'a>(input: impl IntoIterator<Item = &'a Word8>) -> Vec<WireId> {
+    input.into_iter().flat_map(|x| x.iter()).cloned().collect()
+}
+
 /// ## Usage Details:
 ///
 /// IMPORTANT:
@@ -71,14 +51,6 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
 /// `Word64` is really just a placeholder for a u64. It does not store a u64
 /// number, but can be assigned a u64 number before evaluation. Still this only
 /// associates the bits of a u64 number with the `WireId`s in the `Word64`.
-///
-/// ### Iterator and FromIterator
-///
-/// Iterator: You get the bytes starting from the least significant byte, which
-/// you can think of as the first Word8 on the left.
-///
-/// FromIterator: bytes input into from right to left; least significant first to
-/// most significant byte.
 ///
 pub type Word64 = [Word8; 8];
 
@@ -142,30 +114,18 @@ pub fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
         .zip_longest(0..8)
         .for_each(|x| match x {
             Both(num, i) => arr[i] = num,
-            Right(i) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
+            Right(_) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
             Left(_) => panic!("to_word64: Word64 cannot be constructed from more than 64 WireId"),
         });
     arr
 }
 
-// pub enum Binary {
-//     One,
-//     Zero,
-// }
-
-// impl Binary {
-//     pub fn from_u64(num: u64) -> [Binary; 64] {
-//         let mut n = num;
-//         let mut output = [Zero; 64];
-//         (0..64).for_each(|i| {
-//             if n % 2 != 0 {
-//                 output[i] = One;
-//             }
-//             n = n >> 1;
-//         });
-//         output
-//     }
-// }
+pub fn flatten_word64<'a>(input: impl Iterator<Item = &'a Word64>) -> Vec<WireId> {
+    input
+        .flat_map(|x| x.iter().flat_map(|i| i.iter()))
+        .cloned()
+        .collect()
+}
 
 pub const RC: [u64; 24] = [
     1u64,
@@ -249,6 +209,12 @@ mod tests {
                 &&
             rotate_word64_right(word64, by + 64) == rotate_word64_right(word64, by)
         }
+        fn flatten_to_word64_prop(rand: Vec<usize>) -> bool {
+            let wrd64: Vec<WireId> = rand.into_iter().chain(0..64).take(64).map(|x| WireId(x)).collect();
+            let copy = wrd64.clone();
+
+            copy == flatten_word64([to_word64(wrd64.into_iter())].iter())
+        }
     }
 
     #[test]
@@ -257,18 +223,6 @@ mod tests {
         let b_wrd64: Word64 = to_word64((63..64).chain(0..63).map(WireId));
         assert_eq!(b_wrd64, rotate_word64_left(a_wrd64, 1));
     }
-
-    // #[test]
-    // fn to_from_little_endian() {
-    //     assert_eq!(
-    //         to_le_u8(0b1000_0000_0000_0000),
-    //         [0, 0b1000_0000, 0, 0, 0, 0, 0, 0]
-    //     );
-    //     assert_eq!(
-    //         from_le_u64([0, 0b1000_0000, 0, 0, 0, 0, 0, 0]),
-    //         0b1000_0000_0000_0000
-    //     );
-    // }
 
     // /// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`
     // /// because of the recurse definitions of `FromIterator`
