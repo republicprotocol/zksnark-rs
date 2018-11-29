@@ -82,7 +82,7 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
 ///
 pub type Word64 = [Word8; 8];
 
-/// Rotates a Word64's bits by moving bit a position `i` into position `i+by`
+/// Rotates a Word64's bits by moving bit at position `i` into position `i+by`
 /// modulo the lane size. The least significant bit is where i = 0 and the most
 /// significant bit is where i = 63.
 ///
