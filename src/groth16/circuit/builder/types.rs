@@ -1,25 +1,46 @@
 use super::*;
+use std::iter::FromIterator;
 
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 
-pub struct KeccakInternal {
-    pub a: [Word64; 25],
-    pub offset: usize,
-    pub rate: usize,
-    pub delim: u8,
+pub struct BitChecked {
+    input_wires: Vec<WireId>,
+    bit_check_wires: Vec<WireId>,
 }
 
-impl KeccakInternal {
-    pub fn a_bytes(&self) -> [Word8; 200] {
-        let mut arr: [Word8; 200] = [Word8::default(); 200];
-        self.a
-            .iter()
-            .flat_map(|wrd64| wrd64.iter())
-            .enumerate()
-            .for_each(|(i, &wrd8)| arr[i] = wrd8);
-        arr
+impl BitChecked {
+    fn new() -> BitChecked {
+        BitChecked {
+            input_wires: Vec::new(),
+            bit_check_wires: Vec::new(),
+        }
+    }
+
+    fn get_input_wires(&self) -> &Vec<WireId> {
+        &self.input_wires
+    }
+
+    fn get_bit_check_wires(&self) -> &Vec<WireId> {
+        &self.bit_check_wires
+    }
+
+    fn add(&mut self, input_wire: WireId, bit_check_wire: WireId) {
+        self.input_wires.push(input_wire);
+        self.bit_check_wires.push(bit_check_wire);
+    }
+}
+
+impl FromIterator<(WireId, WireId)> for BitChecked {
+    fn from_iter<I: IntoIterator<Item = (WireId, WireId)>>(iter: I) -> Self {
+        let mut c = BitChecked::new();
+
+        for (input, bit_check) in iter {
+            c.add(input, bit_check);
+        }
+
+        c
     }
 }
 
@@ -56,10 +77,17 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     let mut arr: Word8 = Word8::default();
     (0..8).zip_longest(input).for_each(|x| match x {
         Both(i, num) => arr[i] = num,
-        Left(i) => arr[i] = panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
+        Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
         Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
     });
     arr
+}
+
+// TODO: when you get the time refactor this to work just on
+// references. The reason you don't now is the way this function
+// interacts with to_word8 and the way you are using to_word8
+pub fn flatten_word8<'a>(input: impl Iterator<Item = &'a Word8>) -> Vec<WireId> {
+    input.flat_map(|x| x.iter()).cloned().collect()
 }
 
 /// ## Usage Details:
@@ -146,30 +174,18 @@ pub fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
         .zip_longest(0..8)
         .for_each(|x| match x {
             Both(num, i) => arr[i] = num,
-            Right(i) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
+            Right(_) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
             Left(_) => panic!("to_word64: Word64 cannot be constructed from more than 64 WireId"),
         });
     arr
 }
 
-// pub enum Binary {
-//     One,
-//     Zero,
-// }
-
-// impl Binary {
-//     pub fn from_u64(num: u64) -> [Binary; 64] {
-//         let mut n = num;
-//         let mut output = [Zero; 64];
-//         (0..64).for_each(|i| {
-//             if n % 2 != 0 {
-//                 output[i] = One;
-//             }
-//             n = n >> 1;
-//         });
-//         output
-//     }
-// }
+pub fn flatten_word64<'a>(input: impl Iterator<Item = &'a Word64>) -> Vec<WireId> {
+    input
+        .flat_map(|x| x.iter().flat_map(|i| i.iter()))
+        .cloned()
+        .collect()
+}
 
 pub const RC: [u64; 24] = [
     1u64,
@@ -253,6 +269,12 @@ mod tests {
                 &&
             rotate_word64_right(word64, by + 64) == rotate_word64_right(word64, by)
         }
+        fn flatten_to_word64_prop(rand: Vec<usize>) -> bool {
+            let wrd64: Vec<WireId> = rand.into_iter().chain(0..64).take(64).map(|x| WireId(x)).collect();
+            let copy = wrd64.clone();
+
+            copy == flatten_word64([to_word64(wrd64.into_iter())].iter())
+        }
     }
 
     #[test]
@@ -261,18 +283,6 @@ mod tests {
         let b_wrd64: Word64 = to_word64((63..64).chain(0..63).map(WireId));
         assert_eq!(b_wrd64, rotate_word64_left(a_wrd64, 1));
     }
-
-    // #[test]
-    // fn to_from_little_endian() {
-    //     assert_eq!(
-    //         to_le_u8(0b1000_0000_0000_0000),
-    //         [0, 0b1000_0000, 0, 0, 0, 0, 0, 0]
-    //     );
-    //     assert_eq!(
-    //         from_le_u64([0, 0b1000_0000, 0, 0, 0, 0, 0, 0]),
-    //         0b1000_0000_0000_0000
-    //     );
-    // }
 
     // /// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`
     // /// because of the recurse definitions of `FromIterator`
