@@ -15,12 +15,8 @@ use itertools::Itertools;
 ///
 pub type Word8 = [WireId; 8];
 
-/// NOTE: if you don't give enough bits the extra bits will be filled in with
-/// WireId::default() which is the zero wire. On the other hand if you have too
-/// many bits you will get a runtime panic! (this is so you realize you have
-/// made a grave mistake). The only way to get the panic that you have
-/// given too many bits is to collect a word8 directly.
-///
+/// This is a convenience function to create a `Word8` from exactly 8
+/// WireId any more or less will cause a panic
 pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
     let mut arr: Word8 = Word8::default();
     (0..8).zip_longest(input).for_each(|x| match x {
@@ -99,12 +95,8 @@ pub fn rotate_word64_right(input: Word64, by: usize) -> Word64 {
     wrd64
 }
 
-/// NOTE: if you don't give enough bits the extra bits will be filled in with
-/// WireId::default() which is the zero wire. On the other hand if you have too
-/// many bits you will get a runtime panic! (this is so you realize you have
-/// made a grave mistake). The only way to get the panic that you have
-/// given too many bits is to collect a word64 directly.
-///
+/// This is a convenience function to create a `Word64` from exactly
+/// 64 WireId any more or less will cause a panic
 pub fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
     let mut arr: Word64 = Word64::default();
     input
@@ -128,30 +120,30 @@ pub fn flatten_word64<'a>(input: impl Iterator<Item = &'a Word64>) -> Vec<WireId
 }
 
 pub const RC: [u64; 24] = [
-    1u64,
-    0x8082u64,
-    0x800000000000808au64,
-    0x8000000080008000u64,
-    0x808bu64,
-    0x80000001u64,
-    0x8000000080008081u64,
-    0x8000000000008009u64,
-    0x8au64,
-    0x88u64,
-    0x80008009u64,
-    0x8000000au64,
-    0x8000808bu64,
-    0x800000000000008bu64,
-    0x8000000000008089u64,
-    0x8000000000008003u64,
-    0x8000000000008002u64,
-    0x8000000000000080u64,
-    0x800au64,
-    0x800000008000000au64,
-    0x8000000080008081u64,
-    0x8000000000008080u64,
-    0x80000001u64,
-    0x8000000080008008u64,
+    0x0000000000000001,
+    0x0000000000008082,
+    0x800000000000808a,
+    0x8000000080008000,
+    0x000000000000808b,
+    0x0000000080000001,
+    0x8000000080008081,
+    0x8000000000008009,
+    0x000000000000008a,
+    0x0000000000000088,
+    0x0000000080008009,
+    0x000000008000000a,
+    0x000000008000808b,
+    0x800000000000008b,
+    0x8000000000008089,
+    0x8000000000008003,
+    0x8000000000008002,
+    0x8000000000000080,
+    0x000000000000800a,
+    0x800000008000000a,
+    0x8000000080008081,
+    0x8000000000008080,
+    0x0000000080000001,
+    0x8000000080008008,
 ];
 
 pub const RHO: [usize; 24] = [
@@ -171,25 +163,6 @@ pub fn to_ne_u8(num: u64) -> [u8; std::mem::size_of::<u64>()] {
 pub fn from_ne_u64(bytes: [u8; std::mem::size_of::<u64>()]) -> u64 {
     unsafe { std::mem::transmute(bytes) }
 }
-// pub fn to_le_u8(num: u64) -> [u8; std::mem::size_of::<u64>()] {
-//     to_ne_u8(num.to_le())
-// }
-// pub fn from_le_u64(bytes: [u8; std::mem::size_of::<u64>()]) -> u64 {
-//     from_ne_u64(bytes).to_le()
-// }
-
-// pub fn flatten_word64(input: Word64) -> [WireId; 64] {
-//     let mut wires_u64: [WireId; 64] = [WireId::default(); 64];
-//     input
-//         .iter()
-//         .enumerate()
-//         .for_each(|(i, &wrd8): (usize, &Word8)| {
-//             wrd8.iter()
-//                 .enumerate()
-//                 .for_each(|(j, &wire_id)| wires_u64[(i * 8) + j] = wire_id)
-//         });
-//     wires_u64
-// }
 
 #[cfg(test)]
 mod tests {
@@ -223,61 +196,4 @@ mod tests {
         let b_wrd64: Word64 = to_word64((63..64).chain(0..63).map(WireId));
         assert_eq!(b_wrd64, rotate_word64_left(a_wrd64, 1));
     }
-
-    // /// NOTE: The KeccakMatrix tests actually tests all `FromIterator` in `Word64`
-    // /// because of the recurse definitions of `FromIterator`
-    // #[test]
-    // fn keccakmatrix_iterators() {
-    //     let state: KeccakMatrix = (0..1600).map(WireId).collect();
-    //     assert_eq!(state[0][0][0][0], WireId(0));
-    //     assert_eq!(state[0][0][1][0], WireId(8));
-    //     assert_eq!(state[2][3][5][0], WireId(872));
-    //     assert_eq!(state[4][4][6][0], WireId(1584));
-    //     assert_eq!(state[4][4][7][7], WireId(1599));
-
-    //     let mut iter = state.into_iter();
-
-    //     assert_eq!(
-    //         iter.next().unwrap()[0],
-    //         (0..64).map(|x| WireId(x)).collect()
-    //     );
-    // }
-
-    // #[test]
-    // #[should_panic(
-    //     expected = "FromIterator: KeccakMatrix cannot be constructed from more than 5 KeccakRow"
-    // )]
-    // fn keccakmatrix_overflow_fromiterator() {
-    //     let _state: KeccakMatrix = (0..1920).map(|x| WireId(x)).collect();
-    // }
-
-    // #[test]
-    // #[should_panic(
-    //     expected = "FromIterator: KeccakMatrix cannot be constructed from less than 5 KeccakRow"
-    // )]
-    // fn keccakmatrix_underflow_fromiterator() {
-    //     let _state: KeccakMatrix = (0..1280).map(|x| WireId(x)).collect();
-    // }
-
-    // #[test]
-    // #[should_panic(
-    //     expected = "FromIterator: KeccakRow cannot be constructed from more than 5 Word64"
-    // )]
-    // fn keccakrow_overflow_fromiterator() {
-    //     let _state: KeccakRow = (0..384).map(|x| WireId(x)).collect();
-    // }
-
-    // #[test]
-    // #[should_panic(
-    //     expected = "FromIterator: KeccakRow cannot be constructed from less than 5 Word64"
-    // )]
-    // fn keccakrow_underflow_fromiterator() {
-    //     let _state: KeccakRow = (0..256).map(|x| WireId(x)).collect();
-    // }
-
-    // #[test]
-    // #[should_panic(expected = "FromIterator: Word64 cannot be constructed from more than 8 Word8")]
-    // fn word64_overflow_fromiterator() {
-    //     let _state: Word64 = (0..70).map(|x| WireId(x)).collect();
-    // }
 }
