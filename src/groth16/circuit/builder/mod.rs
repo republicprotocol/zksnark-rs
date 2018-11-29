@@ -10,7 +10,7 @@ mod tests;
 
 mod types;
 use self::types::*;
-pub use self::types::{to_word64, to_word8, BitChecked, Word64, Word8};
+pub use self::types::{flatten_word64, flatten_word8, to_word64, to_word8, Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -361,11 +361,8 @@ where
     ///////////////////////////////// Flatten Wires ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn bit_check<'a>(&mut self, input: impl IntoIterator<Item = &'a WireId>) -> BitChecked {
-        input
-            .into_iter()
-            .map(|&x| (x, self.new_bit_checker(x)))
-            .collect()
+    pub fn bit_check(&mut self, input: impl IntoIterator<Item = WireId>) -> Vec<WireId> {
+        input.into_iter().map(|x| self.new_bit_checker(x)).collect()
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -833,6 +830,10 @@ where
     }
 
     fn squeeze(&mut self, keccak: &mut KeccakInternal, output: &mut [Word8]) {
+        fn setout(src: &[Word8], dst: &mut [Word8], len: usize) {
+            dst[..len].copy_from_slice(&src[..len]);
+        }
+
         let mut op = 0;
         let mut l = output.len();
         while l >= keccak.rate {
@@ -956,14 +957,19 @@ where
         *output
     }
 
-    pub fn keccak256_stream<'a>(&mut self, input: impl Iterator<Item = &'a Word8>) -> [Word8; 32] {
+    pub fn keccak256_stream<'a>(
+        &mut self,
+        input: impl IntoIterator<Item = &'a Word8>,
+    ) -> [Word8; 32] {
         let keccak = &mut KeccakInternal {
             a: self.initial_keccakmatrix(),
             offset: 0,
             rate: (200 - (256 / 4)),
             delim: 0x01,
         };
-        input.for_each(|&wrd8| self.absorb(keccak, &[wrd8]));
+        input
+            .into_iter()
+            .for_each(|&wrd8| self.absorb(keccak, &[wrd8]));
         let output: &mut [Word8; 32] = &mut [Word8::default(); 32];
         self.finalize(keccak, output);
         *output

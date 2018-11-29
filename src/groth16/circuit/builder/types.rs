@@ -1,48 +1,8 @@
 use super::*;
-use std::iter::FromIterator;
 
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
-
-pub struct BitChecked {
-    input_wires: Vec<WireId>,
-    bit_check_wires: Vec<WireId>,
-}
-
-impl BitChecked {
-    fn new() -> BitChecked {
-        BitChecked {
-            input_wires: Vec::new(),
-            bit_check_wires: Vec::new(),
-        }
-    }
-
-    fn get_input_wires(&self) -> &Vec<WireId> {
-        &self.input_wires
-    }
-
-    fn get_bit_check_wires(&self) -> &Vec<WireId> {
-        &self.bit_check_wires
-    }
-
-    fn add(&mut self, input_wire: WireId, bit_check_wire: WireId) {
-        self.input_wires.push(input_wire);
-        self.bit_check_wires.push(bit_check_wire);
-    }
-}
-
-impl FromIterator<(WireId, WireId)> for BitChecked {
-    fn from_iter<I: IntoIterator<Item = (WireId, WireId)>>(iter: I) -> Self {
-        let mut c = BitChecked::new();
-
-        for (input, bit_check) in iter {
-            c.add(input, bit_check);
-        }
-
-        c
-    }
-}
 
 /// ## Usage Details:
 ///
@@ -53,19 +13,7 @@ impl FromIterator<(WireId, WireId)> for BitChecked {
 ///       lets say you input the number 0x4B (ends in: 0100 1011) into the Word8
 ///       placeholder then it would be stored as: [1,1,0,1,0,0,1,0]
 ///
-/// ### Iterator and FromIterator
-///
-/// Iterator: You get the bits starting from the least significant bit, which
-/// you can think of as the first wire on the left.
-///
-/// FromIterator: bits input into from right to left; least significant first to
-/// most significant bit.
-///
 pub type Word8 = [WireId; 8];
-
-pub fn setout(src: &[Word8], dst: &mut [Word8], len: usize) {
-    dst[..len].copy_from_slice(&src[..len]);
-}
 
 /// NOTE: if you don't give enough bits the extra bits will be filled in with
 /// WireId::default() which is the zero wire. On the other hand if you have too
@@ -86,8 +34,8 @@ pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
 // TODO: when you get the time refactor this to work just on
 // references. The reason you don't now is the way this function
 // interacts with to_word8 and the way you are using to_word8
-pub fn flatten_word8<'a>(input: impl Iterator<Item = &'a Word8>) -> Vec<WireId> {
-    input.flat_map(|x| x.iter()).cloned().collect()
+pub fn flatten_word8<'a>(input: impl IntoIterator<Item = &'a Word8>) -> Vec<WireId> {
+    input.into_iter().flat_map(|x| x.iter()).cloned().collect()
 }
 
 /// ## Usage Details:
@@ -103,14 +51,6 @@ pub fn flatten_word8<'a>(input: impl Iterator<Item = &'a Word8>) -> Vec<WireId> 
 /// `Word64` is really just a placeholder for a u64. It does not store a u64
 /// number, but can be assigned a u64 number before evaluation. Still this only
 /// associates the bits of a u64 number with the `WireId`s in the `Word64`.
-///
-/// ### Iterator and FromIterator
-///
-/// Iterator: You get the bytes starting from the least significant byte, which
-/// you can think of as the first Word8 on the left.
-///
-/// FromIterator: bytes input into from right to left; least significant first to
-/// most significant byte.
 ///
 pub type Word64 = [Word8; 8];
 
