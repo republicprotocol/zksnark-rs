@@ -74,7 +74,7 @@ use self::ast::{Expression, ParseErr};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
 
-pub use self::builder::{to_word64, to_word8, Circuit, WireId, Word64, Word8};
+pub use self::builder::{Circuit, WireId, Word64, Word8};
 
 pub struct CircuitInstance<T, F>
 where

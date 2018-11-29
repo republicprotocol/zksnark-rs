@@ -11,7 +11,7 @@ mod tests;
 
 mod types;
 use self::types::*;
-pub use self::types::{to_word64, to_word8, Word64, Word8};
+pub use self::types::{Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -802,6 +802,10 @@ where
     }
 
     fn squeeze(&mut self, keccak: &mut KeccakInternal, output: &mut [Word8]) {
+        fn setout(src: &[Word8], dst: &mut [Word8], len: usize) {
+            dst[..len].copy_from_slice(&src[..len]);
+        }
+
         let mut op = 0;
         let mut l = output.len();
         while l >= keccak.rate {

@@ -42,10 +42,6 @@ impl KeccakInternal {
 ///
 pub type Word8 = [WireId; 8];
 
-pub fn setout(src: &[Word8], dst: &mut [Word8], len: usize) {
-    dst[..len].copy_from_slice(&src[..len]);
-}
-
 /// NOTE: if you don't give enough bits the extra bits will be filled in with
 /// WireId::default() which is the zero wire. On the other hand if you have too
 /// many bits you will get a runtime panic! (this is so you realize you have
