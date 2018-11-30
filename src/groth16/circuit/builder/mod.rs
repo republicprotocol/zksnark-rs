@@ -159,7 +159,7 @@ where
     }
 
     /// Creates a new u64 "number", but this is not the right way to think about
-    /// it. Really it a conduit that accepts a u64 number as input where the
+    /// it. Really it is a conduit that accepts a u64 number as input where the
     /// wire numbers correspond to the bits of the u64 number. You can almost
     /// think of it as a type for circuits since it constrains the input of
     /// circuit builders. However, circuits at this level have no type, so there
