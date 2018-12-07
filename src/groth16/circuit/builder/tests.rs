@@ -98,6 +98,70 @@ fn xor_test() {
 }
 
 #[test]
+fn less_than_test() {
+    let logic_table = [(0, 0, 0), (0, 1, 1), (1, 0, 0), (1, 1, 0)];
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_wire();
+    let r_wire = circuit.new_wire();
+    let less_than = circuit.new_less_than(l_wire, r_wire);
+
+    for (l, r, l_less_r) in logic_table.iter() {
+        circuit.reset();
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(less_than) == Z251::from(*l_less_r));
+    }
+}
+
+#[test]
+fn greater_than_test() {
+    let logic_table = [(0, 0, 0), (0, 1, 0), (1, 0, 1), (1, 1, 0)];
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_wire();
+    let r_wire = circuit.new_wire();
+    let greater_than = circuit.new_greater_than(l_wire, r_wire);
+
+    for (l, r, l_greater_r) in logic_table.iter() {
+        circuit.reset();
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(greater_than) == Z251::from(*l_greater_r));
+    }
+}
+
+fn test_test() {
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_word8();
+    let r_wire = circuit.new_word8();
+    let greater_than = circuit.new_word8_greater_than(l_wire, r_wire);
+    circuit.set_word8(&l_wire, 0);
+    circuit.set_word8(&r_wire, 1);
+    assert!(circuit.evaluate(greater_than) == Z251::from(0));
+}
+
+#[test]
+fn word8_greater_than_test() {
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_word8();
+    let r_wire = circuit.new_word8();
+    let greater_than = circuit.new_word8_greater_than(l_wire, r_wire);
+
+    for (l_num, r_num) in iproduct!(0..u8::max_value(), 0..u8::max_value()) {
+        circuit.reset();
+        circuit.set_word8(&l_wire, l_num);
+        circuit.set_word8(&r_wire, r_num);
+        // println!("this was tried: ({}, {})", l_num, r_num);
+        if l_num < r_num {
+            assert!(circuit.evaluate(greater_than) == Z251::from(0));
+        } else if l_num == r_num {
+            assert!(circuit.evaluate(greater_than) == Z251::from(0));
+        } else {
+            assert!(circuit.evaluate(greater_than) == Z251::from(1));
+        }
+    }
+}
+
+#[test]
 fn fan_in_and_test() {
     let mut circuit = Circuit::<Z251>::new();
     let mut wires = [WireId(0); 8];
@@ -405,7 +469,7 @@ fn keccakf_1600_theta_rotate_test() {
                 for y_count in 0..5 {
                     let y = y_count * 5;
                     a[y + x] = circuit.u64_fan_in([a[y + x], array[(x + 4) % 5],
-                    rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                    types::rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
                 }
             }
         }
@@ -465,7 +529,7 @@ fn keccakf_1600_theta_test() {
                 for y_count in 0..5 {
                     let y = y_count * 5;
                     a[y + x] = circuit.u64_fan_in([a[y + x], array[(x + 4) % 5],
-                    rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                    types::rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
                 }
             }
         }
@@ -831,7 +895,7 @@ quickcheck! {
         circuit.set_word64(&right_word, right);
 
         let complete_circuit = circuit.u64_bitwise_op(&left_word,
-                    &rotate_word64_left(right_word, 1), Circuit::new_xor);
+                    &types::rotate_word64_left(right_word, 1), Circuit::new_xor);
 
         circuit.evaluate_word64(&complete_circuit) == left ^ right.rotate_left(1)
     }

@@ -9,7 +9,6 @@ use itertools::Itertools;
 mod tests;
 
 mod types;
-use self::types::*;
 pub use self::types::{Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
@@ -214,23 +213,22 @@ where
     /////////////////////////// Const Word8 and Word64 /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn const_word8(&mut self, input: u8) -> Word8 {
-        let mut n = input;
+    pub fn const_word8(&mut self, mut input: u8) -> Word8 {
         let mut wrd8: Word8 = Word8::default();
         (0..8).for_each(|i| {
-            if n % 2 == 0 {
+            if input % 2 == 0 {
                 wrd8[i] = self.zero_wire();
             } else {
                 wrd8[i] = self.unity_wire();
             }
-            n = n >> 1;
+            input = input >> 1;
         });
         wrd8
     }
 
     pub fn const_word64(&mut self, input: u64) -> Word64 {
         let mut wrd64: Word64 = Word64::default();
-        to_ne_u8(input)
+        types::to_ne_u8(input)
             .iter()
             .enumerate()
             .for_each(|(i, &num)| wrd64[i] = self.const_word8(num));
@@ -249,15 +247,14 @@ where
     ///
     /// See `new_u8` for example
     ///
-    pub fn set_word8(&mut self, u8_wires: &Word8, input: u8) {
-        let mut n = input;
+    pub fn set_word8(&mut self, u8_wires: &Word8, mut input: u8) {
         u8_wires.iter().for_each(|&wire_id| {
-            if n % 2 == 0 {
+            if input % 2 == 0 {
                 self.set_value(wire_id, T::zero());
             } else {
                 self.set_value(wire_id, T::one());
             }
-            n = n >> 1;
+            input = input >> 1;
         });
     }
 
@@ -268,7 +265,7 @@ where
     pub fn set_word64(&mut self, u64_wires: &Word64, input: u64) {
         u64_wires
             .iter()
-            .zip(to_ne_u8(input).iter())
+            .zip(types::to_ne_u8(input).iter())
             .for_each(|(word, &num)| self.set_word8(word, num));
     }
 
@@ -495,6 +492,16 @@ where
             })
     }
 
+    /// This is the same as `evaluate`, just lifted over a `Word8`.
+    /// This function will panic if any of the `WireId`s evaluate to
+    /// something other than `zero()` or `one()`. In other words, this
+    /// will panic if you get a non-binary value in one of the
+    /// `WireId`s.
+    ///
+    /// Note: I wrote this with a if statement (which is not as nice
+    /// to read as a match statement). This is done because of a rustc
+    /// bug (at time of writing) that causes a compiler panic if you
+    /// try to match on a `const` function like `zero()`.
     pub fn evaluate_word8(&mut self, word: &Word8) -> u8 {
         let mut num: u8 = 0;
         word.iter().enumerate().for_each(|(i, &wire)| {
@@ -514,7 +521,7 @@ where
         word.iter()
             .enumerate()
             .for_each(|(i, word8)| arr[i] = self.evaluate_word8(word8));
-        from_ne_u64(arr)
+        types::from_ne_u64(arr)
     }
 
     pub fn evaluate_word8_to_vec<'a>(
@@ -538,7 +545,7 @@ where
         stream
             .chunks(8)
             .into_iter()
-            .map(|chunk| self.evaluate_word8(&to_word8(chunk)))
+            .map(|chunk| self.evaluate_word8(&types::to_word8(chunk)))
             .collect()
     }
 
@@ -649,10 +656,7 @@ where
     //////////////////////// Word8/Word64 Binary Functions /////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    /// inputs must have at least one Word64 in array
-    ///
-    /// NOTE: I wish Rust would let me define this in terms of `fan_in`, but for
-    /// some reason you cannot pass FnMut to inner functions.
+    /// NOTE: inputs must have at least one Word64 in array
     ///
     pub fn u64_fan_in<'a, F>(
         &mut self,
@@ -664,7 +668,7 @@ where
     {
         let base_case: Word64 = *inputs
             .next()
-            .expect("u8_fan_in: input iterator must have at least one element");
+            .expect("u64_fan_in: input iterator must have at least one element");
 
         let mut output = Word64::default();
 
@@ -755,9 +759,60 @@ where
     ///////////////////////////// Comparison Functions /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    // fn new_4_bit_compare(&mut self, lhs: [WireId; 4], rhs: [WireId; 4], cmp: [WireId; 3]) -> [WireId; 3] {
+    /// Requires that both the left and right inputs are either 0 or 1
+    fn new_less_than(&mut self, left: WireId, right: WireId) -> WireId {
+        let left_not = self.new_not(left);
+        self.new_and(left_not, right)
+    }
 
-    // }
+    /// Requires that both the left and right inputs are either 0 or 1
+    fn new_greater_than(&mut self, left: WireId, right: WireId) -> WireId {
+        let right_not = self.new_not(right);
+        self.new_and(left, right_not)
+    }
+
+    fn new_equality(&mut self, left: WireId, right: WireId) -> WireId {
+        let xor = self.new_xor(left, right);
+        self.new_not(xor)
+    }
+
+    fn new_word8_greater_than(&mut self, left: Word8, right: Word8) -> WireId {
+        let cmp7 = self.new_greater_than(left[7], right[7]);
+        let eq7 = self.new_equality(left[7], right[7]);
+
+        let cmp6 = self.new_greater_than(left[6], right[6]);
+        let eq6 = self.new_equality(left[6], right[6]);
+
+        let cmp5 = self.new_greater_than(left[5], right[5]);
+        let eq5 = self.new_equality(left[5], right[5]);
+
+        let cmp4 = self.new_greater_than(left[4], right[4]);
+        let eq4 = self.new_equality(left[4], right[4]);
+
+        let cmp3 = self.new_greater_than(left[3], right[3]);
+        let eq3 = self.new_equality(left[3], right[3]);
+
+        let cmp2 = self.new_greater_than(left[2], right[2]);
+        let eq2 = self.new_equality(left[2], right[2]);
+
+        let cmp1 = self.new_greater_than(left[1], right[1]);
+        let eq1 = self.new_equality(left[1], right[1]);
+
+        let cmp0 = self.new_greater_than(left[0], right[0]);
+
+        let wir6 = self.fan_in(&[cmp6, eq7], Circuit::new_and);
+        let wir5 = self.fan_in(&[cmp5, eq7, eq6], Circuit::new_and);
+        let wir4 = self.fan_in(&[cmp4, eq7, eq6, eq5], Circuit::new_and);
+        let wir3 = self.fan_in(&[cmp3, eq7, eq6, eq5, eq4], Circuit::new_and);
+        let wir2 = self.fan_in(&[cmp2, eq7, eq6, eq5, eq4, eq3], Circuit::new_and);
+        let wir1 = self.fan_in(&[cmp1, eq7, eq6, eq5, eq4, eq3, eq2], Circuit::new_and);
+        let wir0 = self.fan_in(&[cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1], Circuit::new_and);
+
+        self.fan_in(
+            &[cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0],
+            Circuit::new_or,
+        )
+    }
 
     ////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// Keccak Functions ////////////////////////////////
@@ -785,7 +840,7 @@ where
                         for y_count in 0..5 {
                             let y = y_count * 5;
                             a[y + x] = self.u64_fan_in([a[y + x], array[(x + 4) % 5],
-                                rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
+                                types::rotate_word64_left(array[(x + 1) % 5], 1)].iter(), Circuit::new_xor);
                         }
                     }
                 }
@@ -795,8 +850,8 @@ where
             let mut _last = a[1];
             unroll! {
                 for x in 0..24 {
-                    array[0] = a[PI[x]];
-                    a[PI[x]] = rotate_word64_left(_last, RHO[x]);
+                    array[0] = a[types::PI[x]];
+                    a[types::PI[x]] = types::rotate_word64_left(_last, types::RHO[x]);
                     _last = array[0];
                 }
             }
@@ -824,7 +879,7 @@ where
             };
 
             // Iota
-            let rc_num = self.const_word64(RC[i]);
+            let rc_num = self.const_word64(types::RC[i]);
             a[0] = self.u64_bitwise_op(&a[0], &rc_num, Circuit::new_xor);
         }
     }
