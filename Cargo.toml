@@ -3,14 +3,19 @@ opt-level = 3
 
 [package]
 name = "zksnark"
-version = "0.1.0"
-authors = ["ross"]
+version = "0.0.1"
+authors = ["ross", "pfalzgraf"]
 
 [dependencies]
 itertools = "0.6.0"
 rand = "~0.3.14"
 bn = "0.4.3"
 bigint = "4.4.0"
+crunchy = "0.2.1"
 
 [dev-dependencies]
 quickcheck = "0.7.1"
+tiny-keccak = "1.0"
+
+[profile.test]
+opt-level = 3

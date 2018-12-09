@@ -44,9 +44,11 @@
 extern crate itertools;
 
 use self::itertools::unfold;
+use itertools::Itertools;
 use std::ops::*;
 use std::str::FromStr;
 
+#[doc(hidden)]
 pub mod z251;
 
 /// `FieldIdentity` only makes sense when defined with a Field. The reason
@@ -90,12 +92,123 @@ pub trait Field:
     }
 }
 
-/// A line, `Polynomial`, represented as a vector of `Field` elements where the position in the
-/// vector determines the power of the exponent.
+/// The core reason we need a function like this is to let us assign
+/// `WireId`s as the bits from a stream of `u8`.
+///
+/// Each `T` in the returned vector is either `zero()` or `one()` of
+/// the field and represents a single bit from a number stream. For
+/// Example, there would be 8 `T` for each `u8` in the stream. Where
+/// `vec[0] == from.first().[0]` (first value in the returned vector
+/// is the least significant bit (first bit) of the first number in
+/// `from`.
+///
+/// Note: I use the type of the input numbers to determine their size.
+/// Rust will happily default to a type that is Not what you intended
+/// and will result in undesirable behaviour. Tell Rust your number
+/// types.
+///
+/// ```
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+///
+/// let vec: Vec<u8> = vec![0b0000_0101];
+/// let tmp: Vec<Z251> = to_field_bits(&vec);
+///
+/// assert_eq!(tmp[0], Z251::one());
+/// assert_eq!(tmp[1], Z251::zero());
+/// assert_eq!(tmp[2], Z251::one());
+/// assert_eq!(tmp[3], Z251::zero());
+///
+/// assert_eq!(tmp[4], Z251::zero());
+/// assert_eq!(tmp[5], Z251::zero());
+/// assert_eq!(tmp[6], Z251::zero());
+/// assert_eq!(tmp[7], Z251::zero());
+///
+/// assert_eq!(tmp.len(), 8);
+///
+/// let vec: Vec<u64> = vec![32769];
+/// let tmp: Vec<Z251> = to_field_bits(&vec);
+///
+/// assert_eq!(tmp[0], Z251::one());
+/// assert_eq!(tmp[15], Z251::one());
+///
+/// assert_eq!(tmp.len(), 64);
+/// ```
+pub fn to_field_bits<'a, T, N: 'a>(from: impl IntoIterator<Item = &'a N>) -> Vec<T>
+where
+    T: Field,
+    N: Sized + Rem<Output = N> + Shr<Output = N> + Eq + From<u8> + Copy,
+{
+    from.into_iter()
+        .flat_map(|num| {
+            (0..(std::mem::size_of::<N>() * 8)).map(move |x| {
+                if num.shr(N::from(x as u8)) % N::from(2) == N::from(0) {
+                    T::zero()
+                } else {
+                    T::one()
+                }
+            })
+        }).collect()
+}
+
+/// The core reason we need a function like this is to let us cast
+/// some bits into `u8` or `u64` where the bits are Field elements
+/// (`zero()` or `one()`) from evaluating `WireId`s
+///
+/// Again, each `T` in the returned vector is either `zero()` or
+/// `one()` and represents a single bit from one of the `u8` or `u64`
+/// your are creating. For Example, there would be 8 `T` for each `u8`
+/// in the stream. Where `num_at_bit[0] == from.first()` (first value
+/// in the returned vector is the least significant bit (first bit) of
+/// the first number.
+///
+/// Note: I use the type of the input numbers to determine their size.
+/// Rust will happily default to a type that is Not what you intended
+/// and will result in undesirable behaviour. Tell Rust your number
+/// types.
+///
+/// ```
+/// use zksnark::field::z251::Z251;
+/// use zksnark::field::*;
+///
+/// let itr: Vec<Z251> =
+///     [1,0,1,0,0,0,0,0].into_iter()
+///                      .map(|x: &usize| Z251::from(*x))
+///                      .collect();
+///                                
+/// let tmp: Vec<u8> = from_field_bits(&itr);
+///
+/// assert_eq!(tmp[0], 5);
+///
+/// assert_eq!(tmp.len(), 1);
+/// ```
+pub fn from_field_bits<'a, T: 'a, N>(from: impl IntoIterator<Item = &'a T>) -> Vec<N>
+where
+    T: Field,
+    N: Sized + BitXor<Output = N> + Shl<Output = N> + Eq + From<u8>,
+{
+    from.into_iter().chunks(std::mem::size_of::<N>() * 8)
+        .into_iter()
+        .map(|chunk| {
+            chunk.enumerate().fold(N::from(0), |acc, (i, &t)| {
+                if t == T::one() {
+                    acc ^ (N::from(1) << N::from(i as u8))
+                } else if t == T::zero() {
+                    acc
+                }   else {
+                    panic!("from_field_bits: was given a field element that was neither zero() or one()");
+                }
+            })
+        }).collect()
+}
+
+/// A line, `Polynomial`, represented as a vector of `Field` elements where the
+/// position in the vector determines the power of the exponent.
 ///
 /// # Remarks
 ///
-/// If you want examples of how to implement a `Polynomial` go to the `Z251` module.
+/// If you want examples of how to implement a `Polynomial` go to the `Z251`
+/// module.
 ///
 /// The polynomial is represented as a list of coefficients where the powers of
 /// "x" are implicit.
@@ -432,7 +545,20 @@ mod tests {
     use self::quickcheck::quickcheck;
 
     quickcheck! {
-        fn prop_polynomial_evaluate(vec: Vec<usize>, eval_at: usize) -> bool {
+        fn field_bits_u8_prop(vec: Vec<u8>) -> bool {
+            let field_bits: Vec<Z251> = to_field_bits(&vec);
+            vec == from_field_bits(&field_bits)
+        }
+        fn field_bits_u64_prop(vec: Vec<u64>) -> bool {
+            let field_bits: Vec<Z251> = to_field_bits(&vec);
+            vec == from_field_bits(&field_bits)
+        }
+        fn field_bits_i64_prop(vec: Vec<i64>) -> bool {
+            let field_bits: Vec<Z251> = to_field_bits(&vec);
+            vec == from_field_bits(&field_bits)
+        }
+
+        fn polynomial_evaluate_prop(vec: Vec<usize>, eval_at: usize) -> bool {
             let poly: Vec<Z251> = vec.into_iter().map(|x| Z251::from(x % 251)).collect();
             let x: Z251 = Z251::from(eval_at);
             poly.evaluate(x) == poly
@@ -442,7 +568,7 @@ mod tests {
                 .zip(powers(x))
                 .fold(Z251::zero(), |acc, (&c, x)| acc + c * x)
         }
-        fn prop_degree(vec: Vec<usize>) -> bool {
+        fn degree_prop(vec: Vec<usize>) -> bool {
             let poly: Vec<Z251> = vec.into_iter().map(|x| Z251::from(x % 251)).collect();
             let coeffs = poly.coefficients();
             let mut degree = match coeffs.len() {
@@ -454,7 +580,7 @@ mod tests {
                 if *c == Z251::zero() && degree != 0 {
                     degree -= 1;
                 } else {
-                    return (degree == poly.degree());
+                    return degree == poly.degree();
                 }
             }
 
