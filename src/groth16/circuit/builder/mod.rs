@@ -9,7 +9,7 @@ use itertools::Itertools;
 mod tests;
 
 mod types;
-pub use self::types::{Binary, Word64, Word8};
+pub use self::types::{Binary, BinaryInput, Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -801,8 +801,47 @@ where
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
+    /// TODO: replace this with new_equal, need to define an Binary
+    /// WireId
     fn new_equality(&mut self, left: WireId, right: WireId) -> WireId {
         self.new_xnor(left, right)
+    }
+
+    /// ```
+    /// use zksnark::groth16::circuit::{Circuit, BinaryInput};
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let input_wire = circuit.new_word8();
+    /// let num = circuit.const_word8(5);
+    /// let eq =
+    ///     circuit.new_equal(&input_wire, &num);
+    ///
+    /// circuit.set_word8(&input_wire, 5);
+    /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word8(&input_wire, 4);
+    /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
+    ///
+    /// ```
+    pub fn new_equal<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+    {
+        let mut l_iter = left.into_iter();
+        let mut r_iter = right.into_iter();
+
+        let base_case: WireId = self.new_equality(
+            *l_iter.next().expect("new_eqz: left input empty"),
+            *r_iter.next().expect("new_eqz: right input empty"),
+        );
+
+        l_iter.zip(r_iter).fold(base_case, |acc, (&l, &r)| {
+            let eq = self.new_equality(l, r);
+            self.new_and(eq, acc)
+        })
     }
 
     /// The WireId evaluates to one iff left > right

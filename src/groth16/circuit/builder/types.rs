@@ -3,6 +3,10 @@ use super::*;
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
+use std::ops::{Index, IndexMut};
+use std::slice::{Iter, IterMut};
+
+pub trait BinaryInput {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Binary {
@@ -19,7 +23,52 @@ pub enum Binary {
 ///       lets say you input the number 0x4B (ends in: 0100 1011) into the Word8
 ///       placeholder then it would be stored as: [1,1,0,1,0,0,1,0]
 ///
-pub type Word8 = [WireId; 8];
+#[derive(Clone, Copy, Debug)]
+pub struct Word8([WireId; 8]);
+
+impl Word8 {
+    pub fn iter(&self) -> Iter<WireId> {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Word8 {
+    type Item = &'a WireId;
+    type IntoIter = Iter<'a, WireId>;
+
+    fn into_iter(self) -> Iter<'a, WireId> {
+        self.0.into_iter()
+    }
+}
+
+impl BinaryInput for Word8 {}
+
+impl PartialEq for Word8 {
+    fn eq(&self, other: &Word8) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for Word8 {}
+
+impl Default for Word8 {
+    fn default() -> Word8 {
+        Word8([WireId::default(); 8])
+    }
+}
+
+impl Index<usize> for Word8 {
+    type Output = WireId;
+
+    fn index<'a>(&'a self, index: usize) -> &'a WireId {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for Word8 {
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut WireId {
+        &mut self.0[index]
+    }
+}
 
 /// This is a convenience function to create a `Word8` from exactly 8
 /// WireId any more or less will cause a panic
@@ -54,7 +103,55 @@ pub fn flatten_word8<'a>(input: impl IntoIterator<Item = &'a Word8>) -> Vec<Wire
 /// number, but can be assigned a u64 number before evaluation. Still this only
 /// associates the bits of a u64 number with the `WireId`s in the `Word64`.
 ///
-pub type Word64 = [Word8; 8];
+#[derive(Clone, Copy, Debug)]
+pub struct Word64([Word8; 8]);
+
+impl Word64 {
+    pub fn iter(&self) -> Iter<Word8> {
+        self.0.iter()
+    }
+    pub fn iter_mut(&mut self) -> IterMut<Word8> {
+        self.0.iter_mut()
+    }
+}
+
+// impl<'a> IntoIterator for &'a Word64 {
+//     type Item = &'a WireId;
+//     type IntoIter = Iter<'a, WireId>;
+
+//     fn into_iter(self) -> Iter<'a, WireId> {
+//         self.0.into_iter().flat_map(|x| x.into_iter())
+//     }
+// }
+
+impl BinaryInput for Word64 {}
+
+impl PartialEq for Word64 {
+    fn eq(&self, other: &Word64) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for Word64 {}
+
+impl Default for Word64 {
+    fn default() -> Word64 {
+        Word64([Word8::default(); 8])
+    }
+}
+
+impl Index<usize> for Word64 {
+    type Output = Word8;
+
+    fn index<'a>(&'a self, index: usize) -> &'a Word8 {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for Word64 {
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut Word8 {
+        &mut self.0[index]
+    }
+}
 
 /// Rotates a Word64's bits by moving bit at position `i` into position `i+by`
 /// modulo the lane size. The least significant bit is where i = 0 and the most
