@@ -129,14 +129,26 @@ fn greater_than_test() {
     }
 }
 
-fn test_test() {
+#[test]
+fn word64_greater_than_test() {
     let mut circuit = Circuit::<Z251>::new();
-    let l_wire = circuit.new_word8();
-    let r_wire = circuit.new_word8();
-    let greater_than = circuit.new_word8_greater_than(l_wire, r_wire);
-    circuit.set_word8(&l_wire, 0);
-    circuit.set_word8(&r_wire, 1);
-    assert!(circuit.evaluate(greater_than) == Z251::from(0));
+    let l_wire = circuit.new_word64();
+    let r_wire = circuit.new_word64();
+    let greater_than = circuit.new_word64_greater_than(&l_wire, &r_wire);
+
+    for (l_num, r_num) in iproduct!(0..64, 0..64) {
+        circuit.reset();
+        circuit.set_word64(&l_wire, l_num);
+        circuit.set_word64(&r_wire, r_num);
+        // println!("this was tried: ({}, {})", l_num, r_num);
+        if l_num < r_num {
+            assert!(circuit.evaluate(greater_than) == Z251::from(0));
+        } else if l_num == r_num {
+            assert!(circuit.evaluate(greater_than) == Z251::from(0));
+        } else {
+            assert!(circuit.evaluate(greater_than) == Z251::from(1));
+        }
+    }
 }
 
 #[test]
@@ -144,7 +156,7 @@ fn word8_greater_than_test() {
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_word8();
     let r_wire = circuit.new_word8();
-    let greater_than = circuit.new_word8_greater_than(l_wire, r_wire);
+    let greater_than = circuit.new_word8_greater_than(&l_wire, &r_wire);
 
     for (l_num, r_num) in iproduct!(0..u8::max_value(), 0..u8::max_value()) {
         circuit.reset();

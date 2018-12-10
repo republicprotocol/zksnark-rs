@@ -9,7 +9,7 @@ use itertools::Itertools;
 mod tests;
 
 mod types;
-pub use self::types::{Word64, Word8};
+pub use self::types::{Binary, Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -212,6 +212,13 @@ where
     ////////////////////////////////////////////////////////////////////////////////
     /////////////////////////// Const Word8 and Word64 /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
+
+    pub fn const_wire_id(&mut self, input: Binary) -> WireId {
+        match input {
+            Binary::Zero => self.zero_wire(),
+            Binary::One => self.unity_wire(),
+        }
+    }
 
     pub fn const_word8(&mut self, mut input: u8) -> Word8 {
         let mut wrd8: Word8 = Word8::default();
@@ -625,18 +632,38 @@ where
         self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
+    pub fn new_nand(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+        let and = self.new_and(lhs, rhs);
+        self.new_not(and)
+    }
+
+    /// Requires that both the left and right inputs are either 0 or 1
+    pub fn new_nor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+        let or = self.new_or(lhs, rhs);
+        self.new_not(or)
+    }
+
+    /// Requires that both the left and right inputs are either 0 or 1
+    pub fn new_xnor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+        let xor = self.new_xor(lhs, rhs);
+        self.new_not(xor)
+    }
+
     /// Requires that all inputs in array are either 0 or 1
-    pub fn fan_in<F>(&mut self, inputs: &[WireId], mut gate: F) -> WireId
+    pub fn fan_in<'a, F>(
+        &mut self,
+        inputs: impl IntoIterator<Item = &'a WireId>,
+        mut gate: F,
+    ) -> WireId
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
-        if inputs.len() < 2 {
-            panic!("cannot fan in with fewer than two inputs");
-        }
-        inputs
-            .iter()
-            .skip(1)
-            .fold(inputs[0], |acc, wire| gate(self, acc, *wire))
+        let mut iter = inputs.into_iter();
+        let base_case: WireId = *iter
+            .next()
+            .expect("u64_fan_in: input iterator must have at least one element");
+        iter.fold(base_case, |acc, wire| gate(self, acc, *wire))
     }
 
     /// Requires that all left and right inputs in array are either 0 or 1
@@ -660,42 +687,44 @@ where
     ///
     pub fn u64_fan_in<'a, F>(
         &mut self,
-        mut inputs: impl Iterator<Item = &'a Word64>,
+        inputs: impl IntoIterator<Item = &'a Word64>,
         mut gate: F,
     ) -> Word64
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
-        let base_case: Word64 = *inputs
+        let mut iter = inputs.into_iter();
+        let mut base_case: Word64 = *iter
             .next()
             .expect("u64_fan_in: input iterator must have at least one element");
 
-        let mut output = Word64::default();
-
-        inputs.fold(base_case, |acc, next| {
+        iter.fold(base_case, |acc, next| {
             acc.iter()
                 .zip(next.iter())
                 .flat_map(|(l, r)| l.iter().zip(r.iter()))
                 .zip(iproduct!(0..8, 0..8))
-                .for_each(|((&l, &r), (i, j))| output[i][j] = gate(self, l, r));
-            output
+                .for_each(|((&l, &r), (i, j))| base_case[i][j] = gate(self, l, r));
+            base_case
         });
-        output
+        base_case
     }
 
     /// Requires that all left and right inputs in array are either 0 or 1
     pub fn u8_fan_in<'a, F>(
         &mut self,
-        mut inputs: impl Iterator<Item = &'a Word8>,
+        inputs: impl IntoIterator<Item = &'a Word8>,
         mut gate: F,
     ) -> Word8
     where
         F: FnMut(&mut Self, WireId, WireId) -> WireId,
     {
-        let mut wrd8: Word8 = *inputs
+        let mut iter = inputs.into_iter();
+
+        let mut wrd8: Word8 = *iter
             .next()
             .expect("u8_fan_in: input iterator must have at least one element");
-        inputs.fold(wrd8, |acc, next| {
+
+        iter.fold(wrd8, |acc, next| {
             acc.iter()
                 .zip(next.iter())
                 .enumerate()
@@ -771,12 +800,106 @@ where
         self.new_and(left, right_not)
     }
 
+    /// Requires that both the left and right inputs are either 0 or 1
     fn new_equality(&mut self, left: WireId, right: WireId) -> WireId {
-        let xor = self.new_xor(left, right);
-        self.new_not(xor)
+        self.new_xnor(left, right)
     }
 
-    fn new_word8_greater_than(&mut self, left: Word8, right: Word8) -> WireId {
+    /// The WireId evaluates to one iff left > right
+    ///
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let input_wire = circuit.new_word64();
+    /// let zero = circuit.const_word64(5);
+    /// let greater_than_zero =
+    ///     circuit.new_word64_greater_than(&input_wire, &zero);
+    ///
+    /// circuit.set_word64(&input_wire, 26);
+    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&input_wire, 4);
+    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(0));
+    /// ```
+    pub fn new_word64_greater_than(&mut self, left: &Word64, right: &Word64) -> WireId {
+        let cmp7 = self.new_word8_greater_than(&left[7], &right[7]);
+        let eq7 = self.new_word8_eq(&left[7], &right[7]);
+
+        let cmp6 = self.new_word8_greater_than(&left[6], &right[6]);
+        let eq6 = self.new_word8_eq(&left[6], &right[6]);
+
+        let cmp5 = self.new_word8_greater_than(&left[5], &right[5]);
+        let eq5 = self.new_word8_eq(&left[5], &right[5]);
+
+        let cmp4 = self.new_word8_greater_than(&left[4], &right[4]);
+        let eq4 = self.new_word8_eq(&left[4], &right[4]);
+
+        let cmp3 = self.new_word8_greater_than(&left[3], &right[3]);
+        let eq3 = self.new_word8_eq(&left[3], &right[3]);
+
+        let cmp2 = self.new_word8_greater_than(&left[2], &right[2]);
+        let eq2 = self.new_word8_eq(&left[2], &right[2]);
+
+        let cmp1 = self.new_word8_greater_than(&left[1], &right[1]);
+        let eq1 = self.new_word8_eq(&left[1], &right[1]);
+
+        let cmp0 = self.new_word8_greater_than(&left[0], &right[0]);
+
+        let wir6 = self.fan_in([cmp6, eq7].iter(), Circuit::new_and);
+        let wir5 = self.fan_in([cmp5, eq7, eq6].iter(), Circuit::new_and);
+        let wir4 = self.fan_in([cmp4, eq7, eq6, eq5].iter(), Circuit::new_and);
+        let wir3 = self.fan_in([cmp3, eq7, eq6, eq5, eq4].iter(), Circuit::new_and);
+        let wir2 = self.fan_in([cmp2, eq7, eq6, eq5, eq4, eq3].iter(), Circuit::new_and);
+        let wir1 = self.fan_in(
+            [cmp1, eq7, eq6, eq5, eq4, eq3, eq2].iter(),
+            Circuit::new_and,
+        );
+        let wir0 = self.fan_in(
+            [cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1].iter(),
+            Circuit::new_and,
+        );
+
+        self.fan_in(
+            [cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0].iter(),
+            Circuit::new_or,
+        )
+    }
+
+    /// The WireId evaluates to one iff left == right
+    pub fn new_word8_eq(&mut self, left: &Word8, right: &Word8) -> WireId {
+        let eq: Vec<WireId> = left
+            .iter()
+            .zip(right.iter())
+            .map(|(&l, &r)| self.new_equality(l, r))
+            .collect();
+        self.fan_in(eq.iter(), Circuit::new_and)
+    }
+
+    /// The WireId evaluates to one iff left > right
+    ///
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let input_wire = circuit.new_word8();
+    /// let zero = circuit.const_word8(5);
+    /// let greater_than_zero =
+    ///     circuit.new_word8_greater_than(&input_wire, &zero);
+    ///
+    /// circuit.set_word8(&input_wire, 26);
+    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word8(&input_wire, 4);
+    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(0));
+    /// ```
+    pub fn new_word8_greater_than(&mut self, left: &Word8, right: &Word8) -> WireId {
         let cmp7 = self.new_greater_than(left[7], right[7]);
         let eq7 = self.new_equality(left[7], right[7]);
 
@@ -800,16 +923,22 @@ where
 
         let cmp0 = self.new_greater_than(left[0], right[0]);
 
-        let wir6 = self.fan_in(&[cmp6, eq7], Circuit::new_and);
-        let wir5 = self.fan_in(&[cmp5, eq7, eq6], Circuit::new_and);
-        let wir4 = self.fan_in(&[cmp4, eq7, eq6, eq5], Circuit::new_and);
-        let wir3 = self.fan_in(&[cmp3, eq7, eq6, eq5, eq4], Circuit::new_and);
-        let wir2 = self.fan_in(&[cmp2, eq7, eq6, eq5, eq4, eq3], Circuit::new_and);
-        let wir1 = self.fan_in(&[cmp1, eq7, eq6, eq5, eq4, eq3, eq2], Circuit::new_and);
-        let wir0 = self.fan_in(&[cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1], Circuit::new_and);
+        let wir6 = self.fan_in([cmp6, eq7].iter(), Circuit::new_and);
+        let wir5 = self.fan_in([cmp5, eq7, eq6].iter(), Circuit::new_and);
+        let wir4 = self.fan_in([cmp4, eq7, eq6, eq5].iter(), Circuit::new_and);
+        let wir3 = self.fan_in([cmp3, eq7, eq6, eq5, eq4].iter(), Circuit::new_and);
+        let wir2 = self.fan_in([cmp2, eq7, eq6, eq5, eq4, eq3].iter(), Circuit::new_and);
+        let wir1 = self.fan_in(
+            [cmp1, eq7, eq6, eq5, eq4, eq3, eq2].iter(),
+            Circuit::new_and,
+        );
+        let wir0 = self.fan_in(
+            [cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1].iter(),
+            Circuit::new_and,
+        );
 
         self.fan_in(
-            &[cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0],
+            [cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0].iter(),
             Circuit::new_or,
         )
     }

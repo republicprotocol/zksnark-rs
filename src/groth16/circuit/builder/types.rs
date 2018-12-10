@@ -4,6 +4,12 @@ extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
 
+#[derive(Clone, Copy, Debug)]
+pub enum Binary {
+    Zero,
+    One,
+}
+
 /// ## Usage Details:
 ///
 /// IMPORTANT:
