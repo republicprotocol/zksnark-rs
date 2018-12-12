@@ -3,10 +3,13 @@ use super::*;
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
+use std::iter::FromIterator;
 use std::ops::{Index, IndexMut};
 use std::slice::{Iter, IterMut};
 
 pub trait BinaryInput {}
+
+pub trait CanConvert<T> {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Binary {
@@ -36,12 +39,39 @@ impl<'a> IntoIterator for &'a Word8 {
     type Item = &'a WireId;
     type IntoIter = Iter<'a, WireId>;
 
-    fn into_iter(self) -> Iter<'a, WireId> {
+    fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
+impl FromIterator<WireId> for Word8 {
+    fn from_iter<T: IntoIterator<Item = WireId>>(iter: T) -> Self {
+        let mut arr: Word8 = Word8::default();
+        (0..8).zip_longest(iter).for_each(|x| match x {
+            Both(i, num) => arr[i] = num,
+            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
+            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
+        });
+        arr
+    }
+}
+
+impl<'a> FromIterator<&'a WireId> for Word8 {
+    fn from_iter<T: IntoIterator<Item = &'a WireId>>(iter: T) -> Self {
+        let mut arr: Word8 = Word8::default();
+        (0..8).zip_longest(iter).for_each(|x| match x {
+            Both(i, &num) => arr[i] = num,
+            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
+            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
+        });
+        arr
+    }
+}
+
+impl<'a> BinaryInput for &'a Word8 {}
 impl BinaryInput for Word8 {}
+impl<'a> CanConvert<u8> for &'a Word8 {}
+impl CanConvert<u8> for Word8 {}
 
 impl PartialEq for Word8 {
     fn eq(&self, other: &Word8) -> bool {
@@ -115,16 +145,41 @@ impl Word64 {
     }
 }
 
-// impl<'a> IntoIterator for &'a Word64 {
-//     type Item = &'a WireId;
-//     type IntoIter = Iter<'a, WireId>;
+pub struct Word64Iter<'a> {
+    count: usize,
+    wrd64: &'a Word64,
+}
 
-//     fn into_iter(self) -> Iter<'a, WireId> {
-//         self.0.into_iter().flat_map(|x| x.into_iter())
-//     }
-// }
+impl<'a> Iterator for Word64Iter<'a> {
+    type Item = &'a WireId;
 
+    fn next(&mut self) -> Option<&'a WireId> {
+        if self.count < 64 {
+            let x = Some(&self.wrd64[self.count / 8][self.count % 8]);
+            self.count += 1;
+            x
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a Word64 {
+    type Item = &'a WireId;
+    type IntoIter = Word64Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Word64Iter {
+            count: 0,
+            wrd64: &self,
+        }
+    }
+}
+
+impl<'a> BinaryInput for &'a Word64 {}
 impl BinaryInput for Word64 {}
+impl<'a> CanConvert<u64> for &'a Word64 {}
+impl CanConvert<u64> for Word64 {}
 
 impl PartialEq for Word64 {
     fn eq(&self, other: &Word64) -> bool {
@@ -152,6 +207,10 @@ impl IndexMut<usize> for Word64 {
         &mut self.0[index]
     }
 }
+
+impl<T> BinaryInput for [T] where T: BinaryInput {}
+impl<T> BinaryInput for Vec<T> where T: BinaryInput {}
+impl<'a, T> BinaryInput for Iter<'a, T> where T: BinaryInput {}
 
 /// Rotates a Word64's bits by moving bit at position `i` into position `i+by`
 /// modulo the lane size. The least significant bit is where i = 0 and the most
@@ -273,6 +332,13 @@ mod tests {
 
     extern crate quickcheck;
     use self::quickcheck::quickcheck;
+
+    #[test]
+    fn word8_iterator() {
+        let wrd8: Word8 = ((0..8).map(WireId)).collect();
+        let wrd8_2 = wrd8.into_iter().collect();
+        assert_eq!(wrd8, wrd8_2);
+    }
 
     quickcheck! {
         fn rotate_inverse_prop(rotate_by: usize) -> bool {

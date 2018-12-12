@@ -277,10 +277,21 @@ fn bitwise_op_test() {
 ////////////////////////////////////////////////////////////////////////////////
 
 #[test]
+fn evaluate_to_num_check() {
+    let mut circuit = Circuit::<Z251>::new();
+    let wrd8 = circuit.new_word8();
+    let wrd64 = circuit.new_word64();
+    circuit.set_word8(&wrd8, 56);
+    circuit.set_word64(&wrd64, 110956);
+    assert_eq!(circuit.evaluate_to_num(&wrd8), 56);
+    assert_eq!(circuit.evaluate_to_num(&wrd64), 110956);
+}
+
+#[test]
 fn const_word64_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
     let const_u64 = circuit.const_word64(0b0000_0100);
-    assert_eq!(circuit.evaluate_word64(&const_u64), 0b000_0100);
+    assert_eq!(circuit.evaluate_to_num::<_, u64>(&const_u64), 0b000_0100);
     assert_eq!(circuit.evaluate(const_u64[0][0]), Z251::zero());
     assert_eq!(circuit.evaluate(const_u64[0][1]), Z251::zero());
     assert_eq!(circuit.evaluate(const_u64[0][2]), Z251::one());
@@ -296,7 +307,7 @@ fn const_word64_sanity_check() {
 fn const_word8_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
     let const_u8 = circuit.const_word8(0b0000_0100);
-    assert_eq!(circuit.evaluate_word8(&const_u8), 0b000_0100);
+    assert_eq!(circuit.evaluate_to_num::<_, u8>(&const_u8), 0b000_0100);
     assert_eq!(circuit.evaluate(const_u8[0]), Z251::zero());
     assert_eq!(circuit.evaluate(const_u8[1]), Z251::zero());
     assert_eq!(circuit.evaluate(const_u8[2]), Z251::one());
@@ -313,7 +324,7 @@ fn word64_set_eval() {
     let mut circuit = Circuit::<Z251>::new();
     let u64_input = circuit.new_word64();
     circuit.set_word64(&u64_input, 1);
-    assert_eq!(circuit.evaluate_word64(&u64_input), 1);
+    assert_eq!(circuit.evaluate_to_num::<_, u64>(&u64_input), 1);
 }
 
 #[test]
@@ -410,7 +421,7 @@ fn u64_fan_in_single_test() {
     let complete_circuit = circuit.u64_fan_in(elems.iter(), Circuit::new_xor);
 
     assert_eq!(
-        circuit.evaluate_word64(&complete_circuit),
+        circuit.evaluate_to_num::<_, u64>(&complete_circuit),
         1 ^ 0 ^ 35 ^ 5 ^ 6
     );
 }
@@ -424,7 +435,7 @@ fn set_new_word8_array() {
     circuit.set_new_word8_array(external_input.iter(), circuit_input);
 
     let eval_circuit: &mut [u8; 7] = &mut [0; 7];
-    circuit.evaluate_word8_to_array(circuit_input.iter(), eval_circuit);
+    circuit.evaluate_to_array(circuit_input.iter(), eval_circuit);
 
     assert_eq!(eval_circuit, external_input);
 }
@@ -445,7 +456,7 @@ fn u64_fan_in_prop() {
 
         let complete_circuit = circuit.u64_fan_in(row.iter(), Circuit::new_xor);
 
-        circuit.evaluate_word64(&complete_circuit)
+        circuit.evaluate_to_num::<_, u64>(&complete_circuit)
             == input.iter().skip(1).fold(input[0], |acc, x| acc ^ x)
     }
     quickcheck(prop as fn(Vec<u64>) -> bool);
@@ -645,7 +656,7 @@ fn keccak_absorb_squeeze_prop() {
         circuit_output
             .iter()
             .enumerate()
-            .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_word8(wrd8));
+            .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_to_num(wrd8));
 
         circuit_converted_output == keccak_output
     }
@@ -678,7 +689,7 @@ fn keccak_absorb_squeeze_single_test() {
     circuit_output
         .iter()
         .enumerate()
-        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_word8(wrd8));
+        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_to_num(wrd8));
 
     assert_eq!(circuit_converted_output, keccak_output);
 }
@@ -719,7 +730,7 @@ fn keccak_absorb_pad_squeeze_single_test() {
     circuit_output
         .iter()
         .enumerate()
-        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_word8(wrd8));
+        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_to_num(wrd8));
 
     assert_eq!(circuit_converted_output, keccak_output);
 }
@@ -748,7 +759,7 @@ fn keccak_pad_and_squeeze_single_test() {
     circuit_output
         .iter()
         .enumerate()
-        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_word8(wrd8));
+        .for_each(|(i, wrd8)| circuit_converted_output[i] = circuit.evaluate_to_num(wrd8));
 
     assert_eq!(circuit_converted_output, keccak_output);
 }
@@ -773,7 +784,7 @@ fn keccak256_equiv_fixed_size_single() {
 
     let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
     let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+    circuit.evaluate_to_array(circuit_output.iter(), eval_circuit_output);
 
     assert_eq!(*eval_circuit_output, tiny_output);
 }
@@ -802,7 +813,7 @@ fn keccak256_metrics() {
 
     let eval = Instant::now();
     let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+    circuit.evaluate_to_array(circuit_output.iter(), eval_circuit_output);
     let eval_time = eval.elapsed().subsec_micros();
 
     println!(
@@ -828,7 +839,7 @@ fn keccak256_stream_equiv_prop() {
         let keccak_stream_circuit: [Word8; 32] =
             circuit_stream.keccak256_stream(keccak_stream_input.iter());
         let keccak_stream_result: Vec<u8> =
-            circuit_stream.evaluate_word8_to_vec(keccak_stream_circuit.iter());
+            circuit_stream.evaluate_to_vec(keccak_stream_circuit.iter());
 
         let mut circuit = Circuit::<Z251>::new();
         let circuit_input: &mut [Word8; LEN] = &mut [Word8::default(); LEN];
@@ -836,7 +847,7 @@ fn keccak256_stream_equiv_prop() {
 
         let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
         let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-        circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+        circuit.evaluate_to_array(circuit_output.iter(), eval_circuit_output);
 
         eval_circuit_output.iter().cloned().collect::<Vec<u8>>() == keccak_stream_result
     }
@@ -864,7 +875,7 @@ fn keccak256_equiv_fixed_size_prop() {
 
         let circuit_output: [Word8; 32] = circuit.keccak256(circuit_input);
         let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-        circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+        circuit.evaluate_to_array(circuit_output.iter(), eval_circuit_output);
 
         *eval_circuit_output == tiny_output
     }
@@ -909,7 +920,7 @@ quickcheck! {
         let complete_circuit = circuit.u64_bitwise_op(&left_word,
                     &types::rotate_word64_left(right_word, 1), Circuit::new_xor);
 
-        circuit.evaluate_word64(&complete_circuit) == left ^ right.rotate_left(1)
+        circuit.evaluate_to_num::<_, u64>(&complete_circuit) == left ^ right.rotate_left(1)
     }
 
     /// Checks that xor of Word64 is done correctly
@@ -923,7 +934,7 @@ quickcheck! {
 
         let complete_circuit = circuit.u64_bitwise_op(&left_word, &right_word, Circuit::new_xor);
 
-        circuit.evaluate_word64(&complete_circuit) == left ^ right
+        circuit.evaluate_to_num::<_, u64>(&complete_circuit) == left ^ right
 
     }
 
@@ -952,7 +963,7 @@ quickcheck! {
         let mut circuit = Circuit::<Z251>::new();
         let u8_input = circuit.new_word8();
         circuit.set_word8(&u8_input, num);
-        circuit.evaluate_word8(&u8_input) == num
+        circuit.evaluate_to_num::<_, u8>(&u8_input) == num
     }
 
     /// Like a smaller version of KeccakMatrix, just need to make sure the new,
@@ -962,6 +973,14 @@ quickcheck! {
         let mut circuit = Circuit::<Z251>::new();
         let u64_input = circuit.new_word64();
         circuit.set_word64(&u64_input, num);
-        circuit.evaluate_word64(&u64_input) == num
+        circuit.evaluate_to_num::<_, u64>(&u64_input) == num
+    }
+
+    fn evaluate_to_vec_array_prop(u64_nums: Vec<u64>, u8_nums: Vec<u8>) -> bool {
+        let mut circuit = Circuit::<Z251>::new();
+        let word8s = circuit.set_new_word8_vec(&u8_nums);
+        let word64s = circuit.set_new_word64_vec(&u64_nums);
+        circuit.evaluate_to_vec(word64s.iter()) == u64_nums &&
+            circuit.evaluate_to_vec(word8s.iter()) == u8_nums
     }
 }

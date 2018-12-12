@@ -1,6 +1,7 @@
 use super::super::super::field::Field;
 use std::collections::HashMap;
 use std::fmt;
+use std::ops::{BitXor, Shl};
 
 extern crate itertools;
 use itertools::Itertools;
@@ -9,7 +10,7 @@ use itertools::Itertools;
 mod tests;
 
 mod types;
-pub use self::types::{Binary, BinaryInput, Word64, Word8};
+pub use self::types::{Binary, BinaryInput, CanConvert, Word64, Word8};
 
 #[derive(Clone, Copy, Debug)]
 pub enum ConnectionType<T>
@@ -139,7 +140,7 @@ where
     ///
     /// // As binary 0x4F is: 0100 1111
     /// circuit.set_word8(&u8_input, 0b0000_0010);
-    /// assert_eq!(circuit.evaluate_word8(&u8_input), 0b0000_0010);
+    /// assert_eq!(circuit.evaluate_to_num(&u8_input), 0b0000_0010);
     ///
     /// // ...
     /// ```
@@ -177,7 +178,7 @@ where
     ///
     /// circuit.set_word64(&u64_input, 1);
     ///
-    /// assert_eq!(circuit.evaluate_word64(&u64_input), 1);
+    /// assert_eq!(circuit.evaluate_to_num(&u64_input), 1);
     /// ```
     pub fn new_word64(&mut self) -> Word64 {
         let mut wrd64: Word64 = Word64::default();
@@ -318,7 +319,7 @@ where
     ///                             , new_set_circuit_input);
     ///
     /// let evaluated_circuit = &mut [0; 7];
-    /// circuit.evaluate_word8_to_array(new_set_circuit_input.iter()
+    /// circuit.evaluate_to_array(new_set_circuit_input.iter()
     ///                              , evaluated_circuit);
     ///
     /// assert_eq!(*evaluated_circuit, external_input);
@@ -326,10 +327,11 @@ where
     ///
     pub fn set_new_word8_array<'a>(
         &mut self,
-        input: impl Iterator<Item = &'a u8>,
+        input: impl IntoIterator<Item = &'a u8>,
         output: &'a mut [Word8],
     ) {
         input
+            .into_iter()
             .zip(0..output.len())
             .for_each(|(num, i)| output[i] = self.set_new_word8(*num));
     }
@@ -352,13 +354,88 @@ where
     ///     circuit.set_new_word8_vec(external_input.iter());
     ///
     /// let evaluated_circuit =
-    ///     circuit.evaluate_word8_to_vec(new_set_circuit_input.iter());
+    ///     circuit.evaluate_to_vec(new_set_circuit_input.iter());
     ///
     /// assert_eq!(evaluated_circuit, external_input);
     /// ```
     ///
-    pub fn set_new_word8_vec<'a>(&mut self, input: impl Iterator<Item = &'a u8>) -> Vec<Word8> {
-        input.map(|num| self.set_new_word8(*num)).collect()
+    pub fn set_new_word8_vec<'a>(&mut self, input: impl IntoIterator<Item = &'a u8>) -> Vec<Word8> {
+        input
+            .into_iter()
+            .map(|num| self.set_new_word8(*num))
+            .collect()
+    }
+
+    /// This creates new `Word64`s, sets them with the `input` and
+    /// places them in the `output` array.
+    ///
+    /// `output[0]` is set from `input.first()` and so on.
+    ///
+    /// If you give an iterator that has more than the size of the
+    /// `output` array it will be ignored.
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let external_input: [u64; 7] = [9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input = &mut [Word64::default(); 7];
+    /// circuit.set_new_word64_array(external_input.iter()
+    ///                             , new_set_circuit_input);
+    ///
+    /// let evaluated_circuit = &mut [0; 7];
+    /// circuit.evaluate_to_array(new_set_circuit_input.iter()
+    ///                              , evaluated_circuit);
+    ///
+    /// assert_eq!(*evaluated_circuit, external_input);
+    /// ```
+    ///
+    pub fn set_new_word64_array<'a>(
+        &mut self,
+        input: impl IntoIterator<Item = &'a u64>,
+        output: &'a mut [Word64],
+    ) {
+        input
+            .into_iter()
+            .zip(0..output.len())
+            .for_each(|(num, i)| output[i] = self.set_new_word64(*num));
+    }
+
+    /// This creates new `Word64`s, sets them with the `input` and
+    /// gives them back as a `Vec`
+    ///
+    /// `vec[0]` is set from `input.first()` and so on.
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::field::*;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let external_input = vec![9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input =
+    ///     circuit.set_new_word64_vec(external_input.iter());
+    ///
+    /// let evaluated_circuit =
+    ///     circuit.evaluate_to_vec(new_set_circuit_input.iter());
+    ///
+    /// assert_eq!(evaluated_circuit, external_input);
+    /// ```
+    ///
+    pub fn set_new_word64_vec<'a>(
+        &mut self,
+        input: impl IntoIterator<Item = &'a u64>,
+    ) -> Vec<Word64> {
+        input
+            .into_iter()
+            .map(|num| self.set_new_word64(*num))
+            .collect()
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -509,57 +586,51 @@ where
     /// to read as a match statement). This is done because of a rustc
     /// bug (at time of writing) that causes a compiler panic if you
     /// try to match on a `const` function like `zero()`.
-    pub fn evaluate_word8(&mut self, word: &Word8) -> u8 {
-        let mut num: u8 = 0;
-        word.iter().enumerate().for_each(|(i, &wire)| {
-            let eval = self.evaluate(wire);
-            if eval == T::zero() {
-            } else if eval == T::one() {
-                num ^= 0b0000_0001 << i;
-            } else {
-                panic!("evaluate_word8: the evaluation of a wireId is neither 0 or 1");
+    pub fn evaluate_to_num<'a, Z, N>(&mut self, word: Z) -> N
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+    {
+        word.into_iter().enumerate().fold(N::from(0), |acc, (i, wire)| {
+            let t = self.evaluate(*wire);
+            if t == T::one() {
+                acc ^ (N::from(1) << N::from(i as u8))
+            } else if t == T::zero() {
+                acc
+            }   else {
+                panic!("from_field_bits: was given a field element that was neither zero() or one()");
             }
-        });
-        num
+        })
     }
 
-    pub fn evaluate_word64(&mut self, word: &Word64) -> u64 {
-        let mut arr: [u8; 8] = [0; 8];
-        word.iter()
-            .enumerate()
-            .for_each(|(i, word8)| arr[i] = self.evaluate_word8(word8));
-        types::from_ne_u64(arr)
-    }
-
-    pub fn evaluate_word8_to_vec<'a>(
-        &mut self,
-        stream: impl Iterator<Item = &'a Word8>,
-    ) -> Vec<u8> {
-        stream.map(|wrd8| self.evaluate_word8(wrd8)).collect()
-    }
-
-    pub fn evaluate_word8_to_array<'a>(
-        &mut self,
-        stream: impl Iterator<Item = &'a Word8>,
-        output: &'a mut [u8],
-    ) {
+    pub fn evaluate_to_vec<'a, Z, W: 'a, N>(&mut self, stream: Z) -> Vec<N>
+    where
+        Z: IntoIterator<Item = W>,
+        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+    {
         stream
-            .zip(0..output.len())
-            .for_each(|(wrd8, i)| output[i] = self.evaluate_word8(&wrd8));
-    }
-
-    pub fn evaluate_wire_ids_as_word8s(&mut self, stream: impl Iterator<Item = WireId>) -> Vec<u8> {
-        stream
-            .chunks(8)
             .into_iter()
-            .map(|chunk| self.evaluate_word8(&types::to_word8(chunk)))
+            .map(|wrd8| self.evaluate_to_num(wrd8))
             .collect()
+    }
+
+    pub fn evaluate_to_array<'a, Z, W: 'a, N>(&mut self, stream: Z, output: &'a mut [N])
+    where
+        Z: IntoIterator<Item = W>,
+        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+    {
+        stream
+            .into_iter()
+            .zip(0..output.len())
+            .for_each(|(wrd8, i)| output[i] = self.evaluate_to_num(wrd8));
     }
 
     // NOTE: only used internally as a convenience for testing
     fn evaluate_keccakmatrix(&mut self, matrix: &[Word64; 25]) -> [u64; 25] {
         let mut arr: [u64; 25] = [0; 25];
-        (0..25).for_each(|x| arr[x] = self.evaluate_word64(&matrix[x]));
+        (0..25).for_each(|x| arr[x] = self.evaluate_to_num(&matrix[x]));
         arr
     }
 
@@ -823,6 +894,23 @@ where
     ///
     /// circuit.reset();
     /// circuit.set_word8(&input_wire, 4);
+    /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
+    ///
+    /// // Lets use new_equal with Word64 as well
+    /// //
+    /// // no need to reset() since I'm not modifying the inputs to
+    /// // the previous num, just shadowing it.
+    ///
+    /// let input_wire = circuit.new_word64();
+    /// let num = circuit.const_word64(1119784);
+    /// let eq =
+    ///     circuit.new_equal(&input_wire, &num);
+    ///
+    /// circuit.set_word64(&input_wire, 1119784);
+    /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
     /// ```
@@ -1159,7 +1247,7 @@ where
     ///
     ///
     /// let eval_circuit_output: &mut [u8; 32] = &mut [0; 32];
-    /// circuit.evaluate_word8_to_array(circuit_output.iter(), eval_circuit_output);
+    /// circuit.evaluate_to_array(circuit_output.iter(), eval_circuit_output);
     ///
     /// assert_eq!(*eval_circuit_output,
     ///     [65, 231, 91, 68, 62, 80, 71, 123, 164, 102, 65, 50, 133
