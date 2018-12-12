@@ -168,7 +168,6 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::field::*;
     /// use zksnark::groth16::circuit::*;
     ///
     /// // Create an empty circuit
@@ -307,7 +306,6 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::field::*;
     /// use zksnark::groth16::circuit::*;
     ///
     /// // Create an empty circuit
@@ -343,7 +341,6 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::field::*;
     /// use zksnark::groth16::circuit::*;
     ///
     /// // Create an empty circuit
@@ -376,7 +373,6 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::field::*;
     /// use zksnark::groth16::circuit::*;
     ///
     /// // Create an empty circuit
@@ -576,16 +572,21 @@ where
             })
     }
 
-    /// This is the same as `evaluate`, just lifted over a `Word8`.
-    /// This function will panic if any of the `WireId`s evaluate to
-    /// something other than `zero()` or `one()`. In other words, this
-    /// will panic if you get a non-binary value in one of the
-    /// `WireId`s.
+    /// evaluates a container with `WireId`s that can only be set with
+    /// either the field's 0 or the fields's 1 as input. Two examples
+    /// are `Word8` or `Word64`.
     ///
-    /// Note: I wrote this with a if statement (which is not as nice
-    /// to read as a match statement). This is done because of a rustc
-    /// bug (at time of writing) that causes a compiler panic if you
-    /// try to match on a `const` function like `zero()`.
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    /// let wrd8 = circuit.set_new_word8(57);
+    /// let wrd64 = circuit.set_new_word8(10489864);
+    /// assert_eq!(circuit.evaluate_to_num(&wrd8), 57);
+    /// assert_eq!(circuit.evaluate_to_num(&wrd64), 10489864);
+    /// ```
     pub fn evaluate_to_num<'a, Z, N>(&mut self, word: Z) -> N
     where
         Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
@@ -593,6 +594,10 @@ where
     {
         word.into_iter().enumerate().fold(N::from(0), |acc, (i, wire)| {
             let t = self.evaluate(*wire);
+            // Note: I wrote this with a if statement (which is not as nice
+            // to read as a match statement). This is done because of a rustc
+            // bug (at time of writing) that causes a compiler panic if you
+            // try to match on a `const` function like `zero()`.
             if t == T::one() {
                 acc ^ (N::from(1) << N::from(i as u8))
             } else if t == T::zero() {
@@ -603,6 +608,26 @@ where
         })
     }
 
+    /// evaluates a container of some container that has `WireId` that
+    /// will evaluate to either 0 or 1
+    ///
+    /// Common example inputs are `Vec<Word8>` or `[Word64; 32]`
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let external_input = vec![9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input =
+    ///     circuit.set_new_word8_vec(external_input.iter());
+    ///
+    /// let evaluated_circuit =
+    ///     circuit.evaluate_to_vec(new_set_circuit_input.iter());
+    ///
+    /// assert_eq!(evaluated_circuit, external_input);
     pub fn evaluate_to_vec<'a, Z, W: 'a, N>(&mut self, stream: Z) -> Vec<N>
     where
         Z: IntoIterator<Item = W>,
@@ -615,6 +640,33 @@ where
             .collect()
     }
 
+    /// evaluates a container of some container that has `WireId` that
+    /// will evaluate to either 0 or 1. Just lets you pre-allocate
+    /// where the result goes.
+    ///
+    /// NOTE: If the result slice is too small it will just fill the
+    /// slice and ignore the rest of the stream.
+    ///
+    /// Common example inputs are `Vec<Word8>` or `[Word64; 32]`
+    ///
+    /// ```
+    /// use zksnark::field::z251::Z251;
+    /// use zksnark::groth16::circuit::*;
+    ///
+    /// // Create an empty circuit
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let external_input: [u64; 7] = [9, 24, 45, 250, 99, 0, 7];
+    /// let new_set_circuit_input = &mut [Word64::default(); 7];
+    /// circuit.set_new_word64_array(external_input.iter()
+    ///                             , new_set_circuit_input);
+    ///
+    /// let evaluated_circuit = &mut [0; 7];
+    /// circuit.evaluate_to_array(new_set_circuit_input.iter()
+    ///                              , evaluated_circuit);
+    ///
+    /// assert_eq!(*evaluated_circuit, external_input);
+    /// ```
     pub fn evaluate_to_array<'a, Z, W: 'a, N>(&mut self, stream: Z, output: &'a mut [N])
     where
         Z: IntoIterator<Item = W>,

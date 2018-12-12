@@ -69,9 +69,7 @@ impl<'a> FromIterator<&'a WireId> for Word8 {
 }
 
 impl<'a> BinaryInput for &'a Word8 {}
-impl BinaryInput for Word8 {}
 impl<'a> CanConvert<u8> for &'a Word8 {}
-impl CanConvert<u8> for Word8 {}
 
 impl PartialEq for Word8 {
     fn eq(&self, other: &Word8) -> bool {
@@ -177,9 +175,7 @@ impl<'a> IntoIterator for &'a Word64 {
 }
 
 impl<'a> BinaryInput for &'a Word64 {}
-impl BinaryInput for Word64 {}
 impl<'a> CanConvert<u64> for &'a Word64 {}
-impl CanConvert<u64> for Word64 {}
 
 impl PartialEq for Word64 {
     fn eq(&self, other: &Word64) -> bool {
