@@ -1,5 +1,7 @@
 use super::super::super::field::Field;
+use itertools::EitherOrBoth::{Both, Left, Right};
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fmt;
 use std::ops::{BitXor, Shl};
 
@@ -939,7 +941,7 @@ where
     /// let input_wire = circuit.new_word8();
     /// let num = circuit.const_word8(5);
     /// let eq =
-    ///     circuit.new_equal(&input_wire, &num);
+    ///     circuit.is_equal(&input_wire, &num);
     ///
     /// circuit.set_word8(&input_wire, 5);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
@@ -948,7 +950,7 @@ where
     /// circuit.set_word8(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
-    /// // Lets use new_equal with Word64 as well
+    /// // Lets use is_equal with Word64 as well
     /// //
     /// // no need to reset() since I'm not modifying the inputs to
     /// // the previous num, just shadowing it.
@@ -956,7 +958,7 @@ where
     /// let input_wire = circuit.new_word64();
     /// let num = circuit.const_word64(1119784);
     /// let eq =
-    ///     circuit.new_equal(&input_wire, &num);
+    ///     circuit.is_equal(&input_wire, &num);
     ///
     /// circuit.set_word64(&input_wire, 1119784);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
@@ -966,9 +968,10 @@ where
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
     /// ```
-    pub fn new_equal<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn is_equal<'a, Z, P>(&mut self, left: Z, right: P) -> WireId
     where
         Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+        P: IntoIterator<Item = &'a WireId> + BinaryInput,
     {
         let mut l_iter = left.into_iter();
         let mut r_iter = right.into_iter();
@@ -978,10 +981,173 @@ where
             *r_iter.next().expect("new_eqz: right input empty"),
         );
 
-        l_iter.zip(r_iter).fold(base_case, |acc, (&l, &r)| {
-            let eq = self.new_equality(l, r);
+        l_iter
+            .zip_longest(r_iter)
+            .fold(base_case, |acc, x| match x {
+                Both(l, r) => {
+                    let eq = self.new_equality(*l, *r);
+                    self.new_and(eq, acc)
+                }
+                Left(l) => {
+                    let zero = self.const_wire_id(Binary::Zero);
+                    let eq = self.new_equality(*l, zero);
+                    self.new_and(eq, acc)
+                }
+                Right(r) => {
+                    let zero = self.const_wire_id(Binary::Zero);
+                    let eq = self.new_equality(*r, zero);
+                    self.new_and(eq, acc)
+                }
+            })
+    }
+
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let wrd64 = circuit.new_word64();
+    /// let wrd8 = circuit.new_word8();
+    /// let zero_check_u64 =
+    ///     circuit.is_equal_zero(&wrd64);
+    ///
+    /// let zero_check_u8 =
+    ///     circuit.is_equal_zero(&wrd8);
+    ///
+    /// circuit.set_word64(&wrd64, 0);
+    /// circuit.set_word8(&wrd8, 0);
+    /// assert_eq!(circuit.evaluate(zero_check_u64), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(zero_check_u8), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 22);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(zero_check_u64), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(zero_check_u8), Z251::from(0));
+    /// ```
+    pub fn is_equal_zero<'a, Z>(&mut self, input: Z) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+    {
+        let zero = self.const_wire_id(Binary::Zero);
+
+        let mut iter = input.into_iter();
+        let base_case: WireId =
+            self.new_equality(*iter.next().expect("new_eqz: left input empty"), zero);
+
+        iter.fold(base_case, |acc, x| {
+            let eq = self.new_equality(*x, zero);
             self.new_and(eq, acc)
         })
+    }
+
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let wrd64 = circuit.new_word64();
+    /// let wrd8 = circuit.new_word8();
+    /// let cmp =
+    ///     circuit.less_than(&wrd64, &wrd8);
+    ///
+    /// circuit.set_word64(&wrd64, 26);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 22);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 20);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
+    /// ```
+    pub fn less_than<'a, Z, P>(&mut self, left: Z, right: P) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        P: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+    {
+        let is_greater_than = self.greater_than(left, right);
+        let neg = self.new_not(is_greater_than);
+        let eq = self.is_equal(left, right);
+        let neg_eq = self.new_not(eq);
+        self.new_and(neg, neg_eq)
+    }
+
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let wrd64 = circuit.new_word64();
+    /// let wrd8 = circuit.new_word8();
+    /// let cmp =
+    ///     circuit.less_than_eq(&wrd64, &wrd8);
+    ///
+    /// circuit.set_word64(&wrd64, 26);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 22);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 20);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
+    /// ```
+    pub fn less_than_eq<'a, Z, P>(&mut self, left: Z, right: P) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        P: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+    {
+        let is_greater_than = self.greater_than(left, right);
+        let neg = self.new_not(is_greater_than);
+        let eq = self.is_equal(left, right);
+        self.new_or(neg, eq)
+    }
+
+    /// ```
+    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::field::z251::Z251;
+    ///
+    /// let mut circuit = Circuit::<Z251>::new();
+    ///
+    /// let wrd64 = circuit.new_word64();
+    /// let wrd8 = circuit.new_word8();
+    /// let cmp =
+    ///     circuit.greater_than_eq(&wrd64, &wrd8);
+    ///
+    /// circuit.set_word64(&wrd64, 26);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 22);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
+    ///
+    /// circuit.reset();
+    /// circuit.set_word64(&wrd64, 20);
+    /// circuit.set_word8(&wrd8, 22);
+    /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
+    /// ```
+    pub fn greater_than_eq<'a, Z, P>(&mut self, left: Z, right: P) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        P: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+    {
+        let is_greater_than = self.greater_than(left, right);
+        let eq = self.is_equal(left, right);
+        self.new_or(is_greater_than, eq)
     }
 
     /// The WireId evaluates to one iff left > right
@@ -994,132 +1160,85 @@ where
     ///
     /// let input_wire = circuit.new_word64();
     /// let zero = circuit.const_word64(5);
-    /// let greater_than_zero =
-    ///     circuit.new_word64_greater_than(&input_wire, &zero);
+    /// let greater_than =
+    ///     circuit.greater_than(&input_wire, &zero);
     ///
     /// circuit.set_word64(&input_wire, 26);
-    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(greater_than), Z251::from(1));
     ///
     /// circuit.reset();
     /// circuit.set_word64(&input_wire, 4);
-    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(0));
-    /// ```
-    pub fn new_word64_greater_than(&mut self, left: &Word64, right: &Word64) -> WireId {
-        let cmp7 = self.new_word8_greater_than(&left[7], &right[7]);
-        let eq7 = self.new_word8_eq(&left[7], &right[7]);
-
-        let cmp6 = self.new_word8_greater_than(&left[6], &right[6]);
-        let eq6 = self.new_word8_eq(&left[6], &right[6]);
-
-        let cmp5 = self.new_word8_greater_than(&left[5], &right[5]);
-        let eq5 = self.new_word8_eq(&left[5], &right[5]);
-
-        let cmp4 = self.new_word8_greater_than(&left[4], &right[4]);
-        let eq4 = self.new_word8_eq(&left[4], &right[4]);
-
-        let cmp3 = self.new_word8_greater_than(&left[3], &right[3]);
-        let eq3 = self.new_word8_eq(&left[3], &right[3]);
-
-        let cmp2 = self.new_word8_greater_than(&left[2], &right[2]);
-        let eq2 = self.new_word8_eq(&left[2], &right[2]);
-
-        let cmp1 = self.new_word8_greater_than(&left[1], &right[1]);
-        let eq1 = self.new_word8_eq(&left[1], &right[1]);
-
-        let cmp0 = self.new_word8_greater_than(&left[0], &right[0]);
-
-        let wir6 = self.fan_in([cmp6, eq7].iter(), Circuit::new_and);
-        let wir5 = self.fan_in([cmp5, eq7, eq6].iter(), Circuit::new_and);
-        let wir4 = self.fan_in([cmp4, eq7, eq6, eq5].iter(), Circuit::new_and);
-        let wir3 = self.fan_in([cmp3, eq7, eq6, eq5, eq4].iter(), Circuit::new_and);
-        let wir2 = self.fan_in([cmp2, eq7, eq6, eq5, eq4, eq3].iter(), Circuit::new_and);
-        let wir1 = self.fan_in(
-            [cmp1, eq7, eq6, eq5, eq4, eq3, eq2].iter(),
-            Circuit::new_and,
-        );
-        let wir0 = self.fan_in(
-            [cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1].iter(),
-            Circuit::new_and,
-        );
-
-        self.fan_in(
-            [cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0].iter(),
-            Circuit::new_or,
-        )
-    }
-
-    /// The WireId evaluates to one iff left == right
-    pub fn new_word8_eq(&mut self, left: &Word8, right: &Word8) -> WireId {
-        let eq: Vec<WireId> = left
-            .iter()
-            .zip(right.iter())
-            .map(|(&l, &r)| self.new_equality(l, r))
-            .collect();
-        self.fan_in(eq.iter(), Circuit::new_and)
-    }
-
-    /// The WireId evaluates to one iff left > right
-    ///
-    /// ```
-    /// use zksnark::groth16::circuit::Circuit;
-    /// use zksnark::field::z251::Z251;
-    ///
-    /// let mut circuit = Circuit::<Z251>::new();
+    /// assert_eq!(circuit.evaluate(greater_than), Z251::from(0));
     ///
     /// let input_wire = circuit.new_word8();
-    /// let zero = circuit.const_word8(5);
-    /// let greater_than_zero =
-    ///     circuit.new_word8_greater_than(&input_wire, &zero);
+    /// let zero = circuit.const_word64(5);
+    /// let greater_than =
+    ///     circuit.greater_than(&input_wire, &zero);
     ///
     /// circuit.set_word8(&input_wire, 26);
-    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(1));
+    /// assert_eq!(circuit.evaluate(greater_than), Z251::from(1));
     ///
     /// circuit.reset();
     /// circuit.set_word8(&input_wire, 4);
-    /// assert_eq!(circuit.evaluate(greater_than_zero), Z251::from(0));
+    /// assert_eq!(circuit.evaluate(greater_than), Z251::from(0));
     /// ```
-    pub fn new_word8_greater_than(&mut self, left: &Word8, right: &Word8) -> WireId {
-        let cmp7 = self.new_greater_than(left[7], right[7]);
-        let eq7 = self.new_equality(left[7], right[7]);
+    pub fn greater_than<'a, Z, P>(&mut self, left: Z, right: P) -> WireId
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+        P: IntoIterator<Item = &'a WireId> + BinaryInput,
+    {
+        let mut l_iter = left.into_iter();
+        let mut r_iter = right.into_iter();
+        let left_first_wire = l_iter
+            .next()
+            .expect("greater_than: left input must have at least one WireId");
+        let right_first_wire = r_iter
+            .next()
+            .expect("greater_than: right input must have at least one WireId");
 
-        let cmp6 = self.new_greater_than(left[6], right[6]);
-        let eq6 = self.new_equality(left[6], right[6]);
+        let mut cmp: VecDeque<WireId> = VecDeque::new();
+        let mut eq: VecDeque<WireId> = VecDeque::new();
 
-        let cmp5 = self.new_greater_than(left[5], right[5]);
-        let eq5 = self.new_equality(left[5], right[5]);
+        // you or this at the end in case one of the extra left input
+        // is one.
+        // (think greater_than(Word64, Word8))
+        let mut left_extra_non_zero: WireId = self.const_wire_id(Binary::Zero);
 
-        let cmp4 = self.new_greater_than(left[4], right[4]);
-        let eq4 = self.new_equality(left[4], right[4]);
+        // you new_and this at the end to make sure the right input's
+        // extra bits are all zero.
+        // (think greater_than(Word8, Word64))
+        let mut right_extra_all_zero: WireId = self.const_wire_id(Binary::One);
+        let cmp0 = self.new_greater_than(*left_first_wire, *right_first_wire);
 
-        let cmp3 = self.new_greater_than(left[3], right[3]);
-        let eq3 = self.new_equality(left[3], right[3]);
+        l_iter.zip_longest(r_iter).for_each(|x| match x {
+            Both(l, r) => {
+                cmp.push_back(self.new_greater_than(*l, *r));
+                eq.push_back(self.new_equality(*l, *r));
+            }
+            Left(l) => {
+                let one = self.const_wire_id(Binary::One);
+                let is_one = self.new_xnor(*l, one);
+                left_extra_non_zero = self.new_or(is_one, left_extra_non_zero);
+            }
+            Right(r) => {
+                let zero = self.const_wire_id(Binary::Zero);
+                let is_zero = self.new_xnor(*r, zero);
+                right_extra_all_zero = self.new_and(is_zero, right_extra_all_zero);
+            }
+        });
 
-        let cmp2 = self.new_greater_than(left[2], right[2]);
-        let eq2 = self.new_equality(left[2], right[2]);
+        let last_cmp = cmp.pop_back().unwrap_or(cmp0);
+        cmp.push_front(cmp0);
 
-        let cmp1 = self.new_greater_than(left[1], right[1]);
-        let eq1 = self.new_equality(left[1], right[1]);
+        let paired_cmp = cmp.into_iter().fold(last_cmp, |acc, cmp_wire| {
+            let and_eq = self.fan_in(eq.iter(), Circuit::new_and);
+            let and_eq_cmp = self.new_and(cmp_wire, and_eq);
+            eq.pop_front();
+            self.new_or(acc, and_eq_cmp)
+        });
 
-        let cmp0 = self.new_greater_than(left[0], right[0]);
-
-        let wir6 = self.fan_in([cmp6, eq7].iter(), Circuit::new_and);
-        let wir5 = self.fan_in([cmp5, eq7, eq6].iter(), Circuit::new_and);
-        let wir4 = self.fan_in([cmp4, eq7, eq6, eq5].iter(), Circuit::new_and);
-        let wir3 = self.fan_in([cmp3, eq7, eq6, eq5, eq4].iter(), Circuit::new_and);
-        let wir2 = self.fan_in([cmp2, eq7, eq6, eq5, eq4, eq3].iter(), Circuit::new_and);
-        let wir1 = self.fan_in(
-            [cmp1, eq7, eq6, eq5, eq4, eq3, eq2].iter(),
-            Circuit::new_and,
-        );
-        let wir0 = self.fan_in(
-            [cmp0, eq7, eq6, eq5, eq4, eq3, eq2, eq1].iter(),
-            Circuit::new_and,
-        );
-
-        self.fan_in(
-            [cmp7, wir6, wir5, wir4, wir3, wir2, wir1, wir0].iter(),
-            Circuit::new_or,
-        )
+        let left_or = self.new_or(left_extra_non_zero, paired_cmp); // or there is a 1 in extras on left
+        self.new_and(left_or, right_extra_all_zero) // and all right extra are zeros
     }
 
     ////////////////////////////////////////////////////////////////////////////////
