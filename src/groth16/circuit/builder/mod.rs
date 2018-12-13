@@ -765,14 +765,33 @@ where
 
     /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_nor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let or = self.new_or(lhs, rhs);
-        self.new_not(or)
+        let lhs_ab = vec![(T::one(), lhs)];
+        let rhs_ab = vec![(T::one(), rhs)];
+        let ab = self.new_sub_circuit(lhs_ab, rhs_ab);
+
+        let lhs_inputs = vec![
+            (T::one(), self.unity_wire()),
+            (T::one(), ab),
+            (-T::one(), lhs),
+            (-T::one(), rhs),
+        ];
+        let rhs_inputs = vec![(T::one(), self.unity_wire())];
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
     pub fn new_xnor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let xor = self.new_xor(lhs, rhs);
-        self.new_not(xor)
+        let lhs_inputs = vec![
+            (T::one(), self.unity_wire()),
+            (-T::one(), lhs),
+            (T::one(), rhs),
+        ];
+        let rhs_inputs = vec![
+            (T::one(), self.unity_wire()),
+            (T::one(), lhs),
+            (-T::one(), rhs),
+        ];
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     /// Requires that all inputs in array are either 0 or 1
@@ -915,14 +934,16 @@ where
 
     /// Requires that both the left and right inputs are either 0 or 1
     fn new_less_than(&mut self, left: WireId, right: WireId) -> WireId {
-        let left_not = self.new_not(left);
-        self.new_and(left_not, right)
+        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), left)];
+        let rhs_inputs = vec![(T::one(), right)];
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
     fn new_greater_than(&mut self, left: WireId, right: WireId) -> WireId {
-        let right_not = self.new_not(right);
-        self.new_and(left, right_not)
+        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), right)];
+        let rhs_inputs = vec![(T::one(), left)];
+        self.new_sub_circuit(lhs_inputs, rhs_inputs)
     }
 
     /// Requires that both the left and right inputs are either 0 or 1

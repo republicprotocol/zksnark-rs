@@ -82,12 +82,44 @@ fn or_test() {
 }
 
 #[test]
+fn nor_test() {
+    let logic_table = [(0, 0, 1), (0, 1, 0), (1, 0, 0), (1, 1, 0)];
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_wire();
+    let r_wire = circuit.new_wire();
+    let or = circuit.new_nor(l_wire, r_wire);
+
+    for (l, r, l_or_r) in logic_table.iter() {
+        circuit.reset();
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(or) == Z251::from(*l_or_r));
+    }
+}
+
+#[test]
 fn xor_test() {
     let logic_table = [(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_wire();
     let r_wire = circuit.new_wire();
     let xor = circuit.new_xor(l_wire, r_wire);
+
+    for (l, r, l_xor_r) in logic_table.iter() {
+        circuit.reset();
+        circuit.set_value(l_wire, Z251::from(*l));
+        circuit.set_value(r_wire, Z251::from(*r));
+        assert!(circuit.evaluate(xor) == Z251::from(*l_xor_r));
+    }
+}
+
+#[test]
+fn xnor_test() {
+    let logic_table = [(0, 0, 1), (0, 1, 0), (1, 0, 0), (1, 1, 1)];
+    let mut circuit = Circuit::<Z251>::new();
+    let l_wire = circuit.new_wire();
+    let r_wire = circuit.new_wire();
+    let xor = circuit.new_xnor(l_wire, r_wire);
 
     for (l, r, l_xor_r) in logic_table.iter() {
         circuit.reset();
