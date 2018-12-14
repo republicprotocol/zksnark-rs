@@ -17,6 +17,21 @@ pub enum Binary {
     One,
 }
 
+pub struct ValidateOrder {
+    pub is_x_within_range: WireId,
+    pub is_y_greater_than_c: WireId,
+    pub hash_x_y: [Word8; 32],
+}
+
+pub struct ValidateBalance {
+    pub x_hash: [Word8; 32],
+    pub y_hash: [Word8; 32],
+    pub z_hash: [Word8; 32],
+    pub is_z_eq_x_min_y: WireId,
+}
+
+// TODO: Write a binary version of WireId
+
 /// ## Usage Details:
 ///
 /// IMPORTANT:

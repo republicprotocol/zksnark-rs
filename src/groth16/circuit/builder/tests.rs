@@ -1,6 +1,7 @@
 use super::super::super::Z251;
 use super::*;
 use field::FieldIdentity;
+use groth16::fr::FrLocal;
 use std::time::{Duration, Instant};
 
 extern crate quickcheck;
@@ -33,6 +34,19 @@ fn bit_checker_test() {
         circuit.set_value(input, Z251::from(i));
         assert!(circuit.evaluate(checker) != Z251::from(0));
     }
+}
+
+// Tests the `bit_check` function that adds a bit checker to all its
+// wire inputs
+#[test]
+fn bit_check_stream() {
+    let mut circuit = Circuit::<Z251>::new();
+    let wrd64 = circuit.new_word64();
+    circuit.set_word64(&wrd64, 25);
+    let check = circuit.bit_check(&wrd64);
+    check
+        .into_iter()
+        .for_each(|x| assert_eq!(circuit.evaluate(x), Z251::from(0)));
 }
 
 #[test]
@@ -169,10 +183,8 @@ fn greater_than_u8_u64_all_combinations() {
     let r_wire_u64 = circuit.new_word64();
     let r_wire_u8 = circuit.new_word8();
 
-    let u8_u64_cmp = circuit.greater_than(&l_wire_u8, &r_wire_u64);
     let u8_u8_cmp = circuit.greater_than(&l_wire_u8, &r_wire_u8);
     let u64_u64_cmp = circuit.greater_than(&l_wire_u64, &r_wire_u64);
-    let u64_u8_cmp = circuit.greater_than(&l_wire_u64, &r_wire_u8);
 
     for (l_num, r_num) in iproduct!(
         (0..u64::max_value()).step((u64::max_value() / 32) as usize),
@@ -181,41 +193,18 @@ fn greater_than_u8_u64_all_combinations() {
         circuit.reset();
         circuit.set_word64(&l_wire_u64, l_num);
         circuit.set_word64(&r_wire_u64, r_num);
-        if l_num <= 255 {
-            circuit.set_word8(&l_wire_u8, l_num as u8);
-        }
-        if r_num <= 255 {
-            circuit.set_word8(&r_wire_u8, r_num as u8);
-        }
+        circuit.set_word8(&l_wire_u8, (l_num % 255) as u8);
+        circuit.set_word8(&r_wire_u8, (r_num % 255) as u8);
         // println!("this was tried: ({}, {})", l_num, r_num);
-        if l_num < r_num || l_num == r_num {
-            assert!(circuit.evaluate(u64_u64_cmp) == Z251::from(0));
-
-            if l_num <= 255 {
-                assert!(circuit.evaluate(u8_u64_cmp) == Z251::from(0));
-            }
-
-            if r_num <= 255 {
-                assert!(circuit.evaluate(u64_u8_cmp) == Z251::from(0));
-            }
-
-            if l_num <= 255 && r_num <= 255 {
-                assert!(circuit.evaluate(u8_u8_cmp) == Z251::from(0));
-            }
-        } else {
+        if l_num > r_num {
             assert!(circuit.evaluate(u64_u64_cmp) == Z251::from(1));
-
-            if l_num <= 255 {
-                assert!(circuit.evaluate(u8_u64_cmp) == Z251::from(1));
-            }
-
-            if r_num <= 255 {
-                assert!(circuit.evaluate(u64_u8_cmp) == Z251::from(1));
-            }
-
-            if l_num <= 255 && r_num <= 255 {
-                assert!(circuit.evaluate(u8_u8_cmp) == Z251::from(1));
-            }
+        } else {
+            assert!(circuit.evaluate(u64_u64_cmp) == Z251::from(0));
+        }
+        if (l_num % 255) as u8 > (r_num % 255) as u8 {
+            assert!(circuit.evaluate(u8_u8_cmp) == Z251::from(1));
+        } else {
+            assert!(circuit.evaluate(u8_u8_cmp) == Z251::from(0));
         }
     }
 }
@@ -868,6 +857,52 @@ fn keccak256_metrics() {
         build_time, eval_time
     );
 }
+
+#[test]
+fn validate_order_sanity_check() {
+    let mut input_vec: Vec<u8> = types::to_ne_u8(6027)
+        .into_iter()
+        .chain(types::to_ne_u8(90046).into_iter())
+        .cloned()
+        .collect();
+    let tiny_output = keccak256(&mut input_vec[..]);
+
+    let hash_x_y: &mut [u8; 32] = &mut [0; 32];
+
+    let mut circuit = Circuit::<Z251>::new();
+    let input_x = circuit.set_new_word64(6027);
+    let pub_range = (&circuit.set_new_word64(5000), &circuit.set_new_word64(8000));
+    let input_y = circuit.set_new_word64(90046);
+    let pub_c = circuit.set_new_word64(80000);
+    let v = circuit.validate_order(&input_x, pub_range, &input_y, &pub_c);
+    assert_eq!(circuit.evaluate(v.is_x_within_range), <Z251>::from(1));
+    assert_eq!(circuit.evaluate(v.is_y_greater_than_c), <Z251>::from(1));
+    circuit.evaluate_to_array(v.hash_x_y.iter(), hash_x_y);
+    assert_eq!(*hash_x_y, tiny_output);
+}
+
+// #[test]
+// #[ignore]
+// fn validate_balance_sanity_check() {
+//     const X: u64 = 24687;
+//     const Y: u64 = 227777;
+//     const Z: u64 = X - Y;
+
+//     let tiny_x_hash = keccak256(&mut );
+
+//     let hash_x_y: &mut [u8; 32] = &mut [0; 32];
+
+//     let mut circuit = Circuit::<Z251>::new();
+//     let input_x = circuit.set_new_word64(6027);
+//     let pub_range = (&circuit.set_new_word64(5000), &circuit.set_new_word64(8000));
+//     let input_y = circuit.set_new_word64(90046);
+//     let pub_c = circuit.set_new_word64(80000);
+//     let v = circuit.validate_order(&input_x, pub_range, &input_y, &pub_c);
+//     assert_eq!(circuit.evaluate(v.is_x_within_range), <Z251>::from(1));
+//     assert_eq!(circuit.evaluate(v.is_y_greater_than_c), <Z251>::from(1));
+//     circuit.evaluate_to_array(v.hash_x_y.iter(), hash_x_y);
+//     assert_eq!(*hash_x_y, tiny_output);
+// }
 
 //////////////////////////////////// Quickcheck Tests //////////////////////////////
 #[test]
