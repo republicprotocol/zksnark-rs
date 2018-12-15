@@ -293,7 +293,7 @@ mod tests {
         let circuit_input: Vec<Word8> = circuit.new_word8_vec(LEN);
         let hash: [Word8; 32] = circuit.keccak256_stream(&circuit_input);
 
-        let mut bit_check: Vec<WireId> = circuit.bit_check(flatten_word8(&circuit_input));
+        let mut bit_check: Vec<WireId> = circuit.bit_check(&flatten_word8(&circuit_input));
         let mut verify_wires = flatten_word8(&hash);
         verify_wires.append(&mut bit_check);
 
