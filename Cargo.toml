@@ -3,8 +3,11 @@ opt-level = 3
 
 [package]
 name = "zksnark"
-version = "0.0.1"
-authors = ["ross", "pfalzgraf"]
+description = "An implementation of zkSNARK using groth16."
+version = "0.0.2"
+authors = ["Ross", "Pfalzgraf]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/republicprotocol/zksnark-rs"
 
 [dependencies]
 itertools = "0.6.0"
@@ -19,3 +22,6 @@ tiny-keccak = "1.0"
 
 [profile.test]
 opt-level = 3
+
+[package.metadata.docs.rs]
+all-features = true
