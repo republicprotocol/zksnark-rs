@@ -45,8 +45,8 @@ let
       repo = "nixpkgs-mozilla";
       inherit 
        ({ url = "https://github.com/mozilla/nixpkgs-mozilla";
-          rev = "136eacc0ceefa8fb44677799e5639e083606ee5d";
-          sha256 = "04bz093x3zjkzp7ba8mh876a1a34kp3jrys87m79gbln5qvcd2ir";
+          rev = "c985206e160204707e15a45f0b9df4221359d21c";
+          sha256 = "0k0p3nfzr3lfgp1bb52bqrbqjlyyiysf8lq2rnrmn759ijxy2qmq";
           fetchSubmodules = false;
 	}) rev sha256;
     });
@@ -57,12 +57,17 @@ in
   stdenv.mkDerivation {
     name = "rust-env";
     buildInputs = [
-      nixpkgs.latest.rustChannels.beta.rust
-      nixpkgs.latest.rustChannels.beta.cargo
-      # (nixpkgs.rustChannelOf { date = "2018-10-18"; channel = "beta"; }).rust
-      # (nixpkgs.rustChannelOf { date = "2018-09-21"; channel = "beta"; }).cargo
+      # nixpkgs.latest.rustChannels.beta.rust
+      (nixpkgs.rustChannelOf { date = "2018-10-24"; channel = "beta"; }).rust
 
       rustfmt ctags rustracer rustPlatform.rustcSrc carnix 
+      rustup
+
+      vscode
+
+      liburcu openssl gnome3.gcr krb5 icu zlib
+      gnome3.gnome-keyring gnome3.libsecret desktop-file-utils xorg.xprop
+
     ];
 
     # Set Environment Variables

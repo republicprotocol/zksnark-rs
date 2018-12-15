@@ -1,3 +1,66 @@
+//! The purpose of this module is to build circuits into a representation that
+//! can be turned into a `QAP` (Quadratic Arithmetic Program) which is defined
+//! in "groth16/mod.rs". I'll start this off by describing what are the building
+//! blocks for a `Circuit` are made of:
+//!
+//! # Sub Circuit
+//!
+//! You can think of a circuit as a collection of nodes connected by wires
+//! without any cycles (Directed Acyclic Graph). Nodes are made up of
+//! "sub circuit" which in reality look like this:
+//!
+//! ```
+//! // `Left` input wires-> \|/ \|  <- `Right` input wires
+//! //                       +   +  <- Plus operation
+//! //                        \ /   <- (implicit connections, not wires)
+//! //                         *    <- Multiplication operation
+//! //                         |    <- `Output` wire
+//! ```
+//!
+//! Lets walk through the example "sub circuit" which is the atomic unit of a
+//! `Circuit`. In this example the left plus operation has 3 input wires and the
+//! right plus operation has 2 input wires. Every plus operation must have at
+//! least one input wire, but may have any number of extra input wires. Each
+//! "wire" also has an associated weight and takes some input, unless it is an
+//! `Output` wire. The way the "sub circuit" is evaluated is by evaluating all
+//! input wires, followed by the plus operation and multiplication operation.
+//!
+//! ```
+//! // For Example, given the above "sub circuit" we can evaluate it as follows:
+//! //              We have these inputs and weights on the left wires:
+//! //                 - [(1,1), (2,0), (1,2)] : [(inputs, weights)]
+//!
+//! //              And here are the inputs and weights on the right wires:
+//! //                 - [(3,0), (0,1)] : [(inputs, weights)]
+//!
+//! //              To evaluate the wires we multiply their inputs by their weight:
+//! //              and then the plus operation adds the results together:
+//! //                 - Left plus operation equals => ((1 * 1) + (2 * 0) + (1 * 2))
+//! //                 - Right plus operation equals => ((3 * 0) + (0 * 1))
+//!
+//! //              Finally the multiplication operation multiplies the result
+//! //              of the previous two:
+//! //                 - (((1 * 1) + (2 * 0) + (1 * 2)) * ((3 * 0) + (0 * 1)))
+//! //              
+//! //              Thus the output wire would have the value: 0
+//! ```
+//!
+//! Note: A single wire may connect to any number of sub circuits including to the same
+//! sub circuit multiple times on both its left and right inputs. (Exception,
+//! wires must never form a loop anywhere in the `Circuit`)
+//!
+//! # `Circuit`
+//!
+//! A `Circuit` is made up of many connecting sub circuits. To evaluate a
+//! `Circuit` means to determine the value of the `Circuit`'s output wires.
+//! Which are in turn made up of the sub circuits output wires that do not
+//! connect to another sub circuit's input wires. This also means a `Circuit`
+//! has some number of input wires which come from the sub circuits with input
+//! wires that do not connect to other sub circuit's output wires. `Circuit`s
+//! are pure in the sense that the input uniquely determines the output of the
+//! `Circuit`.
+//!
+
 use super::super::field::*;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -11,7 +74,7 @@ use self::ast::{Expression, ParseErr};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
 
-pub use self::builder::{Circuit, WireId};
+pub use self::builder::{BinaryInput, Circuit, WireId, Word64, Word8};
 
 pub struct CircuitInstance<T, F>
 where

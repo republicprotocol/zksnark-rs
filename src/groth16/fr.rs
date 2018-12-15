@@ -262,8 +262,7 @@ mod tests {
 
             let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-            assert!(verify(
-                &qap,
+            assert!(verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
                 (sigmag1, sigmag2),
                 &vec![FrLocal::from(51), FrLocal::from(3)],
                 proof
@@ -294,7 +293,11 @@ mod tests {
 
             let proof = prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+            assert!(verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                (sigmag1, sigmag2),
+                &vec![x, share],
+                proof
+            ));
         }
     }
 
@@ -342,7 +345,11 @@ mod tests {
             proof_time += now.elapsed().subsec_millis();
 
             let now = Instant::now();
-            assert!(verify(&qap, (sigmag1, sigmag2), &vec![x, share], proof));
+            assert!(verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                (sigmag1, sigmag2),
+                &vec![x, share],
+                proof
+            ));
             verify_time += now.elapsed().subsec_millis();
         }
 
@@ -395,7 +402,11 @@ mod tests {
             proof_time += now.elapsed().subsec_millis();
 
             let now = Instant::now();
-            assert!(verify(&qap, (sigmag1, sigmag2), &weights[1..3], proof));
+            assert!(verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                (sigmag1, sigmag2),
+                &weights[1..3],
+                proof
+            ));
             verify_time += now.elapsed().subsec_millis();
         }
 
