@@ -81,22 +81,38 @@ use self::dummy_rep::DummyRep;
 // builder public.
 pub use self::builder::{flatten_word8, BinaryInput, Circuit, WireId, Word64, Word8};
 
+
+// TODO consider making `I` a type internally like IntoIterator 
 pub trait SetCircuitInputs<T, I> 
 where
     T: Copy
 {
     /// Sets the Struct (self) that contains `WireId`s with the values
     /// in `set` using the `circuit`
-    fn set_circuit(&self, circuit: &mut Circuit<T>, set: I);
+    fn set_circuit(&self, circuit: &mut Circuit<T>, set: &I);
 }
 
-/// NOTE: the 'a
+// This is a default instance to keep other basic uses of
+// `CircuitInstance` happy. However, in general you should not use
+// this for any complex circuits
+impl<'a, T> SetCircuitInputs<T, Vec<T>> for Vec<&'a WireId> 
+where
+    T: Copy + Field,
+{
+    fn set_circuit(&self, circuit: &mut Circuit<T>, set: &Vec<T>) {
+        assert_eq!(self.len(), set.len());
+        set.iter().zip(self.into_iter()).for_each(|(val, wir)| circuit.set_value(**wir, *val));
+    }
+}
+
+/// See `circuit_weights_type_check` for example of how to use this
+/// without macros.
+///
+/// TODO: add proper docs here after you write the macro to create the
+/// instances
 pub struct CircuitInstance<T, F, V, W, I>
 where
     T: Copy,
-    // F: Fn(SubCircuitId) -> T,
-    // V: IntoIterator<Item = &'a WireId>,
-    // W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, I>,
 {
     circuit: Circuit<T>,
     verification_wires_len: usize,
@@ -115,11 +131,11 @@ where
     /// In other words `I` could be `(79u64, 20u8)` and `W` would be
     /// `(Word64, Word8)` then `set_circuit` would set the input
     /// `(Word64, Word8)` with `I`.
-    phantom_I: PhantomData<I>,
+    phantom_i: PhantomData<I>,
 
     /// The purpose behind `V` is essentially the same, its some
     /// structure that we can iterate over its `WireId`.
-    phantom_V: PhantomData<V>,
+    phantom_v: PhantomData<V>,
 }
 
 impl<'a, T, F, V, W, I> CircuitInstance<T, F, V, W, I>
@@ -138,12 +154,13 @@ where
         // The goal for ordered_wires is to end up with a structure
         // like this (where n = k and circuit.num_wires() = n):
         //
-        // `{ zero_wire, input0, input1, ..., inputn
-        //  , witness0, witness1, ..., withnessk }`
-        // 
-        // First we add the zero_wire:
+        // `{ unity_wire, verify0, verify1, ..., verifyN
+        //  , witness0, witness1, ..., withnessK }`
         //
-        // TODO: confirm if it should be zero_wire or unity_wire
+        // (Order for verify and witness does not mater, but the
+        // verify needs to be before witness wires)
+        // 
+        // First we add the unity_wire:
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
 
@@ -172,12 +189,12 @@ where
             input_wires,
             ordered_wires,
             sub_circuit_point,
-            phantom_I: PhantomData,
-            phantom_V: PhantomData,
+            phantom_i: PhantomData,
+            phantom_v: PhantomData,
         }
     }
 
-    pub fn weights(&mut self, inputs: I) -> Vec<T> {
+    pub fn weights(&mut self, inputs: &I) -> Vec<T> {
         let CircuitInstance {
             ordered_wires,
             circuit,
@@ -808,5 +825,58 @@ mod tests {
         ];
 
         assert_eq!(Ok(expected), weights(&code, assignments));
+    }
+
+    // This is a test to show you can now create `CircuitInstance`
+    // with some new struct that has `SetCircuitInputs` implemented
+    // for it and you are not able to give `weights` the wrong input
+    // type. (Which in this case is show by giving it the right type)
+    #[test]
+    fn circuit_weights_type_check() {
+        let mut circuit = Circuit::<Z251>::new();
+        let left = circuit.new_word8(); 
+        let right = circuit.new_word8(); 
+        let cmp: WireId = circuit.greater_than(&left, &right);
+
+        let verify_wires: Vec<WireId> = circuit.bit_check([left, right].iter().flat_map(|x| x.iter()));
+
+        use std::iter::Chain;
+        use std::slice::Iter;
+
+        struct CMP<'a> {
+            left: &'a Word8,
+            right: &'a Word8,
+        }
+
+
+        impl<'a> IntoIterator for CMP<'a> {
+            type Item = &'a WireId;
+            type IntoIter = Chain<Iter<'a, WireId>, Iter<'a, WireId>>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.left.into_iter().chain(self.left.into_iter())
+            }
+        }
+
+        impl<'a> SetCircuitInputs<Z251, (u8, u8)> for CMP<'a> {
+            fn set_circuit(&self, circuit: &mut Circuit<Z251>, set: &(u8, u8)) {
+                circuit.set_word8(&self.left, set.0);
+                circuit.set_word8(&self.right, set.1);
+            }
+        }
+
+        let input: CMP = CMP {
+            left: &left,
+            right: &right,
+        };
+
+        let mut instance =
+            CircuitInstance::new(circuit, &verify_wires, input, |w| {
+                Z251::from(w.inner_id() + 1)
+            });
+
+        let _weights: Vec<Z251> = instance.weights(&(26, 11));
+
+        assert_eq!(instance.circuit.evaluate(cmp), Z251::from(1));
     }
 }
