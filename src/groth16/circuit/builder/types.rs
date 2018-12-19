@@ -364,9 +364,9 @@ mod tests {
         }
         fn flatten_to_word64_prop(rand: Vec<usize>) -> bool {
             let wrd64: Vec<WireId> = rand.into_iter().chain(0..64).take(64).map(|x| WireId(x)).collect();
-            let copy = wrd64.clone();
+            let wrd64_copy = wrd64.clone();
 
-            copy == flatten_word64([to_word64(wrd64.into_iter())].iter())
+            wrd64_copy == flatten_word64([to_word64(wrd64.into_iter())].iter())
         }
     }
 
