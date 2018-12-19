@@ -64,6 +64,8 @@
 use super::super::field::*;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::marker::PhantomData;
+use std::collections::hash_set::HashSet;
 
 mod ast;
 mod builder;
@@ -79,37 +81,82 @@ use self::dummy_rep::DummyRep;
 // builder public.
 pub use self::builder::{flatten_word8, BinaryInput, Circuit, WireId, Word64, Word8};
 
-pub struct CircuitInstance<T, F>
+pub trait SetCircuitInputs<T, I> 
 where
-    T: Copy,
-    F: Fn(SubCircuitId) -> T,
+    T: Copy
 {
-    circuit: Circuit<T>,
-    verification_wires: Vec<WireId>,
-    input_wires: Vec<WireId>,
-    ordered_wires: Vec<WireId>,
-    sub_circuit_point: F,
+    /// Sets the Struct (self) that contains `WireId`s with the values
+    /// in `set` using the `circuit`
+    fn set_circuit(&self, circuit: &mut Circuit<T>, set: I);
 }
 
-impl<T, F> CircuitInstance<T, F>
+/// NOTE: the 'a
+pub struct CircuitInstance<T, F, V, W, I>
+where
+    T: Copy,
+    // F: Fn(SubCircuitId) -> T,
+    // V: IntoIterator<Item = &'a WireId>,
+    // W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, I>,
+{
+    circuit: Circuit<T>,
+    verification_wires_len: usize,
+    input_wires: W,
+    ordered_wires: Vec<WireId>,
+    sub_circuit_point: F,
+
+    /// This is here to "constrain" the `I` and `V` generic parameters
+    /// to make the compiler happy. There is no run-time overhead for
+    /// this.
+    ///
+    /// The purpose behind `I` is to have `weights` take in some type
+    /// `I` as input that maps directly to `W` (the input_wires) using
+    /// the `SetCircuitInputs` trait.
+    ///
+    /// In other words `I` could be `(79u64, 20u8)` and `W` would be
+    /// `(Word64, Word8)` then `set_circuit` would set the input
+    /// `(Word64, Word8)` with `I`.
+    phantom_I: PhantomData<I>,
+
+    /// The purpose behind `V` is essentially the same, its some
+    /// structure that we can iterate over its `WireId`.
+    phantom_V: PhantomData<V>,
+}
+
+impl<'a, T, F, V, W, I> CircuitInstance<T, F, V, W, I>
 where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
+    V: IntoIterator<Item = &'a WireId>,
+    W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, I>,
 {
     pub fn new(
         circuit: Circuit<T>,
-        verification_wires: Vec<WireId>,
-        input_wires: Vec<WireId>,
+        verification_wires: V,
+        input_wires: W,
         sub_circuit_point: F,
     ) -> Self {
+        // The goal for ordered_wires is to end up with a structure
+        // like this (where n = k and circuit.num_wires() = n):
+        //
+        // `{ zero_wire, input0, input1, ..., inputn
+        //  , witness0, witness1, ..., withnessk }`
+        // 
+        // First we add the zero_wire:
+        //
+        // TODO: confirm if it should be zero_wire or unity_wire
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
 
+        // Since we only can get`WireId`s from verification_wires `V`
+        // and we need to check if a given `WireId` is one of the
+        // verification_wires we turn it into a HashSet.
+        let verification_wire_set: HashSet<&'a WireId> = verification_wires.into_iter().collect();
+
         let (verification_ids, witness_ids) = circuit
-            .wire_assignments()
-            .keys()
-            .filter(|w| **w != circuit.unity_wire())
-            .partition::<Vec<_>, _>(|k| verification_wires.contains(k));
+            .wire_assignments() // map will all assigned WireId
+            .keys() // All the assigned WireId
+            .filter(|w| **w != circuit.unity_wire()) // remove all the unity_wires
+            .partition::<Vec<_>, _>(|k| verification_wire_set.contains(k));
 
         // Assign the wires that are to be verified to the lower indices
         ordered_wires.append(
@@ -121,29 +168,25 @@ where
 
         CircuitInstance {
             circuit,
-            verification_wires,
+            verification_wires_len: verification_wire_set.len(),
             input_wires,
             ordered_wires,
             sub_circuit_point,
+            phantom_I: PhantomData,
+            phantom_V: PhantomData,
         }
     }
 
-    pub fn weights(&mut self, inputs: Vec<T>) -> Vec<T> {
-        if inputs.len() != self.input_wires.len() {
-            panic!("must have the same number of input wires and assignments")
-        }
-
-        // Set the values of the input wires of the circuit
-        for (wire, value) in self.input_wires.iter().zip(inputs.iter()) {
-            self.circuit.set_value(*wire, *value);
-        }
-
-        // Iterate through all of the wires and collect the values
+    pub fn weights(&mut self, inputs: I) -> Vec<T> {
         let CircuitInstance {
             ordered_wires,
             circuit,
+            input_wires,
             ..
         } = self;
+
+        // Set the values of the input wires of the circuit
+        input_wires.set_circuit(circuit, inputs);
 
         ordered_wires
             .iter()
@@ -152,12 +195,12 @@ where
     }
 }
 
-impl<'a, T, F> From<&'a CircuitInstance<T, F>> for DummyRep<T>
+impl<'a, T, F, V, W, I> From<&'a CircuitInstance<T, F, V, W, I>> for DummyRep<T>
 where
     T: Field + Copy,
     F: Fn(SubCircuitId) -> T,
 {
-    fn from(instance: &CircuitInstance<T, F>) -> Self {
+    fn from(instance: &CircuitInstance<T, F, V, W, I>) -> Self {
         use self::ConnectionType::*;
 
         let mut u = vec![vec![]; instance.circuit.num_wires()];
@@ -168,7 +211,6 @@ where
             .sub_circuits()
             .map(&instance.sub_circuit_point)
             .collect::<Vec<_>>();
-        let input = instance.verification_wires.len();
 
         for wire in instance.ordered_wires.iter() {
             let (mut ui, mut vi, mut wi) = (Vec::new(), Vec::new(), Vec::new());
@@ -193,7 +235,7 @@ where
             v,
             w,
             roots,
-            input,
+            input: instance.verification_wires_len,
         }
     }
 }
