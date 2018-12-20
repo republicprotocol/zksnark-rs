@@ -89,8 +89,10 @@ where
 {
     /// Sets the Struct (self) that contains `WireId`s with the values
     /// in `set` using the `circuit`
-    fn set_circuit(&self, circuit: &mut Circuit<T>, set: &I);
+    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &I);
 }
+
+// pub trait 
 
 // This is a default instance to keep other basic uses of
 // `CircuitInstance` happy. However, in general you should not use
@@ -99,7 +101,7 @@ impl<'a, T> SetCircuitInputs<T, Vec<T>> for Vec<&'a WireId>
 where
     T: Copy + Field,
 {
-    fn set_circuit(&self, circuit: &mut Circuit<T>, set: &Vec<T>) {
+    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Vec<T>) {
         assert_eq!(self.len(), set.len());
         set.iter().zip(self.into_iter()).for_each(|(val, wir)| circuit.set_value(**wir, *val));
     }
@@ -129,7 +131,7 @@ where
     /// the `SetCircuitInputs` trait.
     ///
     /// In other words `I` could be `(79u64, 20u8)` and `W` would be
-    /// `(Word64, Word8)` then `set_circuit` would set the input
+    /// `(Word64, Word8)` then `set_inputs` would set the input
     /// `(Word64, Word8)` with `I`.
     phantom_i: PhantomData<I>,
 
@@ -169,11 +171,14 @@ where
         // verification_wires we turn it into a HashSet.
         let verification_wire_set: HashSet<&'a WireId> = verification_wires.into_iter().collect();
 
-        let (verification_ids, witness_ids) = circuit
+        let (mut verification_ids, witness_ids) = circuit
             .wire_assignments() // map will all assigned WireId
             .keys() // All the assigned WireId
             .filter(|w| **w != circuit.unity_wire()) // remove all the unity_wires
             .partition::<Vec<_>, _>(|k| verification_wire_set.contains(k));
+
+        // Sort verification wires first
+        verification_ids.sort_unstable();
 
         // Assign the wires that are to be verified to the lower indices
         ordered_wires.append(
@@ -203,7 +208,7 @@ where
         } = self;
 
         // Set the values of the input wires of the circuit
-        input_wires.set_circuit(circuit, inputs);
+        input_wires.set_inputs(circuit, inputs);
 
         ordered_wires
             .iter()
@@ -220,9 +225,9 @@ where
     fn from(instance: &CircuitInstance<T, F, V, W, I>) -> Self {
         use self::ConnectionType::*;
 
-        let mut u = vec![vec![]; instance.circuit.num_wires()];
-        let mut v = vec![vec![]; instance.circuit.num_wires()];
-        let mut w = vec![vec![]; instance.circuit.num_wires()];
+        let mut u = Vec::with_capacity(instance.circuit.num_wires());
+        let mut v = Vec::with_capacity(instance.circuit.num_wires());
+        let mut w = Vec::with_capacity(instance.circuit.num_wires());
         let roots = instance
             .circuit
             .sub_circuits()
@@ -859,7 +864,7 @@ mod tests {
         }
 
         impl<'a> SetCircuitInputs<Z251, (u8, u8)> for CMP<'a> {
-            fn set_circuit(&self, circuit: &mut Circuit<Z251>, set: &(u8, u8)) {
+            fn set_inputs(&self, circuit: &mut Circuit<Z251>, set: &(u8, u8)) {
                 circuit.set_word8(&self.left, set.0);
                 circuit.set_word8(&self.right, set.1);
             }

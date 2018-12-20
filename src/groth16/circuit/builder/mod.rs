@@ -33,7 +33,7 @@ pub struct SubCircuitConnections<T> {
     output: WireId,
 }
 
-#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct WireId(usize);
 
 impl fmt::Debug for WireId {
