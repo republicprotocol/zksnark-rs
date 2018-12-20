@@ -81,27 +81,26 @@ use self::dummy_rep::DummyRep;
 // builder public.
 pub use self::builder::{flatten_word8, BinaryInput, Circuit, WireId, Word64, Word8};
 
-
-// TODO consider making `I` a type internally like IntoIterator 
-pub trait SetCircuitInputs<T, I> 
+pub trait SetCircuitInputs<T> 
 where
-    T: Copy
+    T: Copy + Field,
 {
+    type Input;
     /// Sets the Struct (self) that contains `WireId`s with the values
     /// in `set` using the `circuit`
-    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &I);
+    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Self::Input);
 }
-
-// pub trait 
 
 // This is a default instance to keep other basic uses of
 // `CircuitInstance` happy. However, in general you should not use
 // this for any complex circuits
-impl<'a, T> SetCircuitInputs<T, Vec<T>> for Vec<&'a WireId> 
+impl<'a, T> SetCircuitInputs<T> for Vec<&'a WireId> 
 where
     T: Copy + Field,
 {
-    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Vec<T>) {
+    type Input = Vec<T>;
+
+    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Self::Input) {
         assert_eq!(self.len(), set.len());
         set.iter().zip(self.into_iter()).for_each(|(val, wir)| circuit.set_value(**wir, *val));
     }
@@ -145,7 +144,7 @@ where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
     V: IntoIterator<Item = &'a WireId>,
-    W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, I>,
+    W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, Input = I>,
 {
     pub fn new(
         circuit: Circuit<T>,
@@ -863,8 +862,10 @@ mod tests {
             }
         }
 
-        impl<'a> SetCircuitInputs<Z251, (u8, u8)> for CMP<'a> {
-            fn set_inputs(&self, circuit: &mut Circuit<Z251>, set: &(u8, u8)) {
+        impl<'a> SetCircuitInputs<Z251> for CMP<'a> {
+            type Input = (u8, u8);
+
+            fn set_inputs(&self, circuit: &mut Circuit<Z251>, set: &Self::Input) {
                 circuit.set_word8(&self.left, set.0);
                 circuit.set_word8(&self.right, set.1);
             }
