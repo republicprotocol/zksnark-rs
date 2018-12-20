@@ -12,10 +12,10 @@ let
   
   nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
 
-  beta-rust = 
+  stable-rust = 
     (nixpkgs.rustChannelOf 
-      { date = "2018-10-24"; 
-        channel = "beta"; 
+      { date = "2018-12-06"; 
+        channel = "stable";
       }
     );
 
@@ -70,11 +70,11 @@ in
   stdenv.mkDerivation {
     name = "rust-env";
     buildInputs = [
-      beta-rust.rust 
-      beta-rust.rls-preview
-      beta-rust.rustfmt-preview
-      beta-rust.rust-analysis
-      beta-rust.clippy-preview
+      stable-rust.rust 
+      stable-rust.rls-preview
+      stable-rust.rustfmt-preview
+      stable-rust.rust-analysis
+      stable-rust.clippy-preview
 
       rustracer carnix 
     ];
@@ -82,7 +82,7 @@ in
     # Set Environment Variables
     RUST_BACKTRACE = 1;
     RUST_RACER_PATH = "${rustracer}/bin/racer";
-    RUST_SRC_PATH = "${beta-rust.rust-src}/lib/rustlib/src/rust/src/";
-    RUST_STD_DOCS_PATH = "${beta-rust.rust-docs}";
-    RUST_STD_PATH = "${beta-rust.rust-std}";
+    RUST_SRC_PATH = "${stable-rust.rust-src}/lib/rustlib/src/rust/src/";
+    RUST_STD_DOCS_PATH = "${stable-rust.rust-docs}";
+    RUST_STD_PATH = "${stable-rust.rust-std}";
   }
