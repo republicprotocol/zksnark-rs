@@ -79,7 +79,8 @@ impl<'a> From<&'a str> for DummyRep<Z251> {
                         .clone()
                         .into_iter()
                         .chain(temp_vars.clone().into_iter()),
-                ).position(|s| s == first)
+                )
+                .position(|s| s == first)
                 .unwrap()
                 + 1;
 
@@ -103,7 +104,8 @@ impl<'a> From<&'a str> for DummyRep<Z251> {
                                 .clone()
                                 .into_iter()
                                 .chain(temp_vars.clone().into_iter()),
-                        ).position(|s| s == l)
+                        )
+                        .position(|s| s == l)
                         .unwrap()
                         + 1;
 
@@ -123,7 +125,8 @@ impl<'a> From<&'a str> for DummyRep<Z251> {
                             .clone()
                             .into_iter()
                             .chain(temp_vars.clone().into_iter()),
-                    ).position(|s| s == r)
+                    )
+                    .position(|s| s == r)
                     .unwrap()
                     + 1;
 

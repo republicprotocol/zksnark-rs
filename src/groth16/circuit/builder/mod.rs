@@ -3,7 +3,7 @@ use itertools::EitherOrBoth::{Both, Left, Right};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
-use std::ops::{BitXor, Shl, Shr, Rem};
+use std::ops::{BitXor, Rem, Shl, Shr};
 
 extern crate itertools;
 use itertools::Itertools;
@@ -13,7 +13,8 @@ mod tests;
 
 mod types;
 pub use self::types::{
-    Binary, BinaryInput, CanConvert, ValidateBalance, ValidateOrder, Word64, Word8, PairedInputWires
+    Binary, BinaryInput, CanConvert, PairedInputWires, ValidateBalance, ValidateOrder, Word64,
+    Word8,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -264,14 +265,13 @@ where
         N: Sized + From<u8> + Rem<Output = N> + Shr<Output = N> + Eq + Copy,
     {
         word.into_iter().enumerate().for_each(|(i, &t)| {
-            if input.shr(N::from(i as u8)) % N::from(2) == N::from(0) { 
+            if input.shr(N::from(i as u8)) % N::from(2) == N::from(0) {
                 self.set_value(t, T::zero());
             } else {
                 self.set_value(t, T::one());
             }
         });
     }
-
 
     ////////////////////////////////////////////////////////////////////////////////
     ///////////////////// Set and create new Wire Functions ////////////////////////

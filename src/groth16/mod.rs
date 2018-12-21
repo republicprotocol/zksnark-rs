@@ -151,7 +151,8 @@ where
         .zip(qap.v.as_slice().iter().zip(qap.w.as_slice().iter()))
         .map(|(ui, (vi, wi))| {
             ((beta * ui.evaluate(x) + alpha * vi.evaluate(x) + wi.evaluate(x)) / gamma).encrypt_g1()
-        }).take(qap.input + 1)
+        })
+        .take(qap.input + 1)
         .collect::<Vec<_>>();
     let sum_delta = qap
         .u
@@ -160,7 +161,8 @@ where
         .zip(qap.v.as_slice().iter().zip(qap.w.as_slice().iter()))
         .map(|(ui, (vi, wi))| {
             ((beta * ui.evaluate(x) + alpha * vi.evaluate(x) + wi.evaluate(x)) / delta).encrypt_g1()
-        }).skip(qap.input + 1)
+        })
+        .skip(qap.input + 1)
         .collect::<Vec<_>>();
     let xi_t = xi
         .as_slice()
@@ -482,9 +484,9 @@ mod tests {
                 [0, 0, 0],
                 [0, 0, 0],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             v: [
                 [0, 0, 0],
                 [0, 0, 0],
@@ -495,9 +497,9 @@ mod tests {
                 [248, 4, 250],
                 [1, 124, 126],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             w: [
                 [0, 0, 0],
                 [0, 0, 0],
@@ -508,9 +510,9 @@ mod tests {
                 [3, 123, 126],
                 [248, 4, 250],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             t: [245, 11, 245, 1]
                 .iter()
                 .map(|&c| c.into())
@@ -557,9 +559,9 @@ mod tests {
                 [0, 0, 0],
                 [0, 0, 0],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             v: [
                 [0, 0, 0],
                 [0, 0, 0],
@@ -570,9 +572,9 @@ mod tests {
                 [248, 4, 250],
                 [1, 124, 126],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             w: [
                 [0, 0, 0],
                 [0, 0, 0],
@@ -583,9 +585,9 @@ mod tests {
                 [3, 123, 126],
                 [248, 4, 250],
             ]
-                .iter()
-                .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
-                .collect::<Vec<_>>(),
+            .iter()
+            .map(|v| v.iter().map(|&c| c.into()).collect::<Vec<_>>().into())
+            .collect::<Vec<_>>(),
             t: [245, 11, 245, 1]
                 .iter()
                 .map(|&c| c.into())
@@ -760,7 +762,8 @@ mod tests {
         // Quadratic polynomial share
         let root_rep: DummyRep<Z251> = ASTParser::try_parse(
             &*::std::fs::read_to_string("test_programs/lispesque_quad.zk").unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let qap = root_rep.into();
 
         for _ in 0..1000 {
@@ -789,7 +792,8 @@ mod tests {
         // Cubic polynomial share
         let root_rep: DummyRep<Z251> = ASTParser::try_parse(
             &*::std::fs::read_to_string("test_programs/lispesque_cubic.zk").unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let qap = root_rep.into();
 
         for _ in 0..1000 {

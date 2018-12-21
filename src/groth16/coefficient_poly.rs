@@ -123,7 +123,8 @@ where
                 self_iter
                     .zip(rhs_iter)
                     .fold(T::from(0), |acc, (&a, &b)| acc + a * b)
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         CoefficientPoly { coeffs }
     }
@@ -349,7 +350,8 @@ mod tests {
                 Z251::from(28),
                 Z251::from(27),
                 Z251::from(18),
-            ].into()
+            ]
+            .into()
         );
 
         // Multiplication with overflow
@@ -363,7 +365,8 @@ mod tests {
                 Z251::from(242),
                 Z251::from(198),
                 Z251::from(18),
-            ].into()
+            ]
+            .into()
         );
     }
 

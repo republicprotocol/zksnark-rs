@@ -78,7 +78,8 @@ where
                 }
             }
             _ => None,
-        }).collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
 }
 
 pub fn expressions<F>(code: &str) -> Result<Vec<Expression<F>>, ParseErr>
@@ -246,7 +247,8 @@ where
                         _ => (),
                     }
                     (t, depth)
-                }).take_while(|&(_, d)| d != 0)
+                })
+                .take_while(|&(_, d)| d != 0)
                 .map(|(t, _)| t)
                 .collect::<Vec<_>>()
                 .into()
