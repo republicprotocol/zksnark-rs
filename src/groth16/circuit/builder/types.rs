@@ -9,13 +9,19 @@ use std::slice::{Iter, IterMut};
 
 pub trait BinaryInput {}
 
-pub trait CanConvert<T> {}
+pub trait CanConvert {
+    type Number;
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Binary {
     Zero,
     One,
 }
+
+pub struct PairedInputWires<W, V>((W, V))
+where
+    W: CanConvert<Number = V>;
 
 pub struct ValidateOrder {
     pub is_x_within_range: WireId,
@@ -84,7 +90,9 @@ impl<'a> FromIterator<&'a WireId> for Word8 {
 }
 
 impl<'a> BinaryInput for &'a Word8 {}
-impl<'a> CanConvert<u8> for &'a Word8 {}
+impl<'a> CanConvert for &'a Word8 {
+    type Number = u8;
+}
 
 impl PartialEq for Word8 {
     fn eq(&self, other: &Word8) -> bool {
@@ -190,7 +198,9 @@ impl<'a> IntoIterator for &'a Word64 {
 }
 
 impl<'a> BinaryInput for &'a Word64 {}
-impl<'a> CanConvert<u64> for &'a Word64 {}
+impl<'a> CanConvert for &'a Word64 {
+    type Number = u64;
+}
 
 impl PartialEq for Word64 {
     fn eq(&self, other: &Word64) -> bool {

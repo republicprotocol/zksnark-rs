@@ -133,7 +133,8 @@ pub use groth16::circuit::dummy_rep::DummyRep;
 #[doc(hidden)]
 pub use groth16::circuit::{ASTParser, TryParse};
 #[doc(hidden)]
-pub use groth16::circuit::{Circuit, CircuitInstance, WireId};
+pub use groth16::circuit::builder::{Circuit, WireId};
+pub use groth16::circuit::{CircuitInstance};
 #[doc(hidden)]
 pub use groth16::coefficient_poly::CoefficientPoly;
 #[doc(hidden)]
@@ -147,7 +148,7 @@ mod tests {
     use super::field::z251::Z251;
     use super::groth16::Random;
     use super::*;
-    use groth16::circuit::{flatten_word8, Word8};
+    use groth16::circuit::builder::{Word8};
     use groth16::fr::{G1Local, G2Local};
 
     extern crate tiny_keccak;

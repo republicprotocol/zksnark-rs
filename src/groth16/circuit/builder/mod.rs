@@ -3,7 +3,7 @@ use itertools::EitherOrBoth::{Both, Left, Right};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
-use std::ops::{BitXor, Shl};
+use std::ops::{BitXor, Shl, Shr, Rem};
 
 extern crate itertools;
 use itertools::Itertools;
@@ -13,7 +13,7 @@ mod tests;
 
 mod types;
 pub use self::types::{
-    flatten_word8, Binary, BinaryInput, CanConvert, ValidateBalance, ValidateOrder, Word64, Word8,
+    Binary, BinaryInput, CanConvert, ValidateBalance, ValidateOrder, Word64, Word8, PairedInputWires
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -135,7 +135,7 @@ where
     /// ```
     /// use zksnark::field::z251::Z251;
     /// use zksnark::field::*;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -143,7 +143,7 @@ where
     /// let u8_input = circuit.new_word8();
     ///
     /// // As binary 0x4F is: 0100 1111
-    /// circuit.set_word8(&u8_input, 0b0000_0010);
+    /// circuit.set_from_num(&u8_input, 0b0000_0010);
     /// assert_eq!(circuit.evaluate_to_num(&u8_input), 0b0000_0010);
     ///
     /// // ...
@@ -172,14 +172,14 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
     ///
     /// let u64_input = circuit.new_word64();
     ///
-    /// circuit.set_word64(&u64_input, 1);
+    /// circuit.set_from_num(&u64_input, 1);
     ///
     /// assert_eq!(circuit.evaluate_to_num(&u64_input), 1);
     /// ```
@@ -210,7 +210,7 @@ where
         matrix_wires
             .iter()
             .zip(input.iter())
-            .for_each(|(wrd64, num)| self.set_word64(&wrd64, *num));
+            .for_each(|(wrd64, num)| self.set_from_num(wrd64, *num));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -254,31 +254,24 @@ where
         self.wire_values.insert(wire, Some(value));
     }
 
-    /// set the values for a `Word8` from a u8.
+    /// Set the values for a any BinaryInput structure from a number.
     ///
-    /// See `new_u8` for example
+    /// See `new_u8` or `new_u64` for example
     ///
-    pub fn set_word8(&mut self, u8_wires: &Word8, mut input: u8) {
-        u8_wires.iter().for_each(|&wire_id| {
-            if input % 2 == 0 {
-                self.set_value(wire_id, T::zero());
+    pub fn set_from_num<'a, Z, N>(&mut self, word: Z, input: N)
+    where
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
+        N: Sized + From<u8> + Rem<Output = N> + Shr<Output = N> + Eq + Copy,
+    {
+        word.into_iter().enumerate().for_each(|(i, &t)| {
+            if input.shr(N::from(i as u8)) % N::from(2) == N::from(0) { 
+                self.set_value(t, T::zero());
             } else {
-                self.set_value(wire_id, T::one());
+                self.set_value(t, T::one());
             }
-            input = input >> 1;
         });
     }
 
-    /// Set the values for a `Word64` from a u64.
-    ///
-    /// See `new_u8` for example
-    ///
-    pub fn set_word64(&mut self, u64_wires: &Word64, input: u64) {
-        u64_wires
-            .iter()
-            .zip(types::to_ne_u8(input).iter())
-            .for_each(|(word, &num)| self.set_word8(word, num));
-    }
 
     ////////////////////////////////////////////////////////////////////////////////
     ///////////////////// Set and create new Wire Functions ////////////////////////
@@ -288,7 +281,7 @@ where
     /// placeholder and set it with an input.
     pub fn set_new_word8(&mut self, input: u8) -> Word8 {
         let x = self.new_word8();
-        self.set_word8(&x, input);
+        self.set_from_num(&x, input);
         x
     }
 
@@ -296,7 +289,7 @@ where
     /// placeholder and set it with an input.
     pub fn set_new_word64(&mut self, input: u64) -> Word64 {
         let x = self.new_word64();
-        self.set_word64(&x, input);
+        self.set_from_num(&x, input);
         x
     }
 
@@ -310,7 +303,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -345,7 +338,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -377,7 +370,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -413,7 +406,7 @@ where
     /// ```
     /// use zksnark::field::z251::Z251;
     /// use zksnark::field::*;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -585,7 +578,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -596,7 +589,7 @@ where
     /// ```
     pub fn evaluate_to_num<'a, Z, N>(&mut self, word: Z) -> N
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
         N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
     {
         word.into_iter().enumerate().fold(N::from(0), |acc, (i, wire)| {
@@ -622,7 +615,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -638,7 +631,7 @@ where
     pub fn evaluate_to_vec<'a, Z, W: 'a, N>(&mut self, stream: Z) -> Vec<N>
     where
         Z: IntoIterator<Item = W>,
-        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
         N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
     {
         stream
@@ -658,7 +651,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// // Create an empty circuit
     /// let mut circuit = Circuit::<Z251>::new();
@@ -677,7 +670,7 @@ where
     pub fn evaluate_to_array<'a, Z, W: 'a, N>(&mut self, stream: Z, output: &'a mut [N])
     where
         Z: IntoIterator<Item = W>,
-        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<N>,
+        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
         N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
     {
         stream
@@ -957,7 +950,7 @@ where
     }
 
     /// ```
-    /// use zksnark::groth16::circuit::{Circuit, BinaryInput};
+    /// use zksnark::groth16::circuit::builder::{Circuit, BinaryInput};
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -967,11 +960,11 @@ where
     /// let eq =
     ///     circuit.is_equal(&input_wire, &num);
     ///
-    /// circuit.set_word8(&input_wire, 5);
+    /// circuit.set_from_num(&input_wire, 5);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word8(&input_wire, 4);
+    /// circuit.set_from_num(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
     /// // Lets use is_equal with Word64 as well
@@ -984,11 +977,11 @@ where
     /// let eq =
     ///     circuit.is_equal(&input_wire, &num);
     ///
-    /// circuit.set_word64(&input_wire, 1119784);
+    /// circuit.set_from_num(&input_wire, 1119784);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&input_wire, 4);
+    /// circuit.set_from_num(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
     /// ```
@@ -1021,7 +1014,7 @@ where
     }
 
     /// ```
-    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::groth16::circuit::builder::Circuit;
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -1034,14 +1027,14 @@ where
     /// let zero_check_u8 =
     ///     circuit.is_equal_zero(&wrd8);
     ///
-    /// circuit.set_word64(&wrd64, 0);
-    /// circuit.set_word8(&wrd8, 0);
+    /// circuit.set_from_num(&wrd64, 0);
+    /// circuit.set_from_num(&wrd8, 0);
     /// assert_eq!(circuit.evaluate(zero_check_u64), Z251::from(1));
     /// assert_eq!(circuit.evaluate(zero_check_u8), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&wrd64, 22);
-    /// circuit.set_word8(&wrd8, 22);
+    /// circuit.set_from_num(&wrd64, 22);
+    /// circuit.set_from_num(&wrd8, 22);
     /// assert_eq!(circuit.evaluate(zero_check_u64), Z251::from(0));
     /// assert_eq!(circuit.evaluate(zero_check_u8), Z251::from(0));
     /// ```
@@ -1062,7 +1055,7 @@ where
     }
 
     /// ```
-    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::groth16::circuit::builder::Circuit;
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -1072,18 +1065,18 @@ where
     /// let cmp =
     ///     circuit.less_than(&left, &right);
     ///
-    /// circuit.set_word64(&left, 26);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 26);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&left, 22);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 22);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&left, 20);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 20);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     /// ```
     pub fn less_than<'a, Z>(&mut self, left: Z, right: Z) -> WireId
@@ -1098,7 +1091,7 @@ where
     }
 
     /// ```
-    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::groth16::circuit::builder::Circuit;
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -1108,18 +1101,18 @@ where
     /// let cmp =
     ///     circuit.less_than_eq(&left, &right);
     ///
-    /// circuit.set_word8(&left, 26);
-    /// circuit.set_word8(&right, 22);
+    /// circuit.set_from_num(&left, 26);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
     ///
     /// circuit.reset();
-    /// circuit.set_word8(&left, 22);
-    /// circuit.set_word8(&right, 22);
+    /// circuit.set_from_num(&left, 22);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word8(&left, 20);
-    /// circuit.set_word8(&right, 22);
+    /// circuit.set_from_num(&left, 20);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     /// ```
     pub fn less_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> WireId
@@ -1133,7 +1126,7 @@ where
     }
 
     /// ```
-    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::groth16::circuit::builder::Circuit;
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -1143,18 +1136,18 @@ where
     /// let cmp =
     ///     circuit.greater_than_eq(&left, &right);
     ///
-    /// circuit.set_word64(&left, 26);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 26);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&left, 22);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 22);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&left, 20);
-    /// circuit.set_word64(&right, 22);
+    /// circuit.set_from_num(&left, 20);
+    /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
     /// ```
     pub fn greater_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> WireId
@@ -1169,7 +1162,7 @@ where
     /// The WireId evaluates to one iff left > right
     ///
     /// ```
-    /// use zksnark::groth16::circuit::Circuit;
+    /// use zksnark::groth16::circuit::builder::Circuit;
     /// use zksnark::field::z251::Z251;
     ///
     /// let mut circuit = Circuit::<Z251>::new();
@@ -1179,11 +1172,11 @@ where
     /// let greater_than =
     ///     circuit.greater_than(&input_wire, &zero);
     ///
-    /// circuit.set_word64(&input_wire, 26);
+    /// circuit.set_from_num(&input_wire, 26);
     /// assert_eq!(circuit.evaluate(greater_than), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word64(&input_wire, 4);
+    /// circuit.set_from_num(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(greater_than), Z251::from(0));
     ///
     /// let input_wire = circuit.new_word8();
@@ -1191,11 +1184,11 @@ where
     /// let greater_than =
     ///     circuit.greater_than(&input_wire, &zero);
     ///
-    /// circuit.set_word8(&input_wire, 26);
+    /// circuit.set_from_num(&input_wire, 26);
     /// assert_eq!(circuit.evaluate(greater_than), Z251::from(1));
     ///
     /// circuit.reset();
-    /// circuit.set_word8(&input_wire, 4);
+    /// circuit.set_from_num(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(greater_than), Z251::from(0));
     /// ```
     pub fn greater_than<'a, Z>(&mut self, left: Z, right: Z) -> WireId
@@ -1400,7 +1393,7 @@ where
     ///
     /// ```
     /// use zksnark::field::z251::Z251;
-    /// use zksnark::groth16::circuit::*;
+    /// use zksnark::groth16::circuit::builder::*;
     ///
     /// const BYTES: usize = 56;
     ///

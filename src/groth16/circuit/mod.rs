@@ -68,7 +68,7 @@ use std::marker::PhantomData;
 use std::collections::hash_set::HashSet;
 
 mod ast;
-mod builder;
+pub mod builder;
 pub mod dummy_rep;
 
 use self::ast::TokenList;
@@ -79,7 +79,7 @@ use self::dummy_rep::DummyRep;
 // This exports flatten_word8 because builder is a private module, so
 // there is no other way to export it for lib.rs without making
 // builder public.
-pub use self::builder::{flatten_word8, BinaryInput, Circuit, WireId, Word64, Word8};
+use self::builder::{Circuit, WireId, Word8};
 
 pub trait SetCircuitInputs<T> 
 where
@@ -866,8 +866,8 @@ mod tests {
             type Input = (u8, u8);
 
             fn set_inputs(&self, circuit: &mut Circuit<Z251>, set: &Self::Input) {
-                circuit.set_word8(&self.left, set.0);
-                circuit.set_word8(&self.right, set.1);
+                circuit.set_from_num(self.left, set.0);
+                circuit.set_from_num(self.right, set.1);
             }
         }
 

@@ -42,7 +42,7 @@ fn bit_checker_test() {
 fn bit_check_stream() {
     let mut circuit = Circuit::<Z251>::new();
     let wrd64 = circuit.new_word64();
-    circuit.set_word64(&wrd64, 25);
+    circuit.set_from_num(&wrd64, 25);
     let check = circuit.bit_check(&wrd64);
     check
         .into_iter()
@@ -191,10 +191,10 @@ fn greater_than_u8_u64_all_combinations() {
         (0..u64::max_value()).step((u64::max_value() / 29) as usize)
     ) {
         circuit.reset();
-        circuit.set_word64(&l_wire_u64, l_num);
-        circuit.set_word64(&r_wire_u64, r_num);
-        circuit.set_word8(&l_wire_u8, (l_num % 255) as u8);
-        circuit.set_word8(&r_wire_u8, (r_num % 255) as u8);
+        circuit.set_from_num(&l_wire_u64, l_num);
+        circuit.set_from_num(&r_wire_u64, r_num);
+        circuit.set_from_num(&l_wire_u8, (l_num % 255) as u8);
+        circuit.set_from_num(&r_wire_u8, (r_num % 255) as u8);
         // println!("this was tried: ({}, {})", l_num, r_num);
         if l_num > r_num {
             assert!(circuit.evaluate(u64_u64_cmp) == Z251::from(1));
@@ -317,8 +317,8 @@ fn evaluate_to_num_check() {
     let mut circuit = Circuit::<Z251>::new();
     let wrd8 = circuit.new_word8();
     let wrd64 = circuit.new_word64();
-    circuit.set_word8(&wrd8, 56);
-    circuit.set_word64(&wrd64, 110956);
+    circuit.set_from_num(&wrd8, 56);
+    circuit.set_from_num(&wrd64, 110956);
     assert_eq!(circuit.evaluate_to_num(&wrd8), 56);
     assert_eq!(circuit.evaluate_to_num(&wrd64), 110956);
 }
@@ -359,7 +359,7 @@ fn const_word8_sanity_check() {
 fn word64_set_eval() {
     let mut circuit = Circuit::<Z251>::new();
     let u64_input = circuit.new_word64();
-    circuit.set_word64(&u64_input, 1);
+    circuit.set_from_num(&u64_input, 1);
     assert_eq!(circuit.evaluate_to_num::<_, u64>(&u64_input), 1);
 }
 
@@ -367,7 +367,7 @@ fn word64_set_eval() {
 fn set_word8_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
     let u8_input = circuit.new_word8();
-    circuit.set_word8(&u8_input, 0b0000_0100);
+    circuit.set_from_num(&u8_input, 0b0000_0100);
     assert_eq!(circuit.evaluate(u8_input[0]), Z251::zero());
     assert_eq!(circuit.evaluate(u8_input[1]), Z251::zero());
     assert_eq!(circuit.evaluate(u8_input[2]), Z251::one());
@@ -383,7 +383,7 @@ fn set_word8_sanity_check() {
 fn set_word64_sanity_check() {
     let mut circuit = Circuit::<Z251>::new();
     let w64 = circuit.new_word64();
-    circuit.set_word64(&w64, 0b0100_1011_0100_1111);
+    circuit.set_from_num(&w64, 0b0100_1011_0100_1111);
     assert_eq!(circuit.evaluate(w64[0][0]), Z251::one());
     assert_eq!(circuit.evaluate(w64[0][1]), Z251::one());
     assert_eq!(circuit.evaluate(w64[0][2]), Z251::one());
@@ -450,7 +450,7 @@ fn u64_fan_in_single_test() {
     let mut elems: [Word64; 5] = [Word64::default(); 5];
     input.iter().enumerate().for_each(|(i, &num)| {
         let wrd64 = circuit.new_word64();
-        circuit.set_word64(&wrd64, num);
+        circuit.set_from_num(&wrd64, num);
         elems[i] = wrd64;
     });
 
@@ -996,8 +996,8 @@ quickcheck! {
 
         let left_word = circuit.new_word64();
         let right_word = circuit.new_word64();
-        circuit.set_word64(&left_word, left);
-        circuit.set_word64(&right_word, right);
+        circuit.set_from_num(&left_word, left);
+        circuit.set_from_num(&right_word, right);
 
         let complete_circuit = circuit.u64_bitwise_op(&left_word,
                     &types::rotate_word64_left(right_word, 1), Circuit::new_xor);
@@ -1011,8 +1011,8 @@ quickcheck! {
 
         let left_word = circuit.new_word64();
         let right_word = circuit.new_word64();
-        circuit.set_word64(&left_word, left);
-        circuit.set_word64(&right_word, right);
+        circuit.set_from_num(&left_word, left);
+        circuit.set_from_num(&right_word, right);
 
         let complete_circuit = circuit.u64_bitwise_op(&left_word, &right_word, Circuit::new_xor);
 
@@ -1044,7 +1044,7 @@ quickcheck! {
     fn word8_prop(num: u8) -> bool {
         let mut circuit = Circuit::<Z251>::new();
         let u8_input = circuit.new_word8();
-        circuit.set_word8(&u8_input, num);
+        circuit.set_from_num(&u8_input, num);
         circuit.evaluate_to_num::<_, u8>(&u8_input) == num
     }
 
@@ -1054,7 +1054,7 @@ quickcheck! {
     fn word64_prop(num: u64) -> bool {
         let mut circuit = Circuit::<Z251>::new();
         let u64_input = circuit.new_word64();
-        circuit.set_word64(&u64_input, num);
+        circuit.set_from_num(&u64_input, num);
         circuit.evaluate_to_num::<_, u64>(&u64_input) == num
     }
 
