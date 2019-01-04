@@ -148,7 +148,8 @@ where
                     T::one()
                 }
             })
-        }).collect()
+        })
+        .collect()
 }
 
 /// The core reason we need a function like this is to let us cast
@@ -403,7 +404,8 @@ where
         .map(|(x, a)| {
             let (_, m, _) = ext_euc_alg(x, *a);
             m * x
-        }).zip(rems)
+        })
+        .zip(rems)
         .map(|(a, b)| a * *b)
         .fold(T::zero(), |acc, x| acc + x)
 }
@@ -516,7 +518,8 @@ where
                 .zip(powers(ri))
                 .map(|(&a, r)| a * r)
                 .fold(T::zero(), |acc, x| acc + x)
-        }).collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
 }
 
 /// Inverse Discrete Fourier Transformation
@@ -533,7 +536,8 @@ where
                 .map(|(&a, r)| a * r)
                 .fold(T::zero(), |acc, x| acc + x)
                 * T::from(seq.len()).mul_inv()
-        }).collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
 }
 
 #[cfg(test)]
@@ -615,7 +619,8 @@ mod tests {
         let result = vec![
             6, 86, 169, 189, 203, 131, 237, 118, 115, 91, 248, 177, 8, 48, 34, 136, 177, 203, 125,
             57, 237, 81, 9, 30, 122,
-        ].into_iter()
+        ]
+        .into_iter()
         .map(Z251::from)
         .collect::<Vec<_>>();
 

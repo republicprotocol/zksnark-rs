@@ -3,23 +3,90 @@ use super::*;
 extern crate itertools;
 use itertools::EitherOrBoth::{Both, Left, Right};
 use itertools::Itertools;
-use std::iter::FromIterator;
-use std::ops::{Index, IndexMut};
+use std::iter::{once, FromIterator, Once};
+use std::ops::{Index, IndexMut, Shr};
 use std::slice::{Iter, IterMut};
 
 pub trait BinaryInput {}
 
-pub trait CanConvert<T> {}
+pub trait CanConvert<'a> {
+    type Number;
+    type PairedIter: Iterator<Item = (&'a BinaryWire, Binary)>;
 
-#[derive(Clone, Copy, Debug)]
+    fn pair_bits(&self, num: Self::Number) -> Self::PairedIter;
+
+    fn bits_to_num(bits: impl Iterator<Item = Binary>) -> Self::Number;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Binary {
     Zero,
     One,
 }
 
+impl Default for Binary {
+    fn default() -> Binary {
+        Binary::Zero
+    }
+}
+
+impl From<u8> for Binary {
+    fn from(num: u8) -> Self {
+        match num {
+            0 => Binary::Zero,
+            1 => Binary::One,
+            _ => panic!("Binary::From<u8> u8 was greater than 1"),
+        }
+    }
+}
+
+impl Into<u8> for Binary {
+    fn into(self) -> u8 {
+        match self {
+            Binary::Zero => 0,
+            Binary::One => 1,
+        }
+    }
+}
+
+impl Into<i8> for Binary {
+    fn into(self) -> i8 {
+        match self {
+            Binary::Zero => 0,
+            Binary::One => 1,
+        }
+    }
+}
+
+impl Into<u64> for Binary {
+    fn into(self) -> u64 {
+        match self {
+            Binary::Zero => 0,
+            Binary::One => 1,
+        }
+    }
+}
+
+impl Into<i64> for Binary {
+    fn into(self) -> i64 {
+        match self {
+            Binary::Zero => 0,
+            Binary::One => 1,
+        }
+    }
+}
+
+pub struct PairedInputWires<'a, W, V>
+where
+    &'a W: CanConvert<'a, Number = V>,
+{
+    pub wire: &'a W,
+    pub value: V,
+}
+
 pub struct ValidateOrder {
-    pub is_x_within_range: WireId,
-    pub is_y_greater_than_c: WireId,
+    pub is_x_within_range: BinaryWire,
+    pub is_y_greater_than_c: BinaryWire,
     pub hash_x_y: [Word8; 32],
 }
 
@@ -27,10 +94,48 @@ pub struct ValidateBalance {
     pub x_hash: [Word8; 32],
     pub y_hash: [Word8; 32],
     pub z_hash: [Word8; 32],
-    pub is_z_eq_x_min_y: WireId,
+    pub is_z_eq_x_min_y: BinaryWire,
 }
 
-// TODO: Write a binary version of WireId
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct BinaryWire(usize);
+
+impl From<WireId> for BinaryWire {
+    fn from(wire: WireId) -> Self {
+        BinaryWire(wire.0)
+    }
+}
+
+impl Into<WireId> for BinaryWire {
+    fn into(self) -> WireId {
+        WireId(self.0)
+    }
+}
+
+impl<'a> BinaryInput for &'a BinaryWire {}
+impl<'a> CanConvert<'a> for &'a BinaryWire {
+    type Number = Binary;
+
+    type PairedIter = Once<(&'a BinaryWire, Binary)>;
+
+    fn pair_bits(&self, num: Self::Number) -> Self::PairedIter {
+        once((self, num))
+    }
+
+    fn bits_to_num(mut bits: impl Iterator<Item = Binary>) -> Self::Number {
+        bits.next()
+            .expect("Binary::bits_to_num: must have at least one input")
+    }
+}
+
+impl<'a> IntoIterator for &'a BinaryWire {
+    type Item = &'a BinaryWire;
+    type IntoIter = Once<&'a BinaryWire>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        once(&(self))
+    }
+}
 
 /// ## Usage Details:
 ///
@@ -41,50 +146,72 @@ pub struct ValidateBalance {
 ///       lets say you input the number 0x4B (ends in: 0100 1011) into the Word8
 ///       placeholder then it would be stored as: [1,1,0,1,0,0,1,0]
 ///
-#[derive(Clone, Copy, Debug)]
-pub struct Word8([WireId; 8]);
+#[derive(Debug, Clone, Copy)]
+pub struct Word8([BinaryWire; 8]);
 
 impl Word8 {
-    pub fn iter(&self) -> Iter<WireId> {
+    pub fn iter(&self) -> Iter<BinaryWire> {
         self.0.iter()
     }
 }
 
 impl<'a> IntoIterator for &'a Word8 {
-    type Item = &'a WireId;
-    type IntoIter = Iter<'a, WireId>;
+    type Item = &'a BinaryWire;
+    type IntoIter = Iter<'a, BinaryWire>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl FromIterator<WireId> for Word8 {
-    fn from_iter<T: IntoIterator<Item = WireId>>(iter: T) -> Self {
+impl FromIterator<BinaryWire> for Word8 {
+    fn from_iter<T: IntoIterator<Item = BinaryWire>>(iter: T) -> Self {
         let mut arr: Word8 = Word8::default();
         (0..8).zip_longest(iter).for_each(|x| match x {
             Both(i, num) => arr[i] = num,
-            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
-            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
+            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 BinaryWire"),
+            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 BinaryWire"),
         });
         arr
     }
 }
 
-impl<'a> FromIterator<&'a WireId> for Word8 {
-    fn from_iter<T: IntoIterator<Item = &'a WireId>>(iter: T) -> Self {
+impl<'a> FromIterator<&'a BinaryWire> for Word8 {
+    fn from_iter<T: IntoIterator<Item = &'a BinaryWire>>(iter: T) -> Self {
         let mut arr: Word8 = Word8::default();
         (0..8).zip_longest(iter).for_each(|x| match x {
             Both(i, &num) => arr[i] = num,
-            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
-            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
+            Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 BinaryWire"),
+            Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 BinaryWire"),
         });
         arr
     }
 }
 
 impl<'a> BinaryInput for &'a Word8 {}
-impl<'a> CanConvert<u8> for &'a Word8 {}
+impl<'a> CanConvert<'a> for &'a Word8 {
+    type Number = u8;
+
+    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>;
+
+    fn pair_bits(&self, num: Self::Number) -> Self::PairedIter {
+        Box::new(
+            self.into_iter()
+                .zip((0..8).map(move |i: u64| match num.shr(i) % 2 {
+                    0 => Binary::Zero,
+                    _ => Binary::One,
+                })),
+        )
+    }
+
+    fn bits_to_num(bits: impl Iterator<Item = Binary>) -> Self::Number {
+        let num: u8 = 0;
+        bits.enumerate().fold(num, |acc, (i, b)| match b {
+            Binary::One => acc ^ 1 << i,
+            Binary::Zero => acc,
+        })
+    }
+}
 
 impl PartialEq for Word8 {
     fn eq(&self, other: &Word8) -> bool {
@@ -95,41 +222,22 @@ impl Eq for Word8 {}
 
 impl Default for Word8 {
     fn default() -> Word8 {
-        Word8([WireId::default(); 8])
+        Word8([BinaryWire::default(); 8])
     }
 }
 
 impl Index<usize> for Word8 {
-    type Output = WireId;
+    type Output = BinaryWire;
 
-    fn index<'a>(&'a self, index: usize) -> &'a WireId {
+    fn index<'a>(&'a self, index: usize) -> &'a BinaryWire {
         &self.0[index]
     }
 }
 
 impl IndexMut<usize> for Word8 {
-    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut WireId {
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut BinaryWire {
         &mut self.0[index]
     }
-}
-
-/// This is a convenience function to create a `Word8` from exactly 8
-/// WireId any more or less will cause a panic
-pub fn to_word8(input: impl Iterator<Item = WireId>) -> Word8 {
-    let mut arr: Word8 = Word8::default();
-    (0..8).zip_longest(input).for_each(|x| match x {
-        Both(i, num) => arr[i] = num,
-        Left(_) => panic!("to_word8: Word8 cannot be constructed from less than 8 WireId"),
-        Right(_) => panic!("to_word8: Word8 cannot be constructed from more than 8 WireId"),
-    });
-    arr
-}
-
-// TODO: when you get the time refactor this to work just on
-// references. The reason you don't now is the way this function
-// interacts with to_word8 and the way you are using to_word8
-pub fn flatten_word8<'a>(input: impl IntoIterator<Item = &'a Word8>) -> Vec<WireId> {
-    input.into_iter().flat_map(|x| x.iter()).cloned().collect()
 }
 
 /// ## Usage Details:
@@ -144,9 +252,9 @@ pub fn flatten_word8<'a>(input: impl IntoIterator<Item = &'a Word8>) -> Vec<Wire
 ///
 /// `Word64` is really just a placeholder for a u64. It does not store a u64
 /// number, but can be assigned a u64 number before evaluation. Still this only
-/// associates the bits of a u64 number with the `WireId`s in the `Word64`.
+/// associates the bits of a u64 number with the `BinaryWire`s in the `Word64`.
 ///
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Word64([Word8; 8]);
 
 impl Word64 {
@@ -164,9 +272,9 @@ pub struct Word64Iter<'a> {
 }
 
 impl<'a> Iterator for Word64Iter<'a> {
-    type Item = &'a WireId;
+    type Item = &'a BinaryWire;
 
-    fn next(&mut self) -> Option<&'a WireId> {
+    fn next(&mut self) -> Option<&'a BinaryWire> {
         if self.count < 64 {
             let x = Some(&self.wrd64[self.count / 8][self.count % 8]);
             self.count += 1;
@@ -178,7 +286,7 @@ impl<'a> Iterator for Word64Iter<'a> {
 }
 
 impl<'a> IntoIterator for &'a Word64 {
-    type Item = &'a WireId;
+    type Item = &'a BinaryWire;
     type IntoIter = Word64Iter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -190,7 +298,29 @@ impl<'a> IntoIterator for &'a Word64 {
 }
 
 impl<'a> BinaryInput for &'a Word64 {}
-impl<'a> CanConvert<u64> for &'a Word64 {}
+impl<'a> CanConvert<'a> for &'a Word64 {
+    type Number = u64;
+
+    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>;
+
+    fn pair_bits(&self, num: Self::Number) -> Self::PairedIter {
+        Box::new(
+            self.into_iter()
+                .zip((0..64).map(move |i: u64| match num.shr(i) % 2 {
+                    0 => Binary::Zero,
+                    _ => Binary::One,
+                })),
+        )
+    }
+
+    fn bits_to_num(bits: impl Iterator<Item = Binary>) -> Self::Number {
+        let num: u64 = 0;
+        bits.enumerate().fold(num, |acc, (i, b)| match b {
+            Binary::One => acc ^ 1 << i,
+            Binary::Zero => acc,
+        })
+    }
+}
 
 impl PartialEq for Word64 {
     fn eq(&self, other: &Word64) -> bool {
@@ -268,30 +398,6 @@ pub fn rotate_word64_right(input: Word64, by: usize) -> Word64 {
     wrd64
 }
 
-/// This is a convenience function to create a `Word64` from exactly
-/// 64 WireId any more or less will cause a panic
-pub fn to_word64(input: impl Iterator<Item = WireId>) -> Word64 {
-    let mut arr: Word64 = Word64::default();
-    input
-        .chunks(8)
-        .into_iter()
-        .map(|chunk| to_word8(chunk))
-        .zip_longest(0..8)
-        .for_each(|x| match x {
-            Both(num, i) => arr[i] = num,
-            Right(_) => panic!("to_word64: Word64 cannot be constructed from less than 64 WireId"),
-            Left(_) => panic!("to_word64: Word64 cannot be constructed from more than 64 WireId"),
-        });
-    arr
-}
-
-pub fn flatten_word64<'a>(input: impl Iterator<Item = &'a Word64>) -> Vec<WireId> {
-    input
-        .flat_map(|x| x.iter().flat_map(|i| i.iter()))
-        .cloned()
-        .collect()
-}
-
 pub const RC: [u64; 24] = [
     0x0000000000000001,
     0x0000000000008082,
@@ -346,34 +452,10 @@ mod tests {
 
     #[test]
     fn word8_iterator() {
-        let wrd8: Word8 = ((0..8).map(WireId)).collect();
+        let wrd8: Word8 = ((0..8).map(BinaryWire)).collect();
         let wrd8_2 = wrd8.into_iter().collect();
         assert_eq!(wrd8, wrd8_2);
     }
 
-    quickcheck! {
-        fn rotate_inverse_prop(rotate_by: usize) -> bool {
-            let word64 = to_word64((0..64).map(WireId));
-            word64 == rotate_word64_right(rotate_word64_left(word64, rotate_by), rotate_by)
-        }
-        fn rotate_mod(by: usize) -> bool {
-            let word64 = to_word64((0..64).map(WireId));
-            rotate_word64_left(word64, by + 64) == rotate_word64_left(word64, by)
-                &&
-            rotate_word64_right(word64, by + 64) == rotate_word64_right(word64, by)
-        }
-        fn flatten_to_word64_prop(rand: Vec<usize>) -> bool {
-            let wrd64: Vec<WireId> = rand.into_iter().chain(0..64).take(64).map(|x| WireId(x)).collect();
-            let copy = wrd64.clone();
-
-            copy == flatten_word64([to_word64(wrd64.into_iter())].iter())
-        }
-    }
-
-    #[test]
-    fn rotate_single_test() {
-        let a_wrd64: Word64 = to_word64((0..64).map(WireId));
-        let b_wrd64: Word64 = to_word64((63..64).chain(0..63).map(WireId));
-        assert_eq!(b_wrd64, rotate_word64_left(a_wrd64, 1));
-    }
+    quickcheck! {}
 }

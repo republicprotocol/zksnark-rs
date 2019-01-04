@@ -274,7 +274,8 @@ mod tests {
     fn bn_encrypt_quad_test() {
         let root_rep = ASTParser::try_parse(
             &*::std::fs::read_to_string("test_programs/lispesque_quad.zk").unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         for _ in 0..10 {
@@ -305,7 +306,8 @@ mod tests {
     fn bn_encrypt_cubic_test() {
         let root_rep = ASTParser::try_parse(
             &*::std::fs::read_to_string("test_programs/lispesque_cubic.zk").unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
         let qap: QAP<CoefficientPoly<FrLocal>> = root_rep.into();
 
         let trials = 10;

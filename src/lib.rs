@@ -129,11 +129,13 @@ pub mod field;
 pub mod groth16;
 
 #[doc(hidden)]
+pub use groth16::circuit::builder::{Circuit, WireId};
+#[doc(hidden)]
 pub use groth16::circuit::dummy_rep::DummyRep;
 #[doc(hidden)]
-pub use groth16::circuit::{ASTParser, TryParse};
+pub use groth16::circuit::CircuitInstance;
 #[doc(hidden)]
-pub use groth16::circuit::{Circuit, CircuitInstance, WireId};
+pub use groth16::circuit::{ASTParser, TryParse};
 #[doc(hidden)]
 pub use groth16::coefficient_poly::CoefficientPoly;
 #[doc(hidden)]
@@ -141,14 +143,18 @@ pub use groth16::fr::FrLocal;
 #[doc(hidden)]
 pub use groth16::{Proof, SigmaG1, SigmaG2, QAP};
 
+#[macro_use]
 #[cfg(test)]
 mod tests {
-    use super::field::to_field_bits;
     use super::field::z251::Z251;
     use super::groth16::Random;
     use super::*;
-    use groth16::circuit::{flatten_word8, Word8};
+    use groth16::circuit::builder::*;
     use groth16::fr::{G1Local, G2Local};
+
+    #[macro_use(create_input_struct)]
+    use groth16::circuit::{CircuitInstance, SetCircuitInputs};
+    use field::Field;
 
     extern crate tiny_keccak;
     use self::tiny_keccak::keccak256;
@@ -257,19 +263,26 @@ mod tests {
     fn circuit_builder_test() {
         // Build the circuit
         let mut circuit = Circuit::<FrLocal>::new();
-        let x = circuit.new_wire();
+        let x = circuit.new_binary_wire();
         let x_checker = circuit.new_bit_checker(x);
-        let y = circuit.new_wire();
+        let y = circuit.new_binary_wire();
         let y_checker = circuit.new_bit_checker(y);
         let or = circuit.new_or(x, y);
+
+        create_input_struct!(InputWires {
+            x: (BinaryWire, Binary),
+            y: (BinaryWire, Binary),
+        });
+
+        let input = InputWires::new((&x, Binary::Zero), (&y, Binary::One));
+
         let mut instance =
-            CircuitInstance::new(circuit, vec![x_checker, y_checker, or], vec![x, y], |w| {
+            CircuitInstance::new(circuit, vec![&x_checker, &y_checker, &or], input, |w| {
                 FrLocal::from(w.inner_id() + 1)
             });
 
         let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
-        let assignments = vec![FrLocal::from(0), FrLocal::from(1)];
-        let weights = instance.weights(assignments);
+        let weights: Vec<FrLocal> = instance.weights();
 
         let (sigmag1, sigmag2) = groth16::setup(&qap);
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
@@ -281,42 +294,151 @@ mod tests {
         ));
     }
 
-    #[ignore]
     #[test]
-    fn circuit_keccak256_single() {
-        const LEN: usize = 20;
-        let keccak_input: [u8; LEN] = [63; LEN];
-
-        let tiny_keccak_output: [u8; 32] = keccak256(&keccak_input);
-
+    fn circuit_builder_cmp() {
         let mut circuit = Circuit::<FrLocal>::new();
-        let circuit_input: Vec<Word8> = circuit.new_word8_vec(LEN);
-        let hash: [Word8; 32] = circuit.keccak256_stream(&circuit_input);
+        let left = circuit.new_word8();
+        let right = circuit.new_word8();
+        let cmp: BinaryWire = circuit.greater_than(&left, &right);
 
-        let mut bit_check: Vec<WireId> = circuit.bit_check(&flatten_word8(&circuit_input));
-        let mut verify_wires = flatten_word8(&hash);
-        verify_wires.append(&mut bit_check);
+        create_input_struct!(Struct1 {
+            l: (Word8, u8),
+            r: (Word8, u8),
+        });
 
-        let mut instance =
-            CircuitInstance::new(circuit, verify_wires, flatten_word8(&circuit_input), |w| {
-                FrLocal::from(w.inner_id() + 1)
-            });
+        let input = Struct1::new((&left, 26), (&right, 11));
+
+        let mut instance = CircuitInstance::new(circuit, vec![&cmp], input, |w| {
+            FrLocal::from(w.inner_id() + 1)
+        });
 
         let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
-        let assignments = to_field_bits(&keccak_input);
-        let weights = instance.weights(assignments);
+        let weights: Vec<FrLocal> = instance.weights();
 
         let (sigmag1, sigmag2) = groth16::setup(&qap);
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-        let mut bit_check_vals: Vec<FrLocal> = to_field_bits(&[0; LEN]);
-        let mut correct_output_vals = to_field_bits(&tiny_keccak_output);
-        correct_output_vals.append(&mut bit_check_vals);
-
         assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
             (sigmag1, sigmag2),
-            &correct_output_vals,
+            &[FrLocal::from(1)],
             proof
         ));
     }
+
+    #[test]
+    fn circuit_builder_cmp_negative_test() {
+        let mut circuit = Circuit::<FrLocal>::new();
+        let left = circuit.new_word8();
+        let right = circuit.new_word8();
+        let cmp: BinaryWire = circuit.greater_than(&left, &right);
+
+        create_input_struct!(Struct1 {
+            l: (Word8, u8),
+            r: (Word8, u8),
+        });
+
+        let input = Struct1::new((&left, 26), (&right, 11));
+
+        let mut instance = CircuitInstance::new(circuit, vec![&cmp], input, |w| {
+            FrLocal::from(w.inner_id() + 1)
+        });
+
+        let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
+        let weights: Vec<FrLocal> = instance.weights();
+
+        let (sigmag1, sigmag2) = groth16::setup(&qap);
+        let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+        assert_eq!(
+            groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                (sigmag1, sigmag2),
+                &[FrLocal::from(0)],
+                proof
+            ),
+            false
+        );
+    }
+
+    // #[test]
+    // fn circuit_word64_sanity_check() {
+    //     let mut circuit = Circuit::<FrLocal>::new();
+    //     let left = circuit.new_word8();
+    //     let right = circuit.new_word8();
+    //     let cmp: WireId = circuit.greater_than(&left, &right);
+
+    //     let input: Vec<WireId> = flatten_word8(&[left, right]);
+    //     assert_eq!(input.len(), 16);
+
+    //     let mut verify_wires: Vec<WireId> = circuit.bit_check(&input);
+    //     verify_wires.push(cmp);
+    //     assert_eq!(verify_wires.len(), 17);
+
+    //     let mut instance =
+    //         CircuitInstance::new(circuit, verify_wires, input, |w| {
+    //             FrLocal::from(w.inner_id() + 1)
+    //         });
+
+    //     let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
+
+    //     let input_weight: [u8; 2] = [26, 27]; // You must specify the type before using to_field_bits
+    //     let assignments: Vec<FrLocal> = to_field_bits(&input_weight);
+    //     assert_eq!(assignments.len(), 16);
+
+    //     let weights: Vec<FrLocal> = instance.weights(&assignments);
+
+    //     let (sigmag1, sigmag2) = groth16::setup(&qap);
+    //     let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+    //     let bit_check_input: [u8; 2] = [0; 2]; // You must specify the type before using to_field_bits
+    //     let mut correct_output_vals: Vec<FrLocal> = to_field_bits(&bit_check_input);
+
+    //     correct_output_vals.push(FrLocal::from(1));
+    //     assert_eq!(correct_output_vals.len(), 17);
+
+    //     assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+    //         (sigmag1, sigmag2),
+    //         &correct_output_vals,
+    //         proof
+    //     ));
+    // }
+
+    // #[ignore]
+    // #[test]
+    // fn circuit_keccak256_single() {
+    //     const LEN: usize = 20;
+    //     let keccak_input: [u8; LEN] = [63; LEN];
+
+    //     let tiny_keccak_output: [u8; 32] = keccak256(&keccak_input);
+
+    //     let mut circuit = Circuit::<FrLocal>::new();
+    //     let circuit_input: Vec<Word8> = circuit.new_word8_vec(LEN);
+    //     let hash: [Word8; 32] = circuit.keccak256_stream(&circuit_input);
+
+    //     let flat_circuit_input: Vec<WireId> = flatten_word8(&circuit_input);
+    //     let mut bit_check: Vec<WireId> = circuit.bit_check(&flat_circuit_input);
+    //     let mut verify_wires: Vec<WireId> = flatten_word8(&hash);
+    //     verify_wires.append(&mut bit_check);
+
+    //     let mut instance =
+    //         CircuitInstance::new(circuit, verify_wires, flat_circuit_input, |w| {
+    //             FrLocal::from(w.inner_id() + 1)
+    //         });
+
+    //     let qap: QAP<CoefficientPoly<FrLocal>> = QAP::from(DummyRep::from(&instance));
+    //     let assignments: Vec<FrLocal> = to_field_bits(&keccak_input);
+    //     let weights: Vec<FrLocal> = instance.weights(&assignments);
+
+    //     let (sigmag1, sigmag2) = groth16::setup(&qap);
+    //     let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+    //     let mut bit_check_vals: Vec<FrLocal> = to_field_bits(&[0; LEN]);
+    //     let mut correct_output_vals = to_field_bits(&tiny_keccak_output);
+    //     correct_output_vals.append(&mut bit_check_vals);
+
+    //     assert!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+    //         (sigmag1, sigmag2),
+    //         &correct_output_vals,
+    //         proof
+    //     ));
+    // }
 }
