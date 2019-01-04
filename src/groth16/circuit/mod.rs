@@ -101,12 +101,12 @@ use self::dummy_rep::DummyRep;
 /// let mut circuit = Circuit::<FrLocal>::new();
 /// let input_x = circuit.new_binary_wire();
 /// let word_u8 = circuit.new_word8();
-/// let input_y = circuit.new_binary_wire();
+/// let input_y = circuit.new_word64();
 ///
 /// create_input_struct!(InputWires {
 ///     input_x: (BinaryWire, Binary),
 ///     word_u8: (Word8, u8),
-///     input_y: (BinaryWire, Binary),
+///     input_y: (Word64, u64),
 /// });
 ///
 /// // This is a convenience function to create a new struct of the
@@ -114,7 +114,7 @@ use self::dummy_rep::DummyRep;
 /// let ex1: InputWires = InputWires::new(
 ///       (&input_x, One)
 ///     , (&word_u8, 5)
-///     , (&input_y, Zero)
+///     , (&input_y, 104986)
 ///     );
 /// 
 /// // These are here to show you what the resulting struct actually
@@ -125,7 +125,7 @@ use self::dummy_rep::DummyRep;
 /// assert_eq!(ex1.word_u8.value, 5);
 /// assert_eq!(ex1.word_u8.wire, &word_u8);
 ///
-/// assert_eq!(ex1.input_y.value, Zero);
+/// assert_eq!(ex1.input_y.value, 104986);
 /// assert_eq!(ex1.input_y.wire, &input_y);
 /// # }
 /// ```
