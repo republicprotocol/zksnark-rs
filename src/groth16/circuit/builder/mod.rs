@@ -12,8 +12,8 @@ mod tests;
 
 mod types;
 pub use self::types::{
-    Binary, BinaryInput, CanConvert, PairedInputWires, ValidateBalance, ValidateOrder, Word64,
-    Word8, BinaryWire
+    Binary, BinaryInput, BinaryWire, CanConvert, PairedInputWires, ValidateBalance, ValidateOrder,
+    Word64, Word8,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -266,8 +266,8 @@ where
     where
         Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
-        word.pair_bits(input).for_each(|(&wire, binary)| 
-            match binary {
+        word.pair_bits(input)
+            .for_each(|(&wire, binary)| match binary {
                 Binary::Zero => self.set_value(wire.into(), T::zero()),
                 Binary::One => self.set_value(wire.into(), T::one()),
             });
@@ -441,7 +441,10 @@ where
     ///////////////////////////////// Flatten Wires ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn bit_check<'a>(&mut self, input: impl IntoIterator<Item = &'a BinaryWire>) -> Vec<BinaryWire> {
+    pub fn bit_check<'a>(
+        &mut self,
+        input: impl IntoIterator<Item = &'a BinaryWire>,
+    ) -> Vec<BinaryWire> {
         input
             .into_iter()
             .map(|&x| self.new_bit_checker(x))
@@ -492,8 +495,7 @@ where
         &mut self,
         left_inputs: Vec<(T, WireId)>,
         right_inputs: Vec<(T, WireId)>,
-    ) -> WireId 
-    {
+    ) -> WireId {
         use self::ConnectionType::{Left, Output, Right};
 
         let sub_circuit_id = self.next_sub_circuit_id;
@@ -600,7 +602,13 @@ where
     where
         Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
-        let iter = word.into_iter().map(|&x| if self.evaluate(x) == T::one() {Binary::One} else {Binary::Zero});
+        let iter = word.into_iter().map(|&x| {
+            if self.evaluate(x) == T::one() {
+                Binary::One
+            } else {
+                Binary::Zero
+            }
+        });
         Z::bits_to_num(iter)
     }
 
@@ -735,7 +743,11 @@ where
     pub fn new_or(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let lhs_and_rhs = self.new_and(lhs, rhs);
         let one = T::one();
-        let lhs_inputs = vec![(-one, lhs_and_rhs.into()), (one, lhs.into()), (one, rhs.into())];
+        let lhs_inputs = vec![
+            (-one, lhs_and_rhs.into()),
+            (one, lhs.into()),
+            (one, rhs.into()),
+        ];
         let rhs_inputs = vec![(one, self.unity_wire())];
 
         BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
@@ -802,7 +814,12 @@ where
     }
 
     /// Requires that all left and right inputs in array are either 0 or 1
-    pub fn bitwise_op<F>(&mut self, left: &[BinaryWire], right: &[BinaryWire], mut gate: F) -> Vec<BinaryWire>
+    pub fn bitwise_op<F>(
+        &mut self,
+        left: &[BinaryWire],
+        right: &[BinaryWire],
+        mut gate: F,
+    ) -> Vec<BinaryWire>
     where
         F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {

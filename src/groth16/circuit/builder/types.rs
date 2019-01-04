@@ -123,7 +123,8 @@ impl<'a> CanConvert<'a> for &'a BinaryWire {
     }
 
     fn bits_to_num(mut bits: impl Iterator<Item = Binary>) -> Self::Number {
-        bits.next().expect("Binary::bits_to_num: must have at least one input")
+        bits.next()
+            .expect("Binary::bits_to_num: must have at least one input")
     }
 }
 
@@ -191,24 +192,24 @@ impl<'a> BinaryInput for &'a Word8 {}
 impl<'a> CanConvert<'a> for &'a Word8 {
     type Number = u8;
 
-    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>; 
+    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>;
 
     fn pair_bits(&self, num: Self::Number) -> Self::PairedIter {
-        Box::new(self.into_iter().zip((0..8).map(move |i: u64|
-            match num.shr(i) % 2 {
-                0 => Binary::Zero,
-                _ => Binary::One,
-            })))
+        Box::new(
+            self.into_iter()
+                .zip((0..8).map(move |i: u64| match num.shr(i) % 2 {
+                    0 => Binary::Zero,
+                    _ => Binary::One,
+                })),
+        )
     }
 
     fn bits_to_num(bits: impl Iterator<Item = Binary>) -> Self::Number {
         let num: u8 = 0;
-        bits.enumerate().fold(num, |acc, (i, b)| {
-                match b {
-                    Binary::One => acc ^ 1 << i,
-                    Binary::Zero => acc
-                }
-            })
+        bits.enumerate().fold(num, |acc, (i, b)| match b {
+            Binary::One => acc ^ 1 << i,
+            Binary::Zero => acc,
+        })
     }
 }
 
@@ -300,26 +301,25 @@ impl<'a> BinaryInput for &'a Word64 {}
 impl<'a> CanConvert<'a> for &'a Word64 {
     type Number = u64;
 
-    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>; 
+    type PairedIter = Box<Iterator<Item = (&'a BinaryWire, Binary)> + 'a>;
 
     fn pair_bits(&self, num: Self::Number) -> Self::PairedIter {
-        Box::new(self.into_iter().zip((0..64).map(move |i: u64|
-            match num.shr(i) % 2 {
-                0 => Binary::Zero,
-                _ => Binary::One,
-            })))
+        Box::new(
+            self.into_iter()
+                .zip((0..64).map(move |i: u64| match num.shr(i) % 2 {
+                    0 => Binary::Zero,
+                    _ => Binary::One,
+                })),
+        )
     }
 
     fn bits_to_num(bits: impl Iterator<Item = Binary>) -> Self::Number {
         let num: u64 = 0;
-        bits.enumerate().fold(num, |acc, (i, b)| {
-                match b {
-                    Binary::One => acc ^ 1 << i,
-                    Binary::Zero => acc
-                }
-            })
+        bits.enumerate().fold(num, |acc, (i, b)| match b {
+            Binary::One => acc ^ 1 << i,
+            Binary::Zero => acc,
+        })
     }
-
 }
 
 impl PartialEq for Word64 {
@@ -457,6 +457,5 @@ mod tests {
         assert_eq!(wrd8, wrd8_2);
     }
 
-    quickcheck! {
-    }
+    quickcheck! {}
 }

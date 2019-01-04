@@ -2,8 +2,8 @@ use super::super::super::Z251;
 use super::*;
 use field::FieldIdentity;
 // use groth16::fr::FrLocal; TODO: change some examples to use FrLocal
-use std::time::{Instant};
 use self::types::Binary::{One, Zero};
+use std::time::Instant;
 
 extern crate quickcheck;
 use self::quickcheck::quickcheck;
@@ -52,7 +52,12 @@ fn bit_check_stream() {
 
 #[test]
 fn and_test() {
-    let logic_table = [(Zero, Zero, Zero), (Zero, One, Zero), (One, Zero, Zero), (One, One, One)];
+    let logic_table = [
+        (Zero, Zero, Zero),
+        (Zero, One, Zero),
+        (One, Zero, Zero),
+        (One, One, One),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -82,7 +87,12 @@ fn not_test() {
 
 #[test]
 fn or_test() {
-    let logic_table = [(Zero, Zero, Zero), (Zero, One, One), (One, Zero, One), (One, One, One)];
+    let logic_table = [
+        (Zero, Zero, Zero),
+        (Zero, One, One),
+        (One, Zero, One),
+        (One, One, One),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -98,7 +108,12 @@ fn or_test() {
 
 #[test]
 fn nor_test() {
-    let logic_table = [(Zero, Zero, One), (Zero, One, Zero), (One, Zero, Zero), (One, One, Zero)];
+    let logic_table = [
+        (Zero, Zero, One),
+        (Zero, One, Zero),
+        (One, Zero, Zero),
+        (One, One, Zero),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -114,7 +129,12 @@ fn nor_test() {
 
 #[test]
 fn xor_test() {
-    let logic_table = [(Zero, Zero, Zero), (Zero, One, One), (One, Zero, One), (One, One, Zero)];
+    let logic_table = [
+        (Zero, Zero, Zero),
+        (Zero, One, One),
+        (One, Zero, One),
+        (One, One, Zero),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -130,7 +150,12 @@ fn xor_test() {
 
 #[test]
 fn xnor_test() {
-    let logic_table = [(Zero, Zero, One), (Zero, One, Zero), (One, Zero, Zero), (One, One, One)];
+    let logic_table = [
+        (Zero, Zero, One),
+        (Zero, One, Zero),
+        (One, Zero, Zero),
+        (One, One, One),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -146,7 +171,12 @@ fn xnor_test() {
 
 #[test]
 fn new_less_than_test() {
-    let logic_table = [(Zero, Zero, Zero), (Zero, One, One), (One, Zero, Zero), (One, One, Zero)];
+    let logic_table = [
+        (Zero, Zero, Zero),
+        (Zero, One, One),
+        (One, Zero, Zero),
+        (One, One, Zero),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();
@@ -162,7 +192,12 @@ fn new_less_than_test() {
 
 #[test]
 fn new_greater_than_test() {
-    let logic_table = [(Zero, Zero, Zero), (Zero, One, Zero), (One, Zero, One), (One, One, Zero)];
+    let logic_table = [
+        (Zero, Zero, Zero),
+        (Zero, One, Zero),
+        (One, Zero, One),
+        (One, One, Zero),
+    ];
     let mut circuit = Circuit::<Z251>::new();
     let l_wire = circuit.new_binary_wire();
     let r_wire = circuit.new_binary_wire();

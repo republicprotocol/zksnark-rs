@@ -268,7 +268,7 @@ mod tests {
         let y = circuit.new_binary_wire();
         let y_checker = circuit.new_bit_checker(y);
         let or = circuit.new_or(x, y);
-        
+
         create_input_struct!(InputWires {
             x: (BinaryWire, Binary),
             y: (BinaryWire, Binary)
@@ -349,10 +349,12 @@ mod tests {
         let (sigmag1, sigmag2) = groth16::setup(&qap);
         let proof = groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
 
-        assert_eq!(groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
-            (sigmag1, sigmag2),
-            &[FrLocal::from(0)],
-            proof),
+        assert_eq!(
+            groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+                (sigmag1, sigmag2),
+                &[FrLocal::from(0)],
+                proof
+            ),
             false
         );
     }

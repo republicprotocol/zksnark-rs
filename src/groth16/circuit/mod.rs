@@ -73,9 +73,9 @@ pub mod dummy_rep;
 
 use self::ast::TokenList;
 use self::ast::{Expression, ParseErr};
+use self::builder::{Circuit, WireId};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
-use self::builder::{Circuit, WireId};
 
 #[macro_export]
 macro_rules! replace_expr {
@@ -100,12 +100,12 @@ macro_rules! create_input_struct {
             ) -> Self {
                 $name {
                     $label_1: PairedInputWires {
-                        wire: $label_1.0, 
+                        wire: $label_1.0,
                         value: $label_1.1,
                     },
                     $(
                         $label: PairedInputWires {
-                            wire: $label.0, 
+                            wire: $label.0,
                             value: $label.1,
                         },
                     )*
@@ -122,7 +122,7 @@ macro_rules! create_input_struct {
             }
         }
 
-        impl<'a, T> SetCircuitInputs<T> for $name<'a> 
+        impl<'a, T> SetCircuitInputs<T> for $name<'a>
         where
             T: Field
         {
@@ -173,7 +173,7 @@ where
     F: Fn(SubCircuitId) -> T,
     V: IntoIterator<Item = &'a W>,
     I: IntoIterator<Item = &'a W> + SetCircuitInputs<T>,
-    W: Into<WireId> + Clone
+    W: Into<WireId> + Clone,
 {
     pub fn new(
         circuit: Circuit<T>,
@@ -197,7 +197,11 @@ where
         // Since we only can get`WireId`s from verification_wires `V`
         // and we need to check if a given `WireId` is one of the
         // verification_wires we turn it into a HashSet.
-        let verification_wire_set: HashSet<WireId> = verification_wires.into_iter().cloned().map(|x| x.into()).collect();
+        let verification_wire_set: HashSet<WireId> = verification_wires
+            .into_iter()
+            .cloned()
+            .map(|x| x.into())
+            .collect();
 
         let (mut verification_ids, witness_ids) = circuit
             .wire_assignments() // map will all assigned WireId
@@ -749,7 +753,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use self::builder::{PairedInputWires, Word8, BinaryWire};
+    use self::builder::{BinaryWire, PairedInputWires, Word8};
     use super::super::super::field::z251::Z251;
     use super::dummy_rep::DummyRep;
     use super::*;
