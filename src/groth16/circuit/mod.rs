@@ -74,7 +74,10 @@ use self::ast::{Expression, ParseErr};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
 
-pub use self::builder::{BinaryInput, Circuit, WireId, Word64, Word8};
+// This exports flatten_word8 because builder is a private module, so
+// there is no other way to export it for lib.rs without making
+// builder public.
+pub use self::builder::{flatten_word8, BinaryInput, Circuit, WireId, Word64, Word8};
 
 pub struct CircuitInstance<T, F>
 where
