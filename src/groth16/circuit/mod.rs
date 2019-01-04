@@ -77,16 +77,68 @@ use self::builder::{Circuit, WireId};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
 
-#[macro_export]
-macro_rules! replace_expr {
-    ($_t:tt $sub:ty) => {
-        $sub
-    };
-}
-
+/// At the time of writing Rust does not have Higher Kinded Types. So,
+/// this macro is my way of approximating them for inputs to
+/// `CircuitInstance`. The whole point of this macro is to allow you
+/// to give `CircuitInstance` any collection of wires as input
+/// regardless of the structure around those wires. In other words, an
+/// input might be `(BinaryWire, Word64, Word8, Word64)` which means
+/// you must set those wires with an input of the form `(Binary, u64,
+/// u8, u64)`. This macro creates a struct that pairs the input wire
+/// types and the type to set those wires along with a few `impl` so
+/// `CircuitInstance` can work with the new struct. 
+///
+/// ```rust
+/// # #[macro_use] extern crate zksnark; fn main() {
+/// use zksnark::groth16::circuit::{CircuitInstance, SetCircuitInputs};
+/// use zksnark::field::Field;
+/// use zksnark::FrLocal;
+/// use zksnark::groth16::circuit::builder::*;
+/// use zksnark::groth16::circuit::builder::Binary::{Zero, One};
+///
+/// // Create the inputs to a circuit
+/// // (I'm not creating the rest of the circuit)
+/// let mut circuit = Circuit::<FrLocal>::new();
+/// let input_x = circuit.new_binary_wire();
+/// let word_u8 = circuit.new_word8();
+/// let input_y = circuit.new_binary_wire();
+///
+/// create_input_struct!(InputWires {
+///     input_x: (BinaryWire, Binary),
+///     word_u8: (Word8, u8),
+///     input_y: (BinaryWire, Binary),
+/// });
+///
+/// // This is a convenience function to create a new struct of the
+/// // type you just created
+/// let ex1: InputWires = InputWires::new(
+///       (&input_x, One)
+///     , (&word_u8, 5)
+///     , (&input_y, Zero)
+///     );
+/// 
+/// // These are here to show you what the resulting struct actually
+/// // looks like:
+/// assert_eq!(ex1.input_x.value, One);
+/// assert_eq!(ex1.input_x.wire, &input_x);
+///
+/// assert_eq!(ex1.word_u8.value, 5);
+/// assert_eq!(ex1.word_u8.wire, &word_u8);
+///
+/// assert_eq!(ex1.input_y.value, Zero);
+/// assert_eq!(ex1.input_y.wire, &input_y);
+/// # }
+/// ```
+///
+/// NOTE: The way you have written this is designed for getting the
+/// inputs for `prove`, not the case where you only want to create the
+/// `QAP` for setup to run `verify`. At the moment this just means you
+/// have to give the created struct dummy input numbers as well as the
+/// input wires. I'm not sure a nice way to fix this at the moment.
+///
 #[macro_export]
 macro_rules! create_input_struct {
-    ($name:ident { $label_1:ident : ($wire_1:ty, $value_1:ty) $(, $label:ident : ($wire:ty, $value:ty))* }) => {
+    ($name:ident { $label_1:ident : ($wire_1:ty, $value_1:ty), $($label:ident : ($wire:ty, $value:ty),)* }) => {
 
         struct $name<'a> {
             $label_1: PairedInputWires<'a, $wire_1, $value_1>,
@@ -881,7 +933,7 @@ mod tests {
 
         create_input_struct!(Struct1 {
             l: (Word8, u8),
-            r: (Word8, u8)
+            r: (Word8, u8),
         });
 
         let input = Struct1::new((&left, 26), (&right, 11));

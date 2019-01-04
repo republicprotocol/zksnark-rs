@@ -303,7 +303,7 @@ mod tests {
 
         create_input_struct!(Struct1 {
             l: (Word8, u8),
-            r: (Word8, u8)
+            r: (Word8, u8),
         });
 
         let input = Struct1::new((&left, 26), (&right, 11));
@@ -334,7 +334,7 @@ mod tests {
 
         create_input_struct!(Struct1 {
             l: (Word8, u8),
-            r: (Word8, u8)
+            r: (Word8, u8),
         });
 
         let input = Struct1::new((&left, 26), (&right, 11));
