@@ -41,7 +41,7 @@
 //! //              Finally the multiplication operation multiplies the result
 //! //              of the previous two:
 //! //                 - (((1 * 1) + (2 * 0) + (1 * 2)) * ((3 * 0) + (0 * 1)))
-//! //              
+//! //
 //! //              Thus the output wire would have the value: 0
 //! ```
 //!
@@ -62,10 +62,10 @@
 //!
 
 use super::super::field::*;
-use std::collections::HashMap;
-use std::str::FromStr;
-use std::marker::PhantomData;
 use std::collections::hash_set::HashSet;
+use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::str::FromStr;
 
 mod ast;
 pub mod builder;
@@ -75,35 +75,73 @@ use self::ast::TokenList;
 use self::ast::{Expression, ParseErr};
 use self::builder::{ConnectionType, SubCircuitId};
 use self::dummy_rep::DummyRep;
+use self::builder::{Circuit, WireId};
 
-// This exports flatten_word8 because builder is a private module, so
-// there is no other way to export it for lib.rs without making
-// builder public.
-use self::builder::{Circuit, WireId, Word8};
-
-pub trait SetCircuitInputs<T> 
-where
-    T: Copy + Field,
-{
-    type Input;
-    /// Sets the Struct (self) that contains `WireId`s with the values
-    /// in `set` using the `circuit`
-    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Self::Input);
+#[macro_export]
+macro_rules! replace_expr {
+    ($_t:tt $sub:ty) => {
+        $sub
+    };
 }
 
-// This is a default instance to keep other basic uses of
-// `CircuitInstance` happy. However, in general you should not use
-// this for any complex circuits
-impl<'a, T> SetCircuitInputs<T> for Vec<&'a WireId> 
+#[macro_export]
+macro_rules! create_input_struct {
+    ($name:ident { $label_1:ident : ($wire_1:ty, $value_1:ty) $(, $label:ident : ($wire:ty, $value:ty))* }) => {
+
+        struct $name<'a> {
+            $label_1: PairedInputWires<'a, $wire_1, $value_1>,
+            $($label: PairedInputWires<'a, $wire, $value>,)*
+        }
+
+        impl<'a> $name<'a> {
+            pub fn new(
+                $label_1: (&'a $wire_1, $value_1),
+                $($label: (&'a $wire, $value),)*
+            ) -> Self {
+                $name {
+                    $label_1: PairedInputWires {
+                        wire: $label_1.0, 
+                        value: $label_1.1,
+                    },
+                    $(
+                        $label: PairedInputWires {
+                            wire: $label.0, 
+                            value: $label.1,
+                        },
+                    )*
+                }
+            }
+        }
+
+        impl<'a> IntoIterator for $name<'a>{
+            type Item = &'a BinaryWire;
+            type IntoIter = Box<Iterator<Item = &'a BinaryWire> + 'a>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                Box::new(self.$label_1.wire.into_iter()$(.chain(self.$label.wire.into_iter()))*)
+            }
+        }
+
+        impl<'a, T> SetCircuitInputs<T> for $name<'a> 
+        where
+            T: Field
+        {
+            fn set_inputs(&self, circuit: &mut Circuit<T>) {
+                circuit.set_from_num(self.$label_1.wire, self.$label_1.value);
+                $(circuit.set_from_num(self.$label.wire, self.$label.value);)*
+            }
+        }
+
+    };
+}
+
+pub trait SetCircuitInputs<T>
 where
     T: Copy + Field,
 {
-    type Input = Vec<T>;
-
-    fn set_inputs(&self, circuit: &mut Circuit<T>, set: &Self::Input) {
-        assert_eq!(self.len(), set.len());
-        set.iter().zip(self.into_iter()).for_each(|(val, wir)| circuit.set_value(**wir, *val));
-    }
+    /// Sets the Struct (self) that contains `WireId`s with the values
+    /// in `set` using the `circuit`
+    fn set_inputs(&self, circuit: &mut Circuit<T>);
 }
 
 /// See `circuit_weights_type_check` for example of how to use this
@@ -111,45 +149,36 @@ where
 ///
 /// TODO: add proper docs here after you write the macro to create the
 /// instances
-pub struct CircuitInstance<T, F, V, W, I>
+pub struct CircuitInstance<T, F, V, I, W>
 where
     T: Copy,
 {
     circuit: Circuit<T>,
     verification_wires_len: usize,
-    input_wires: W,
+    input_wires: I,
     ordered_wires: Vec<WireId>,
     sub_circuit_point: F,
 
-    /// This is here to "constrain" the `I` and `V` generic parameters
-    /// to make the compiler happy. There is no run-time overhead for
-    /// this.
-    ///
-    /// The purpose behind `I` is to have `weights` take in some type
-    /// `I` as input that maps directly to `W` (the input_wires) using
-    /// the `SetCircuitInputs` trait.
-    ///
-    /// In other words `I` could be `(79u64, 20u8)` and `W` would be
-    /// `(Word64, Word8)` then `set_inputs` would set the input
-    /// `(Word64, Word8)` with `I`.
-    phantom_i: PhantomData<I>,
+    /// This is the type that circuit types de-serialize into, but can
+    /// be converted into `WireId`.
+    phantom_w: PhantomData<W>,
 
-    /// The purpose behind `V` is essentially the same, its some
-    /// structure that we can iterate over its `WireId`.
+    /// This is the type for the verification wires given to new
     phantom_v: PhantomData<V>,
 }
 
-impl<'a, T, F, V, W, I> CircuitInstance<T, F, V, W, I>
+impl<'a, T, F, V, I, W: 'a> CircuitInstance<T, F, V, I, W>
 where
     T: Copy + Field,
     F: Fn(SubCircuitId) -> T,
-    V: IntoIterator<Item = &'a WireId>,
-    W: IntoIterator<Item = &'a WireId> + SetCircuitInputs<T, Input = I>,
+    V: IntoIterator<Item = &'a W>,
+    I: IntoIterator<Item = &'a W> + SetCircuitInputs<T>,
+    W: Into<WireId> + Clone
 {
     pub fn new(
         circuit: Circuit<T>,
         verification_wires: V,
-        input_wires: W,
+        input_wires: I,
         sub_circuit_point: F,
     ) -> Self {
         // The goal for ordered_wires is to end up with a structure
@@ -160,7 +189,7 @@ where
         //
         // (Order for verify and witness does not mater, but the
         // verify needs to be before witness wires)
-        // 
+        //
         // First we add the unity_wire:
         let mut ordered_wires = Vec::with_capacity(circuit.num_wires());
         ordered_wires.push(circuit.unity_wire());
@@ -168,7 +197,7 @@ where
         // Since we only can get`WireId`s from verification_wires `V`
         // and we need to check if a given `WireId` is one of the
         // verification_wires we turn it into a HashSet.
-        let verification_wire_set: HashSet<&'a WireId> = verification_wires.into_iter().collect();
+        let verification_wire_set: HashSet<WireId> = verification_wires.into_iter().cloned().map(|x| x.into()).collect();
 
         let (mut verification_ids, witness_ids) = circuit
             .wire_assignments() // map will all assigned WireId
@@ -193,12 +222,12 @@ where
             input_wires,
             ordered_wires,
             sub_circuit_point,
-            phantom_i: PhantomData,
+            phantom_w: PhantomData,
             phantom_v: PhantomData,
         }
     }
 
-    pub fn weights(&mut self, inputs: &I) -> Vec<T> {
+    pub fn weights(&mut self) -> Vec<T> {
         let CircuitInstance {
             ordered_wires,
             circuit,
@@ -207,7 +236,7 @@ where
         } = self;
 
         // Set the values of the input wires of the circuit
-        input_wires.set_inputs(circuit, inputs);
+        input_wires.set_inputs(circuit);
 
         ordered_wires
             .iter()
@@ -216,12 +245,12 @@ where
     }
 }
 
-impl<'a, T, F, V, W, I> From<&'a CircuitInstance<T, F, V, W, I>> for DummyRep<T>
+impl<'a, T, F, V, I, W> From<&'a CircuitInstance<T, F, V, I, W>> for DummyRep<T>
 where
     T: Field + Copy,
     F: Fn(SubCircuitId) -> T,
 {
-    fn from(instance: &CircuitInstance<T, F, V, W, I>) -> Self {
+    fn from(instance: &CircuitInstance<T, F, V, I, W>) -> Self {
         use self::ConnectionType::*;
 
         let mut u = Vec::with_capacity(instance.circuit.num_wires());
@@ -720,6 +749,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use self::builder::{PairedInputWires, Word8, BinaryWire};
     use super::super::super::field::z251::Z251;
     use super::dummy_rep::DummyRep;
     use super::*;
@@ -838,50 +868,25 @@ mod tests {
     #[test]
     fn circuit_weights_type_check() {
         let mut circuit = Circuit::<Z251>::new();
-        let left = circuit.new_word8(); 
-        let right = circuit.new_word8(); 
-        let cmp: WireId = circuit.greater_than(&left, &right);
+        let left = circuit.new_word8();
+        let right = circuit.new_word8();
+        let cmp: BinaryWire = circuit.greater_than(&left, &right);
 
-        let verify_wires: Vec<WireId> = circuit.bit_check([left, right].iter().flat_map(|x| x.iter()));
+        let verify_wires: Vec<BinaryWire> =
+            circuit.bit_check([left, right].iter().flat_map(|x| x.iter()));
 
-        use std::iter::Chain;
-        use std::slice::Iter;
+        create_input_struct!(Struct1 {
+            l: (Word8, u8),
+            r: (Word8, u8)
+        });
 
-        struct CMP<'a> {
-            left: &'a Word8,
-            right: &'a Word8,
-        }
+        let input = Struct1::new((&left, 26), (&right, 11));
 
+        let mut instance = CircuitInstance::new(circuit, &verify_wires, input, |w| {
+            Z251::from(w.inner_id() + 1)
+        });
 
-        impl<'a> IntoIterator for CMP<'a> {
-            type Item = &'a WireId;
-            type IntoIter = Chain<Iter<'a, WireId>, Iter<'a, WireId>>;
-
-            fn into_iter(self) -> Self::IntoIter {
-                self.left.into_iter().chain(self.left.into_iter())
-            }
-        }
-
-        impl<'a> SetCircuitInputs<Z251> for CMP<'a> {
-            type Input = (u8, u8);
-
-            fn set_inputs(&self, circuit: &mut Circuit<Z251>, set: &Self::Input) {
-                circuit.set_from_num(self.left, set.0);
-                circuit.set_from_num(self.right, set.1);
-            }
-        }
-
-        let input: CMP = CMP {
-            left: &left,
-            right: &right,
-        };
-
-        let mut instance =
-            CircuitInstance::new(circuit, &verify_wires, input, |w| {
-                Z251::from(w.inner_id() + 1)
-            });
-
-        let _weights: Vec<Z251> = instance.weights(&(26, 11));
+        let _weights: Vec<Z251> = instance.weights();
 
         assert_eq!(instance.circuit.evaluate(cmp), Z251::from(1));
     }

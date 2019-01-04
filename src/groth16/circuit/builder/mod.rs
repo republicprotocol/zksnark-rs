@@ -3,7 +3,6 @@ use itertools::EitherOrBoth::{Both, Left, Right};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
-use std::ops::{BitXor, Rem, Shl, Shr};
 
 extern crate itertools;
 use itertools::Itertools;
@@ -14,7 +13,7 @@ mod tests;
 mod types;
 pub use self::types::{
     Binary, BinaryInput, CanConvert, PairedInputWires, ValidateBalance, ValidateOrder, Word64,
-    Word8,
+    Word8, BinaryWire
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -125,6 +124,10 @@ where
         next_wire_id
     }
 
+    pub fn new_binary_wire(&mut self) -> BinaryWire {
+        BinaryWire::from(self.new_wire())
+    }
+
     /// Creates a new u8 "number", but this is not the right way to think about
     /// it. Really it is a conduit that accepts a u8 number as input where the
     /// wire numbers correspond to the bits of the u8 number. You can almost
@@ -151,7 +154,7 @@ where
     /// ```
     pub fn new_word8(&mut self) -> Word8 {
         let mut wrd8: Word8 = Word8::default();
-        (0..8).for_each(|x| wrd8[x] = self.new_wire());
+        (0..8).for_each(|x| wrd8[x] = self.new_binary_wire());
         wrd8
     }
 
@@ -218,10 +221,10 @@ where
     /////////////////////////// Const Word8 and Word64 /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn const_wire_id(&mut self, input: Binary) -> WireId {
+    pub fn const_wire_id(&mut self, input: Binary) -> BinaryWire {
         match input {
-            Binary::Zero => self.zero_wire(),
-            Binary::One => self.unity_wire(),
+            Binary::Zero => BinaryWire::from(self.zero_wire()),
+            Binary::One => BinaryWire::from(self.unity_wire()),
         }
     }
 
@@ -229,9 +232,9 @@ where
         let mut wrd8: Word8 = Word8::default();
         (0..8).for_each(|i| {
             if input % 2 == 0 {
-                wrd8[i] = self.zero_wire();
+                wrd8[i] = BinaryWire::from(self.zero_wire());
             } else {
-                wrd8[i] = self.unity_wire();
+                wrd8[i] = BinaryWire::from(self.unity_wire());
             }
             input = input >> 1;
         });
@@ -255,22 +258,19 @@ where
         self.wire_values.insert(wire, Some(value));
     }
 
-    /// Set the values for a any BinaryInput structure from a number.
+    /// Set the values for any BinaryInput structure from a number.
     ///
     /// See `new_u8` or `new_u64` for example
     ///
     pub fn set_from_num<'a, Z, N>(&mut self, word: Z, input: N)
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
-        N: Sized + From<u8> + Rem<Output = N> + Shr<Output = N> + Eq + Copy,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
-        word.into_iter().enumerate().for_each(|(i, &t)| {
-            if input.shr(N::from(i as u8)) % N::from(2) == N::from(0) {
-                self.set_value(t, T::zero());
-            } else {
-                self.set_value(t, T::one());
-            }
-        });
+        word.pair_bits(input).for_each(|(&wire, binary)| 
+            match binary {
+                Binary::Zero => self.set_value(wire.into(), T::zero()),
+                Binary::One => self.set_value(wire.into(), T::one()),
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -279,6 +279,7 @@ where
 
     /// This is a convenience function to both create a new Word8
     /// placeholder and set it with an input.
+    /// TODO: make this a generic set_new function
     pub fn set_new_word8(&mut self, input: u8) -> Word8 {
         let x = self.new_word8();
         self.set_from_num(&x, input);
@@ -287,6 +288,7 @@ where
 
     /// This is a convenience function to both create a new Word64
     /// placeholder and set it with an input.
+    /// TODO: fold into a generic set_new function
     pub fn set_new_word64(&mut self, input: u64) -> Word64 {
         let x = self.new_word64();
         self.set_from_num(&x, input);
@@ -320,6 +322,7 @@ where
     /// assert_eq!(*evaluated_circuit, external_input);
     /// ```
     ///
+    /// TODO: fold into a generic set_new function
     pub fn set_new_word8_array<'a>(
         &mut self,
         input: impl IntoIterator<Item = &'a u8>,
@@ -353,6 +356,7 @@ where
     /// assert_eq!(evaluated_circuit, external_input);
     /// ```
     ///
+    /// TODO: fold into a generic set_new function
     pub fn set_new_word8_vec<'a>(&mut self, input: impl IntoIterator<Item = &'a u8>) -> Vec<Word8> {
         input
             .into_iter()
@@ -387,6 +391,7 @@ where
     /// assert_eq!(*evaluated_circuit, external_input);
     /// ```
     ///
+    /// TODO: fold into a generic set_new function
     pub fn set_new_word64_array<'a>(
         &mut self,
         input: impl IntoIterator<Item = &'a u64>,
@@ -421,6 +426,7 @@ where
     /// assert_eq!(evaluated_circuit, external_input);
     /// ```
     ///
+    /// TODO: fold into a generic set_new function
     pub fn set_new_word64_vec<'a>(
         &mut self,
         input: impl IntoIterator<Item = &'a u64>,
@@ -435,10 +441,10 @@ where
     ///////////////////////////////// Flatten Wires ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn bit_check<'a>(&mut self, input: impl IntoIterator<Item = &'a WireId>) -> Vec<WireId> {
+    pub fn bit_check<'a>(&mut self, input: impl IntoIterator<Item = &'a BinaryWire>) -> Vec<BinaryWire> {
         input
             .into_iter()
-            .map(|x| self.new_bit_checker(*x))
+            .map(|&x| self.new_bit_checker(x))
             .collect()
     }
 
@@ -446,6 +452,7 @@ where
     //////////////////////////////// Wire Functions ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
+    // TODO: write doc tests for this
     pub fn num_wires(&self) -> usize {
         self.next_wire_id.0
     }
@@ -485,7 +492,8 @@ where
         &mut self,
         left_inputs: Vec<(T, WireId)>,
         right_inputs: Vec<(T, WireId)>,
-    ) -> WireId {
+    ) -> WireId 
+    {
         use self::ConnectionType::{Left, Output, Right};
 
         let sub_circuit_id = self.next_sub_circuit_id;
@@ -549,8 +557,9 @@ where
         lhs * rhs
     }
 
-    pub fn evaluate(&mut self, wire: WireId) -> T {
+    pub fn evaluate(&mut self, wire: impl Into<WireId>) -> T {
         use self::ConnectionType::Output;
+        let wire = wire.into();
 
         self.wire_values
             .get(&wire)
@@ -589,23 +598,10 @@ where
     /// ```
     pub fn evaluate_to_num<'a, Z, N>(&mut self, word: Z) -> N
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
-        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
-        word.into_iter().enumerate().fold(N::from(0), |acc, (i, wire)| {
-            let t = self.evaluate(*wire);
-            // Note: I wrote this with a if statement (which is not as nice
-            // to read as a match statement). This is done because of a rustc
-            // bug (at time of writing) that causes a compiler panic if you
-            // try to match on a `const` function like `zero()`.
-            if t == T::one() {
-                acc ^ (N::from(1) << N::from(i as u8))
-            } else if t == T::zero() {
-                acc
-            }   else {
-                panic!("from_field_bits: was given a field element that was neither zero() or one()");
-            }
-        })
+        let iter = word.into_iter().map(|&x| if self.evaluate(x) == T::one() {Binary::One} else {Binary::Zero});
+        Z::bits_to_num(iter)
     }
 
     /// evaluates a container of some container that has `WireId` that
@@ -631,8 +627,7 @@ where
     pub fn evaluate_to_vec<'a, Z, W: 'a, N>(&mut self, stream: Z) -> Vec<N>
     where
         Z: IntoIterator<Item = W>,
-        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
-        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+        W: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
         stream
             .into_iter()
@@ -670,8 +665,7 @@ where
     pub fn evaluate_to_array<'a, Z, W: 'a, N>(&mut self, stream: Z, output: &'a mut [N])
     where
         Z: IntoIterator<Item = W>,
-        W: IntoIterator<Item = &'a WireId> + BinaryInput + CanConvert<Number = N>,
-        N: Sized + From<u8> + BitXor<Output = N> + Shl<Output = N>,
+        W: IntoIterator<Item = &'a BinaryWire> + BinaryInput + CanConvert<'a, Number = N>,
     {
         stream
             .into_iter()
@@ -713,103 +707,104 @@ where
     /////////////////////// Simple Binary Wire Functions ///////////////////////////
     ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn new_bit_checker(&mut self, input: WireId) -> WireId {
+    pub fn new_bit_checker(&mut self, input: impl Into<WireId>) -> BinaryWire {
+        let input = input.into();
         let lhs_inputs = vec![(T::one(), input)];
         let rhs_inputs = vec![(T::one(), input), (-T::one(), self.unity_wire())];
 
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_not(&mut self, input: WireId) -> WireId {
+    pub fn new_not(&mut self, input: BinaryWire) -> BinaryWire {
         let lhs_inputs = vec![(T::one(), self.unity_wire())];
-        let rhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), input)];
+        let rhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), input.into())];
 
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_and(&mut self, lhs: WireId, rhs: WireId) -> WireId {
-        let lhs_inputs = vec![(T::one(), lhs)];
-        let rhs_inputs = vec![(T::one(), rhs)];
+    pub fn new_and(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
+        let lhs_inputs = vec![(T::one(), lhs.into())];
+        let rhs_inputs = vec![(T::one(), rhs.into())];
 
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_or(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+    pub fn new_or(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let lhs_and_rhs = self.new_and(lhs, rhs);
         let one = T::one();
-        let lhs_inputs = vec![(-one, lhs_and_rhs), (one, lhs), (one, rhs)];
+        let lhs_inputs = vec![(-one, lhs_and_rhs.into()), (one, lhs.into()), (one, rhs.into())];
         let rhs_inputs = vec![(one, self.unity_wire())];
 
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_xor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+    pub fn new_xor(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let one = T::one();
-        let lhs_inputs = vec![(one, lhs), (-one, rhs)];
-        let rhs_inputs = vec![(one, lhs), (-one, rhs)];
+        let lhs_inputs = vec![(one, lhs.into()), (-one, rhs.into())];
+        let rhs_inputs = vec![(one, lhs.into()), (-one, rhs.into())];
 
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_nand(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+    pub fn new_nand(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let and = self.new_and(lhs, rhs);
         self.new_not(and)
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_nor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+    pub fn new_nor(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let ab = self.new_and(lhs, rhs);
 
         let lhs_inputs = vec![
             (T::one(), self.unity_wire()),
-            (T::one(), ab),
-            (-T::one(), lhs),
-            (-T::one(), rhs),
+            (T::one(), ab.into()),
+            (-T::one(), lhs.into()),
+            (-T::one(), rhs.into()),
         ];
         let rhs_inputs = vec![(T::one(), self.unity_wire())];
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    pub fn new_xnor(&mut self, lhs: WireId, rhs: WireId) -> WireId {
+    pub fn new_xnor(&mut self, lhs: BinaryWire, rhs: BinaryWire) -> BinaryWire {
         let lhs_inputs = vec![
             (T::one(), self.unity_wire()),
-            (-T::one(), lhs),
-            (T::one(), rhs),
+            (-T::one(), lhs.into()),
+            (T::one(), rhs.into()),
         ];
         let rhs_inputs = vec![
             (T::one(), self.unity_wire()),
-            (T::one(), lhs),
-            (-T::one(), rhs),
+            (T::one(), lhs.into()),
+            (-T::one(), rhs.into()),
         ];
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that all inputs in array are either 0 or 1
     pub fn fan_in<'a, F>(
         &mut self,
-        inputs: impl IntoIterator<Item = &'a WireId>,
+        inputs: impl IntoIterator<Item = &'a BinaryWire>,
         mut gate: F,
-    ) -> WireId
+    ) -> BinaryWire
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         let mut iter = inputs.into_iter();
-        let base_case: WireId = *iter
+        let base_case: BinaryWire = *iter
             .next()
             .expect("u64_fan_in: input iterator must have at least one element");
         iter.fold(base_case, |acc, wire| gate(self, acc, *wire))
     }
 
     /// Requires that all left and right inputs in array are either 0 or 1
-    pub fn bitwise_op<F>(&mut self, left: &[WireId], right: &[WireId], mut gate: F) -> Vec<WireId>
+    pub fn bitwise_op<F>(&mut self, left: &[BinaryWire], right: &[BinaryWire], mut gate: F) -> Vec<BinaryWire>
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         assert!(left.len() == right.len());
 
@@ -831,7 +826,7 @@ where
         mut gate: F,
     ) -> Word64
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         let mut iter = inputs.into_iter();
         let mut base_case: Word64 = *iter
@@ -856,7 +851,7 @@ where
         mut gate: F,
     ) -> Word8
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         let mut iter = inputs.into_iter();
 
@@ -876,7 +871,7 @@ where
 
     pub fn u64_bitwise_op<F>(&mut self, left: &Word64, right: &Word64, mut gate: F) -> Word64
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         let mut wrd64 = Word64::default();
         left.iter()
@@ -889,7 +884,7 @@ where
 
     pub fn u8_bitwise_op<F>(&mut self, left: &Word8, right: &Word8, mut gate: F) -> Word8
     where
-        F: FnMut(&mut Self, WireId, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire, BinaryWire) -> BinaryWire,
     {
         let mut wrd8 = Word8::default();
         left.iter()
@@ -901,7 +896,7 @@ where
 
     pub fn u64_unary_op<F>(&mut self, input: &Word64, mut gate: F) -> Word64
     where
-        F: FnMut(&mut Self, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire) -> BinaryWire,
     {
         let mut wrd64 = Word64::default();
         input
@@ -914,7 +909,7 @@ where
 
     pub fn u8_unary_op<F>(&mut self, input: &Word8, mut gate: F) -> Word8
     where
-        F: FnMut(&mut Self, WireId) -> WireId,
+        F: FnMut(&mut Self, BinaryWire) -> BinaryWire,
     {
         let mut wrd8 = Word8::default();
         input
@@ -929,23 +924,23 @@ where
     ////////////////////////////////////////////////////////////////////////////////
 
     /// Requires that both the left and right inputs are either 0 or 1
-    fn new_less_than(&mut self, left: WireId, right: WireId) -> WireId {
-        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), left)];
-        let rhs_inputs = vec![(T::one(), right)];
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+    fn new_less_than(&mut self, left: BinaryWire, right: BinaryWire) -> BinaryWire {
+        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), left.into())];
+        let rhs_inputs = vec![(T::one(), right.into())];
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
-    fn new_greater_than(&mut self, left: WireId, right: WireId) -> WireId {
-        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), right)];
-        let rhs_inputs = vec![(T::one(), left)];
-        self.new_sub_circuit(lhs_inputs, rhs_inputs)
+    fn new_greater_than(&mut self, left: BinaryWire, right: BinaryWire) -> BinaryWire {
+        let lhs_inputs = vec![(T::one(), self.unity_wire()), (-T::one(), right.into())];
+        let rhs_inputs = vec![(T::one(), left.into())];
+        BinaryWire::from(self.new_sub_circuit(lhs_inputs, rhs_inputs))
     }
 
     /// Requires that both the left and right inputs are either 0 or 1
     /// TODO: replace this with new_equal, need to define an Binary
     /// WireId
-    fn new_equality(&mut self, left: WireId, right: WireId) -> WireId {
+    fn new_equality(&mut self, left: BinaryWire, right: BinaryWire) -> BinaryWire {
         self.new_xnor(left, right)
     }
 
@@ -985,14 +980,14 @@ where
     /// assert_eq!(circuit.evaluate(eq), Z251::from(0));
     ///
     /// ```
-    pub fn is_equal<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn is_equal<'a, Z>(&mut self, left: Z, right: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput,
     {
         let mut l_iter = left.into_iter();
         let mut r_iter = right.into_iter();
 
-        let base_case: WireId = self.new_equality(
+        let base_case: BinaryWire = self.new_equality(
             *l_iter.next().expect("new_eqz: left input empty"),
             *r_iter.next().expect("new_eqz: right input empty"),
         );
@@ -1038,14 +1033,14 @@ where
     /// assert_eq!(circuit.evaluate(zero_check_u64), Z251::from(0));
     /// assert_eq!(circuit.evaluate(zero_check_u8), Z251::from(0));
     /// ```
-    pub fn is_equal_zero<'a, Z>(&mut self, input: Z) -> WireId
+    pub fn is_equal_zero<'a, Z>(&mut self, input: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput,
     {
         let zero = self.const_wire_id(Binary::Zero);
 
         let mut iter = input.into_iter();
-        let base_case: WireId =
+        let base_case: BinaryWire =
             self.new_equality(*iter.next().expect("new_eqz: left input empty"), zero);
 
         iter.fold(base_case, |acc, x| {
@@ -1079,9 +1074,9 @@ where
     /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     /// ```
-    pub fn less_than<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn less_than<'a, Z>(&mut self, left: Z, right: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + Copy,
     {
         let is_greater_than = self.greater_than(left, right);
         let neg = self.new_not(is_greater_than);
@@ -1115,9 +1110,9 @@ where
     /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(1));
     /// ```
-    pub fn less_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn less_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + Copy,
     {
         let is_greater_than = self.greater_than(left, right);
         let neg = self.new_not(is_greater_than);
@@ -1150,9 +1145,9 @@ where
     /// circuit.set_from_num(&right, 22);
     /// assert_eq!(circuit.evaluate(cmp), Z251::from(0));
     /// ```
-    pub fn greater_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn greater_than_eq<'a, Z>(&mut self, left: Z, right: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput + Copy,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput + Copy,
     {
         let is_greater_than = self.greater_than(left, right);
         let eq = self.is_equal(left, right);
@@ -1191,21 +1186,21 @@ where
     /// circuit.set_from_num(&input_wire, 4);
     /// assert_eq!(circuit.evaluate(greater_than), Z251::from(0));
     /// ```
-    pub fn greater_than<'a, Z>(&mut self, left: Z, right: Z) -> WireId
+    pub fn greater_than<'a, Z>(&mut self, left: Z, right: Z) -> BinaryWire
     where
-        Z: IntoIterator<Item = &'a WireId> + BinaryInput,
+        Z: IntoIterator<Item = &'a BinaryWire> + BinaryInput,
     {
         let mut l_iter = left.into_iter();
         let mut r_iter = right.into_iter();
         let left_first_wire = l_iter
             .next()
-            .expect("greater_than: left input must have at least one WireId");
+            .expect("greater_than: left input must have at least one BinaryWire");
         let right_first_wire = r_iter
             .next()
-            .expect("greater_than: right input must have at least one WireId");
+            .expect("greater_than: right input must have at least one BinaryWire");
 
-        let mut cmp: VecDeque<WireId> = VecDeque::new();
-        let mut eq: VecDeque<WireId> = VecDeque::new();
+        let mut cmp: VecDeque<BinaryWire> = VecDeque::new();
+        let mut eq: VecDeque<BinaryWire> = VecDeque::new();
 
         let cmp0 = self.new_greater_than(*left_first_wire, *right_first_wire);
 
