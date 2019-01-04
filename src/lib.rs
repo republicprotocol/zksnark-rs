@@ -271,7 +271,7 @@ mod tests {
 
         create_input_struct!(InputWires {
             x: (BinaryWire, Binary),
-            y: (BinaryWire, Binary)
+            y: (BinaryWire, Binary),
         });
 
         let input = InputWires::new((&x, Binary::Zero), (&y, Binary::One));
