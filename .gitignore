@@ -7,3 +7,4 @@ Cargo.lock
 *.log
 .envrc
 .direnv*
+/cli/target

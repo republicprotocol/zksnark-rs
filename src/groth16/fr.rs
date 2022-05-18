@@ -5,12 +5,20 @@ use self::bn::{Fr, Group, Gt, G1, G2};
 pub use super::*;
 use std::str::FromStr;
 
+
+extern crate rustc_serialize;
+use self::rustc_serialize::json;
+
+
 #[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct FrLocal(Fr);
 
 #[derive(Clone, Copy, PartialEq)]
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct G1Local(G1);
 #[derive(Clone, Copy, PartialEq)]
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct G2Local(G2);
 #[derive(PartialEq)]
 pub struct GtLocal(Gt);

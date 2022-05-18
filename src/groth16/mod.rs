@@ -19,6 +19,9 @@ pub mod fr;
 pub use self::circuit::weights;
 pub use self::fr::FrLocal;
 
+extern crate rustc_serialize;
+use self::rustc_serialize::json;
+
 /// Represents that a type can produce a random element of itself.
 pub trait Random {
     fn random_elem() -> Self;
@@ -57,6 +60,7 @@ pub trait Identity {
 
 /// The Quadratic Arithmetic Program (QAP) that represents an arithmetic
 /// circuit.
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct QAP<P> {
     u: Vec<P>,
     v: Vec<P>,
@@ -102,6 +106,7 @@ where
 }
 
 /// The G1 part of the common reference string (CRS)
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct SigmaG1<T> {
     alpha: T,
     beta: T,
@@ -113,6 +118,7 @@ pub struct SigmaG1<T> {
 }
 
 /// The G2 part of the common reference string (CRS)
+#[derive(RustcDecodable, RustcEncodable)]
 pub struct SigmaG2<T> {
     beta: T,
     gamma: T,

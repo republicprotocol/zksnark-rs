@@ -9,12 +9,15 @@ authors = ["Ross", "Pfalzgraf"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/republicprotocol/zksnark-rs"
 
+edition = "2015"
+
 [dependencies]
 itertools = "0.6.0"
 rand = "~0.3.14"
 bn = "0.4.3"
 bigint = "4.4.0"
 crunchy = "0.2.1"
+rustc-serialize = "0.3.24"
 
 [dev-dependencies]
 quickcheck = "0.7.1"
