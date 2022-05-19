@@ -26,6 +26,12 @@ enum Commands {
         zk_path: Option<std::path::PathBuf>,
         #[clap(long, parse(from_os_str))]
         output_path: Option<std::path::PathBuf>
+    },
+    Proof {
+        #[clap(long, parse(from_os_str))]
+        setup_path: Option<std::path::PathBuf>,
+        #[clap(long, parse(from_os_str))]
+        output_path: Option<std::path::PathBuf>
     }
 }
 
@@ -62,6 +68,16 @@ fn setup(zk_path: std::path::PathBuf, output_path: Option<std::path::PathBuf>) {
     do_output(output_path, json::encode(&setup_file_object).unwrap());
 }
 
+fn read_setup_file<'a>(setup_path: std::path::PathBuf) -> Result<SetupFile, self::rustc_serialize::json::DecoderError> {
+    let setup_json = &*::std::fs::read_to_string(setup_path).unwrap();
+    let setup: Result< SetupFile, self::rustc_serialize::json::DecoderError> = json::decode(setup_json);
+
+    return setup;
+}
+
+fn proof(setup_path: std::path::PathBuf, output_path: Option<std::path::PathBuf>) {
+}
+
 // command line example from https://github.com/clap-rs/clap/blob/v3.1.18/examples/git-derive.rs
 
 fn main() {
@@ -69,7 +85,19 @@ fn main() {
 
     match args.command {
         Commands::Setup { zk_path, output_path }  => setup(zk_path.unwrap(), output_path),
+        Commands::Proof { setup_path, output_path }  => proof(setup_path.unwrap(), output_path),
         _ => println!("unknown command!"),
     }
     
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn try_read_setup_test() {
+        let result = read_setup_file(PathBuf::from("simple.json"));
+        assert!(!result.is_err(), "setup file did not parse")
+    }}
