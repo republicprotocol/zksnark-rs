@@ -17,7 +17,8 @@ rand = "~0.3.14"
 bn = "0.4.3"
 bigint = "4.4.0"
 crunchy = "0.2.1"
-rustc-serialize = "0.3.24"
+rustc-serialize = "~0.3.19"
+bincode = {version = "~0.6.0", features = ["rustc-serialize"]}
 
 [dev-dependencies]
 quickcheck = "0.7.1"

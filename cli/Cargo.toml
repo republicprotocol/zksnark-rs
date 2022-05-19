@@ -9,3 +9,4 @@ edition = "2021"
 clap = { version = "3.0", features = ["derive"] }
 zksnark = { version = "^0", path = ".." }
 rustc-serialize = "0.3.24"
+bincode = {version = "~0.6.0", features = ["rustc-serialize"]}
