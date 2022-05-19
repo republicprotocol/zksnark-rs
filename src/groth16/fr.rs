@@ -1,4 +1,4 @@
-extern crate bn;
+extern crate rabe_bn as bn;
 extern crate rand;
 
 use self::bn::{Fr, Group, Gt, G1, G2};
@@ -6,19 +6,19 @@ pub use super::*;
 use std::str::FromStr;
 
 
-extern crate rustc_serialize;
-use self::rustc_serialize::json;
+extern crate serde;
+use self::serde::{Serialize, Deserialize};
 
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FrLocal(Fr);
 
 #[derive(Clone, Copy, PartialEq)]
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct G1Local(G1);
 #[derive(Clone, Copy, PartialEq)]
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct G2Local(G2);
 #[derive(PartialEq)]
 pub struct GtLocal(Gt);

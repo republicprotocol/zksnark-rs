@@ -11,13 +11,8 @@ use std::string::String;
 use zksnark::{CoefficientPoly, ASTParser, QAP, FrLocal, TryParse, SigmaG1, SigmaG2};
 use zksnark::groth16::fr::{G1Local, G2Local, Proof};
 
-extern crate rustc_serialize;
-extern crate bincode;
-
-use bincode::SizeLimit::Infinite;
-use bincode::rustc_serialize::{encode, decode};
-
-use self::rustc_serialize::{Decodable};
+extern crate serde;
+use serde::{Serialize, Deserialize};
 
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(Debug, Parser)]
@@ -95,9 +90,6 @@ fn setup(zk_path: std::path::PathBuf, output_path: std::path::PathBuf) {
     let code = &*::std::fs::read_to_string(zk_path).unwrap();
     let qap: QAP<CoefficientPoly<FrLocal>> = ASTParser::try_parse(code).unwrap().into();
 
-    // let qap_json = &*::std::fs::read_to_string(qap_path).unwrap();
-    // let qap: Result< QAP<CoefficientPoly<FrLocal>>, _> = json::decode(qap_json);
-
     let (sigmag1, sigmag2) = zksnark::groth16::setup(&qap);
 
     let setup_file_object = SetupFile {check: CHECK, qap: qap, code: String::from(code), sigmag1: sigmag1, sigmag2: sigmag2};
@@ -138,6 +130,16 @@ fn verify(assignments: &[FrLocal], setup_path: std::path::PathBuf, proof_path: s
 
 fn parse_assignment_string(s: &str) -> Vec<FrLocal> {
     return s.split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>();
+}
+
+fn read_setup_file<'a>(setup_path: std::path::PathBuf) -> Result<SetupFile, self::rustc_serialize::json::DecoderError> {
+    let setup_json = &*::std::fs::read_to_string(setup_path).unwrap();
+    let setup: Result< SetupFile, self::rustc_serialize::json::DecoderError> = json::decode(setup_json);
+
+    return setup;
+}
+
+fn proof(setup_path: std::path::PathBuf, output_path: Option<std::path::PathBuf>) {
 }
 
 // command line example from https://github.com/clap-rs/clap/blob/v3.1.18/examples/git-derive.rs
