@@ -105,7 +105,7 @@ struct ProofFile {
     proof: Proof<G1Local, G2Local>
 }
 
-fn proof(assignments: &[FrLocal], setup_path: std::path::PathBuf, output_path: std::path::PathBuf)
+fn proof(assignments: &[FrLocal], setup_path: std::path::PathBuf, output_path: std::path::PathBuf) 
     // where F: Clone + zksnark::field::Field + FromStr + PartialEq, 
     {
 
@@ -126,7 +126,7 @@ fn main() {
     match args.command {
         Commands::Setup { zk_path, output_path }  => setup(zk_path.unwrap(), output_path.unwrap()),
         Commands::Proof { assignments, setup_path, output_path }  => {
-            proof(&assignments.unwrap().split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>(), setup_path.unwrap(), output_path.unwrap())
+            proof(&assignments.unwrap().split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>(), setup_path.unwrap(), output_path.unwrap());
         },
         _ => println!("unknown command!"),
     }
@@ -156,7 +156,8 @@ mod tests {
             FrLocal::from(2), // b
             FrLocal::from(4) // c
     ];
-        let proof = proof(&assignments, PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
+        proof(&assignments, PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
+        assert!(true);
     }
 
     #[test]
