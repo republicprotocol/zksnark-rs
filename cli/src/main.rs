@@ -1,7 +1,9 @@
 
 use clap::{Parser, Subcommand};
 
-use std::io::{stdout, Write, BufWriter};
+use std::str::FromStr;
+
+use std::io::{stdout, Write};
 use std::fs::{File};
 
 use std::string::String;
@@ -35,6 +37,8 @@ enum Commands {
         output_path: Option<std::path::PathBuf>
     },
     Proof {
+        #[clap(long)]
+        assignments: Option<String>,
         #[clap(long, parse(from_os_str))]
         setup_path: Option<std::path::PathBuf>,
         #[clap(long, parse(from_os_str))]
@@ -101,18 +105,12 @@ struct ProofFile {
     proof: Proof<G1Local, G2Local>
 }
 
-fn proof(setup_path: std::path::PathBuf, output_path: std::path::PathBuf) {
-    
-    // TODO: pass in assignments
-    let assignments = &[
-        3.into(), // a
-        2.into(), // b
-        4.into(), // c
-    ];
+fn proof(assignments: &[FrLocal], setup_path: std::path::PathBuf, output_path: std::path::PathBuf)
+    // where F: Clone + zksnark::field::Field + FromStr + PartialEq, 
+    {
 
     let setup: SetupFile = read_bin_file(setup_path);
     let weights = zksnark::groth16::weights(&setup.code, assignments).unwrap();
-
 
     let proof = zksnark::groth16::prove(&setup.qap, (&setup.sigmag1, &setup.sigmag2), &weights);
     let proof_file = ProofFile {check: CHECK, proof: proof};
@@ -127,7 +125,9 @@ fn main() {
 
     match args.command {
         Commands::Setup { zk_path, output_path }  => setup(zk_path.unwrap(), output_path.unwrap()),
-        Commands::Proof { setup_path, output_path }  => proof(setup_path.unwrap(), output_path.unwrap()),
+        Commands::Proof { assignments, setup_path, output_path }  => {
+            proof(&assignments.unwrap().split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>(), setup_path.unwrap(), output_path.unwrap())
+        },
         _ => println!("unknown command!"),
     }
     
@@ -151,7 +151,12 @@ mod tests {
 
     #[test]
     fn try_proof_test() {
-        let proof = proof(PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
+        let assignments = [
+            FrLocal::from(3), // a
+            FrLocal::from(2), // b
+            FrLocal::from(4) // c
+    ];
+        let proof = proof(&assignments, PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
     }
 
     #[test]
