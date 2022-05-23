@@ -43,6 +43,14 @@ enum Commands {
         setup_path: Option<std::path::PathBuf>,
         #[clap(long, parse(from_os_str))]
         output_path: Option<std::path::PathBuf>
+    },
+    Verify {
+        #[clap(long)]
+        assignments: Option<String>,
+        #[clap(long, parse(from_os_str))]
+        setup_path: Option<std::path::PathBuf>,
+        #[clap(long, parse(from_os_str))]
+        proof_path: Option<std::path::PathBuf>
     }
 }
 
@@ -118,6 +126,20 @@ fn proof(assignments: &[FrLocal], setup_path: std::path::PathBuf, output_path: s
     do_binary_output(output_path, encoded);
 }
 
+fn verify(assignments: &[FrLocal], setup_path: std::path::PathBuf, proof_path: std::path::PathBuf) -> bool {
+    let setup: SetupFile = read_bin_file(setup_path);
+    let proof: ProofFile = read_bin_file(proof_path);
+    return zksnark::groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _> (
+        (setup.sigmag1, setup.sigmag2),
+        assignments,
+        proof.proof
+    );
+}
+
+fn parse_assignment_string(s: &str) -> Vec<FrLocal> {
+    return s.split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>();
+}
+
 // command line example from https://github.com/clap-rs/clap/blob/v3.1.18/examples/git-derive.rs
 
 fn main() {
@@ -126,7 +148,10 @@ fn main() {
     match args.command {
         Commands::Setup { zk_path, output_path }  => setup(zk_path.unwrap(), output_path.unwrap()),
         Commands::Proof { assignments, setup_path, output_path }  => {
-            proof(&assignments.unwrap().split(',').map(|item| FrLocal::from_str(item).unwrap()).into_iter().collect::<Vec<FrLocal>>(), setup_path.unwrap(), output_path.unwrap());
+            proof(&parse_assignment_string(&assignments.unwrap()[..]), setup_path.unwrap(), output_path.unwrap());
+        },
+        Commands::Verify { assignments, setup_path, proof_path }  => {
+            verify(&parse_assignment_string(&assignments.unwrap()[..]), setup_path.unwrap(), proof_path.unwrap());
         },
         _ => println!("unknown command!"),
     }
@@ -137,6 +162,21 @@ fn main() {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    fn input_assignments() -> [FrLocal; 3] {
+        return [
+            FrLocal::from(3), // a
+            FrLocal::from(2), // b
+            FrLocal::from(4) // c
+        ];
+    } 
+
+    fn output_assignments() -> [FrLocal; 2] {
+        return [
+            FrLocal::from(2),
+            FrLocal::from(34)
+        ];
+    } 
 
     #[test]
     fn try_setup_test() {
@@ -151,18 +191,42 @@ mod tests {
 
     #[test]
     fn try_proof_test() {
-        let assignments = [
-            FrLocal::from(3), // a
-            FrLocal::from(2), // b
-            FrLocal::from(4) // c
-    ];
-        proof(&assignments, PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
+        proof(&input_assignments(), PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin"));
         assert!(true);
+    }
+
+    #[test]
+    fn try_verify_test() {
+        assert!(verify(&output_assignments(), PathBuf::from("simple.setup.bin"), PathBuf::from("simple.proof.bin")));
     }
 
     #[test]
     fn try_read_proof_test() {
         let setup: ProofFile = read_bin_file(PathBuf::from("simple.proof.bin"));
         assert!(setup.check == CHECK)
+    }
+
+    #[test]
+    fn complete_test() {
+        extern crate zksnark;
+
+    // x = 4ab + c + 6
+    let code = &*::std::fs::read_to_string("test_programs/simple.zk").unwrap();
+    let qap: QAP<CoefficientPoly<FrLocal>> =
+        ASTParser::try_parse(code)
+            .unwrap()
+            .into();
+
+    let weights = zksnark::groth16::weights(code, &input_assignments()).unwrap();
+
+    let (sigmag1, sigmag2) = zksnark::groth16::setup(&qap);
+
+    let proof = zksnark::groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+    assert!(zksnark::groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+        (sigmag1, sigmag2),
+        &output_assignments(),
+        proof
+    ));
     }
 }
