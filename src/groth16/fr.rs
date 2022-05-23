@@ -5,20 +5,19 @@ use self::bn::{Fr, Group, Gt, G1, G2};
 pub use super::*;
 use std::str::FromStr;
 
-
-extern crate serde;
-use self::serde::{Serialize, Deserialize};
+extern crate borsh;
+use self::borsh::{BorshSerialize, BorshDeserialize};
 
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct FrLocal(Fr);
 
 #[derive(Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct G1Local(G1);
 #[derive(Clone, Copy, PartialEq)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct G2Local(G2);
 #[derive(PartialEq)]
 pub struct GtLocal(Gt);

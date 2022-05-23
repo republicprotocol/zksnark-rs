@@ -19,8 +19,8 @@ pub mod fr;
 pub use self::circuit::weights;
 pub use self::fr::FrLocal;
 
-extern crate serde;
-use self::serde::{Serialize, Deserialize};
+extern crate borsh;
+use self::borsh::{BorshSerialize, BorshDeserialize};
 
 /// Represents that a type can produce a random element of itself.
 pub trait Random {
@@ -60,7 +60,7 @@ pub trait Identity {
 
 /// The Quadratic Arithmetic Program (QAP) that represents an arithmetic
 /// circuit.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct QAP<P> {
     u: Vec<P>,
     v: Vec<P>,
@@ -106,7 +106,7 @@ where
 }
 
 /// The G1 part of the common reference string (CRS)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct SigmaG1<T> {
     alpha: T,
     beta: T,
@@ -118,7 +118,7 @@ pub struct SigmaG1<T> {
 }
 
 /// The G2 part of the common reference string (CRS)
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct SigmaG2<T> {
     beta: T,
     gamma: T,

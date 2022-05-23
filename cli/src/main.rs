@@ -11,8 +11,8 @@ use std::string::String;
 use zksnark::{CoefficientPoly, ASTParser, QAP, FrLocal, TryParse, SigmaG1, SigmaG2};
 use zksnark::groth16::fr::{G1Local, G2Local, Proof};
 
-extern crate serde;
-use serde::{Serialize, Deserialize};
+extern crate borsh;
+use borsh::{BorshSerialize, BorshDeserialize};
 
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(Debug, Parser)]
