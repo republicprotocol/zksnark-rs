@@ -181,6 +181,7 @@ mod tests {
     #[test]
     fn try_setup_test() {
         setup(PathBuf::from("../test_programs/simple.zk"), PathBuf::from("simple.setup.bin"));
+        assert!(true);
     }
 
     #[test]
@@ -210,23 +211,33 @@ mod tests {
     fn complete_test() {
         extern crate zksnark;
 
-    // x = 4ab + c + 6
-    let code = &*::std::fs::read_to_string("test_programs/simple.zk").unwrap();
-    let qap: QAP<CoefficientPoly<FrLocal>> =
-        ASTParser::try_parse(code)
-            .unwrap()
-            .into();
+        // from test_programs/simple.zk
+        // x = 4ab + c + 6
+        let code = r#"(in a b c)
+            (out x)
+            (verify b x)
+            
+            (program
+                (= temp
+                    (* a b))
+                (= x
+                    (* 1 (+ (* 4 temp) c 6))))"#;
 
-    let weights = zksnark::groth16::weights(code, &input_assignments()).unwrap();
+        let qap: QAP<CoefficientPoly<FrLocal>> =
+            ASTParser::try_parse(code)
+                .unwrap()
+                .into();
 
-    let (sigmag1, sigmag2) = zksnark::groth16::setup(&qap);
+        let weights = zksnark::groth16::weights(code, &input_assignments()).unwrap();
 
-    let proof = zksnark::groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+        let (sigmag1, sigmag2) = zksnark::groth16::setup(&qap);
 
-    assert!(zksnark::groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
-        (sigmag1, sigmag2),
-        &output_assignments(),
-        proof
-    ));
+        let proof = zksnark::groth16::prove(&qap, (&sigmag1, &sigmag2), &weights);
+
+        assert!(zksnark::groth16::verify::<CoefficientPoly<FrLocal>, _, _, _, _>(
+            (sigmag1, sigmag2),
+            &output_assignments(),
+            proof
+        ));
     }
 }
